@@ -9,8 +9,9 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
-from core.routers import auth, cards, config, library, player, setup, streams
+from core.routers import auth, cards, config, library, player, setup, streams, system
 from core.services.auth_service import AuthService
+from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
@@ -20,6 +21,7 @@ from core.services.player_service import PlayerService
 from core.services.library_service import LibraryService
 from core.services.setup_wizard import SetupWizard
 from core.services.stream_service import StreamService
+from core.services.system_service import SystemService
 from core.services.timer_service import TimerService
 from core.services.websocket_hub import WebSocketHub
 from core.services.wifi_service import WifiService
@@ -107,6 +109,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     timer_service = TimerService(event_bus, player_service, config_service)
     await timer_service.start()
 
+    # System + Backup services
+    system_service = SystemService()
+    backup_service = BackupService(db, config_service)
+
     # WebSocket hub
     ws_hub = WebSocketHub(event_bus)
     await ws_hub.start()
@@ -185,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     library.init(library_service)
     streams.init(stream_service)
     auth.init(auth_service, timer_service)
+    system.init(system_service, backup_service)
     setup.init(setup_wizard, wifi_service, captive_portal)
 
     # Store hub on app state for WebSocket endpoint
@@ -220,6 +227,7 @@ app.include_router(config.router)
 app.include_router(library.router)
 app.include_router(streams.router)
 app.include_router(auth.router)
+app.include_router(system.router)
 app.include_router(setup.router)
 
 

@@ -209,6 +209,38 @@ export const authApi = {
 	cancelSleepTimer: () => request<void>('/auth/sleep-timer', { method: 'DELETE' }),
 };
 
+// System API
+export interface SystemInfoData {
+	hostname: string;
+	pi_model: string;
+	tonado_version: string;
+	uptime_seconds: number;
+	cpu_temp: number;
+	ram_total_mb: number;
+	ram_used_mb: number;
+	disk_total_gb: number;
+	disk_used_gb: number;
+	overlay_active: boolean;
+	ip_address: string;
+}
+
+export const systemApi = {
+	info: () => request<SystemInfoData>('/system/info'),
+	restart: () => request<void>('/system/restart', { method: 'POST' }),
+	shutdown: () => request<void>('/system/shutdown', { method: 'POST' }),
+	reboot: () => request<void>('/system/reboot', { method: 'POST' }),
+	checkUpdate: () => request<{ available: boolean; commits: number; changes?: string[] }>('/system/update/check'),
+	applyUpdate: () => request<{ success: boolean; output?: string; error?: string }>('/system/update/apply', { method: 'POST' }),
+	enableOverlay: () => request<void>('/system/overlay/enable', { method: 'POST' }),
+	disableOverlay: () => request<void>('/system/overlay/disable', { method: 'POST' }),
+	exportBackup: () => `${BASE}/system/backup`,
+	importBackup: (file: File) => {
+		const form = new FormData();
+		form.append('file', file);
+		return fetch(`${BASE}/system/restore`, { method: 'POST', body: form }).then((r) => r.json());
+	},
+};
+
 // Config API
 export const config = {
 	getAll: () => request<Record<string, unknown>>('/config/'),

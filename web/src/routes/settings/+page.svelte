@@ -260,5 +260,19 @@
 				</button>
 			</div>
 		</div>
+
+		<!-- System (expert area) -->
+		<a
+			href="/settings/system"
+			class="flex items-center justify-between bg-surface-light rounded-xl p-4 hover:bg-surface-lighter transition-colors"
+		>
+			<div>
+				<h2 class="text-sm font-semibold">{t('system.title')}</h2>
+				<p class="text-xs text-text-muted mt-0.5">Updates, Backup, Neustart</p>
+			</div>
+			<svg class="w-5 h-5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M9 18l6-6-6-6"/>
+			</svg>
+		</a>
 	</div>
 </div>

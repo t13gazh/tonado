@@ -77,20 +77,33 @@
 		setTimeout(() => (showToast = false), 2000);
 	}
 
+	// PIN can only be changed when: no PIN set yet (first time), or user is authenticated
+	const canChangePin = $derived(
+		authStatus !== null && (!authStatus.parent_pin_set || authStatus.authenticated)
+	);
+
 	async function setParentPin() {
 		if (parentPinValue.length < 4) return;
-		await authApi.setPin('parent', parentPinValue);
-		parentPinValue = '';
-		await loadAll();
-		flashToast();
+		try {
+			await authApi.setPin('parent', parentPinValue);
+			parentPinValue = '';
+			await loadAll();
+			flashToast();
+		} catch (e) {
+			error = 'Bitte erst anmelden, um die PIN zu ändern.';
+		}
 	}
 
 	async function setExpertPin() {
 		if (expertPinValue.length < 4) return;
-		await authApi.setPin('expert', expertPinValue);
-		expertPinValue = '';
-		await loadAll();
-		flashToast();
+		try {
+			await authApi.setPin('expert', expertPinValue);
+			expertPinValue = '';
+			await loadAll();
+			flashToast();
+		} catch {
+			error = 'Bitte erst anmelden, um die PIN zu ändern.';
+		}
 	}
 
 	async function startSleep() {
@@ -262,26 +275,29 @@
 
 		<!-- PIN management -->
 		<div class="bg-surface-light rounded-xl p-4">
-			<h2 class="text-sm font-semibold mb-3">{t('settings.pin_parent')}</h2>
-			<p class="text-xs text-text-muted mb-2">
-				{authStatus?.parent_pin_set ? t('settings.pin_active') : t('settings.pin_not_set')}
-			</p>
-			<div class="flex gap-2">
-				<input
-					type="password"
-					bind:value={parentPinValue}
-					placeholder={t('settings.pin_placeholder')}
-					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
-					onkeydown={(e) => e.key === 'Enter' && setParentPin()}
-				/>
-				<button
-					onclick={setParentPin}
-					disabled={parentPinValue.length < 4}
-					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-				>
-					{t('settings.pin_set')}
-				</button>
-			</div>
+			{#if !canChangePin}
+				<p class="text-xs text-text-muted">Bitte erst anmelden, um PINs zu verwalten.</p>
+			{:else}
+				<h2 class="text-sm font-semibold mb-3">{t('settings.pin_parent')}</h2>
+				<p class="text-xs text-text-muted mb-2">
+					{authStatus?.parent_pin_set ? t('settings.pin_active') : t('settings.pin_not_set')}
+				</p>
+				<div class="flex gap-2">
+					<input
+						type="password"
+						bind:value={parentPinValue}
+						placeholder={t('settings.pin_placeholder')}
+						class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+						onkeydown={(e) => e.key === 'Enter' && setParentPin()}
+					/>
+					<button
+						onclick={setParentPin}
+						disabled={parentPinValue.length < 4}
+						class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+					>
+						{t('settings.pin_set')}
+					</button>
+				</div>
 
 			<h2 class="text-sm font-semibold mt-4 mb-3">{t('settings.pin_expert')}</h2>
 			<p class="text-xs text-text-muted mb-2">
@@ -303,6 +319,7 @@
 					{t('settings.pin_set')}
 				</button>
 			</div>
+			{/if}
 		</div>
 
 		<!-- System link -->

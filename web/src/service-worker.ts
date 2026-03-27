@@ -36,6 +36,11 @@ sw.addEventListener('activate', (event) => {
 sw.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 
+	// Skip non-http(s) schemes (chrome-extension, etc.)
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		return;
+	}
+
 	// Skip API requests and WebSocket — always go to network
 	if (url.pathname.startsWith('/api') || url.pathname === '/ws') {
 		return;

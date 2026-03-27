@@ -184,6 +184,7 @@ export const playlistsApi = {
 	create: (name: string) =>
 		request<PlaylistSummary>('/playlists/', { method: 'POST', body: JSON.stringify({ name }) }),
 	delete: (id: number) => request<void>(`/playlists/${id}`, { method: 'DELETE' }),
+	play: (id: number) => request<void>(`/playlists/${id}/play`, { method: 'POST' }),
 	addItem: (id: number, content_type: string, content_path: string, title?: string) =>
 		request<void>(`/playlists/${id}/items`, {
 			method: 'POST',

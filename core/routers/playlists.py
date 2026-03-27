@@ -3,22 +3,31 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from core.services.player_service import PlayerService
 from core.services.playlist_service import PlaylistService
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 
 _service: PlaylistService | None = None
+_player: PlayerService | None = None
 
 
-def init(playlist_service: PlaylistService) -> None:
-    global _service
+def init(playlist_service: PlaylistService, player_service: PlayerService) -> None:
+    global _service, _player
     _service = playlist_service
+    _player = player_service
 
 
 def _get_service() -> PlaylistService:
     if _service is None:
         raise HTTPException(503, "Playlist service not available")
     return _service
+
+
+def _get_player() -> PlayerService:
+    if _player is None:
+        raise HTTPException(503, "Player service not available")
+    return _player
 
 
 @router.get("/")
@@ -73,3 +82,31 @@ async def remove_item(item_id: int) -> dict:
     if not await _get_service().remove_item(item_id):
         raise HTTPException(404, "Eintrag nicht gefunden")
     return {"status": "ok"}
+
+
+@router.post("/{playlist_id}/play")
+async def play_playlist(playlist_id: int) -> dict:
+    """Play all items in a playlist sequentially."""
+    p = await _get_service().get_playlist(playlist_id)
+    if p is None:
+        raise HTTPException(404, "Playlist nicht gefunden")
+    if not p.items:
+        raise HTTPException(400, "Playlist ist leer")
+
+    player = _get_player()
+
+    # Build MPD queue from playlist items
+    first = p.items[0]
+    if first.content_type == "folder":
+        await player.play_folder(first.content_path)
+    elif first.content_type == "stream":
+        await player.play_url(first.content_path)
+    else:
+        await player.play_folder(first.content_path)
+
+    # Add remaining items to queue (MPD will play them in order)
+    for item in p.items[1:]:
+        if player._connected:
+            await player._client.add(item.content_path)
+
+    return {"status": "ok", "items": len(p.items)}

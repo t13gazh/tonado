@@ -327,7 +327,7 @@
 					{@const expanded = expandedPlaylist?.id === pl.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => {}, pl.item_count === 0)}
+							{@render playCircle(async () => { await playlistsApi.play(pl.id); goto('/'); }, pl.item_count === 0)}
 							{@render thumbnail(null, 'playlist')}
 							<button onclick={() => togglePlaylist(pl.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{pl.name}</p>

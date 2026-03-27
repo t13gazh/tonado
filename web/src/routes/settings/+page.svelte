@@ -77,6 +77,18 @@
 		setTimeout(() => (showToast = false), 2000);
 	}
 
+	// Determine current tier level: 0=open, 1=parent, 2=expert
+	const currentTier = $derived(() => {
+		if (!authStatus) return 0;
+		if (!authStatus.parent_pin_set && !authStatus.expert_pin_set) return 2; // No PINs = full access
+		if (!authStatus.authenticated) return 0;
+		if (authStatus.tier === 'expert') return 2;
+		if (authStatus.tier === 'parent') return 1;
+		return 0;
+	});
+	const isParent = $derived(currentTier() >= 1);
+	const isExpert = $derived(currentTier() >= 2);
+
 	// PIN can only be changed when: no PIN set yet (first time), or user is authenticated
 	const canChangePin = $derived(
 		authStatus !== null && (!authStatus.parent_pin_set || authStatus.authenticated)
@@ -162,7 +174,26 @@
 	{/if}
 
 	<div class="flex flex-col gap-4">
-		<!-- Volume -->
+		<!-- Sleep timer (visible to everyone) -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.sleep_timer')}</h2>
+			{#if sleepActive}
+				<div class="flex items-center justify-between">
+					<span class="text-sm text-accent">{t('settings.sleep_active', { minutes: Math.ceil(sleepRemaining / 60) })}</span>
+					<button onclick={cancelSleep} class="text-sm text-red-400">{t('settings.sleep_cancel')}</button>
+				</div>
+			{:else}
+				<div class="flex items-center gap-3">
+					<input type="number" min="1" max="120" bind:value={sleepMinutes}
+						class="w-20 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm text-center focus:outline-none focus:border-primary" />
+					<span class="text-sm text-text-muted">{t('settings.sleep_minutes')}</span>
+					<button onclick={startSleep} class="ml-auto px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('settings.sleep_start')}</button>
+				</div>
+			{/if}
+		</div>
+
+		{#if isParent}
+		<!-- Volume (parent+) -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.max_volume')}</h2>
 			<div class="flex items-center gap-3">
@@ -189,31 +220,7 @@
 			</div>
 		</div>
 
-		<!-- Sleep timer -->
-		<div class="bg-surface-light rounded-xl p-4">
-			<h2 class="text-sm font-semibold mb-3">{t('settings.sleep_timer')}</h2>
-			{#if sleepActive}
-				<div class="flex items-center justify-between">
-					<span class="text-sm text-accent">
-						{t('settings.sleep_active', { minutes: Math.ceil(sleepRemaining / 60) })}
-					</span>
-					<button onclick={cancelSleep} class="text-sm text-red-400">{t('settings.sleep_cancel')}</button>
-				</div>
-			{:else}
-				<div class="flex items-center gap-3">
-					<input
-						type="number" min="1" max="120" bind:value={sleepMinutes}
-						class="w-20 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm text-center focus:outline-none focus:border-primary"
-					/>
-					<span class="text-sm text-text-muted">{t('settings.sleep_minutes')}</span>
-					<button onclick={startSleep} class="ml-auto px-4 py-2 bg-primary text-white rounded-lg text-sm">
-						{t('settings.sleep_start')}
-					</button>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Card remove behavior -->
+		<!-- Card remove behavior (parent+) -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.card_remove')}</h2>
 			<div class="flex gap-2">
@@ -258,7 +265,10 @@
 			{/if}
 		</div>
 
-		<!-- Idle shutdown -->
+		{/if}
+
+		{#if isExpert}
+		<!-- Idle shutdown (expert) -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
 			<select
@@ -335,5 +345,6 @@
 				<path d="M9 18l6-6-6-6"/>
 			</svg>
 		</a>
+		{/if}
 	</div>
 </div>

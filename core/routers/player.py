@@ -2,6 +2,8 @@
 
 from fastapi import APIRouter, HTTPException
 
+from pydantic import BaseModel
+
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
 from core.services.player_service import PlayerService
 
@@ -78,4 +80,15 @@ async def seek(req: SeekRequest) -> dict:
 @router.post("/shuffle")
 async def shuffle() -> dict:
     await _get_player().shuffle()
+    return {"status": "ok"}
+
+
+class PlayFolderRequest(BaseModel):
+    path: str
+
+
+@router.post("/play-folder")
+async def play_folder(req: PlayFolderRequest) -> dict:
+    """Play all tracks in a media folder."""
+    await _get_player().play_folder(req.path)
     return {"status": "ok"}

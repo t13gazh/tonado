@@ -9,7 +9,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
-from core.routers import auth, cards, config, library, player, setup, streams, system
+from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
 from core.services.auth_service import AuthService
 from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
@@ -19,6 +19,7 @@ from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
 from core.services.player_service import PlayerService
 from core.services.library_service import LibraryService
+from core.services.playlist_service import PlaylistService
 from core.services.setup_wizard import SetupWizard
 from core.services.stream_service import StreamService
 from core.services.system_service import SystemService
@@ -100,6 +101,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Stream service
     stream_service = StreamService(db)
     await stream_service.start()
+
+    # Playlist service
+    playlist_service = PlaylistService(db)
+    await playlist_service.start()
 
     # Auth service
     auth_service = AuthService(config_service)
@@ -190,6 +195,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     config.init(config_service)
     library.init(library_service)
     streams.init(stream_service)
+    playlists.init(playlist_service)
     auth.init(auth_service, timer_service)
     system.init(system_service, backup_service)
     setup.init(setup_wizard, wifi_service, captive_portal)
@@ -226,6 +232,7 @@ app.include_router(cards.router)
 app.include_router(config.router)
 app.include_router(library.router)
 app.include_router(streams.router)
+app.include_router(playlists.router)
 app.include_router(auth.router)
 app.include_router(system.router)
 app.include_router(setup.router)

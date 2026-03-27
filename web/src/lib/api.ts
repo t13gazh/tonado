@@ -154,6 +154,31 @@ export const streams = {
 	),
 };
 
+// Playlists API
+export interface PlaylistSummary {
+	id: number;
+	name: string;
+	item_count: number;
+}
+
+export interface PlaylistDetail extends PlaylistSummary {
+	items: { id: number; position: number; content_type: string; content_path: string; title: string | null }[];
+}
+
+export const playlistsApi = {
+	list: () => request<PlaylistSummary[]>('/playlists/'),
+	get: (id: number) => request<PlaylistDetail>(`/playlists/${id}`),
+	create: (name: string) =>
+		request<PlaylistSummary>('/playlists/', { method: 'POST', body: JSON.stringify({ name }) }),
+	delete: (id: number) => request<void>(`/playlists/${id}`, { method: 'DELETE' }),
+	addItem: (id: number, content_type: string, content_path: string, title?: string) =>
+		request<void>(`/playlists/${id}/items`, {
+			method: 'POST',
+			body: JSON.stringify({ content_type, content_path, title }),
+		}),
+	removeItem: (itemId: number) => request<void>(`/playlists/items/${itemId}`, { method: 'DELETE' }),
+};
+
 // Auth API
 export interface AuthStatus {
 	authenticated: boolean;

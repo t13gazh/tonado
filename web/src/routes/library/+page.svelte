@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { library, streams, player, type MediaFolder, type RadioStation, type PodcastInfo } from '$lib/api';
+	import { library, streams, playlistsApi, player, type MediaFolder, type RadioStation, type PodcastInfo, type PlaylistSummary } from '$lib/api';
 	import { onMount } from 'svelte';
 
-	type Tab = 'folders' | 'radio' | 'podcasts';
+	type Tab = 'folders' | 'radio' | 'podcasts' | 'playlists';
 	let tab = $state<Tab>('folders');
 
 	// Folders
@@ -35,12 +35,19 @@
 	let newPodcastUrl = $state('');
 	let podcastUrlError = $state('');
 
+	// Playlists
+	let allPlaylists = $state<PlaylistSummary[]>([]);
+	let loadingPlaylists = $state(true);
+	let showNewPlaylist = $state(false);
+	let newPlaylistName = $state('');
+
 	let error = $state('');
 
 	onMount(() => {
 		loadFolders();
 		loadRadio();
 		loadPodcasts();
+		loadPlaylists();
 	});
 
 	async function loadFolders() {
@@ -149,6 +156,25 @@
 		await loadPodcasts();
 	}
 
+	async function loadPlaylists() {
+		loadingPlaylists = true;
+		try { allPlaylists = await playlistsApi.list(); } catch (e) { error = String(e); }
+		finally { loadingPlaylists = false; }
+	}
+
+	async function createPlaylist() {
+		if (!newPlaylistName.trim()) return;
+		await playlistsApi.create(newPlaylistName.trim());
+		newPlaylistName = '';
+		showNewPlaylist = false;
+		await loadPlaylists();
+	}
+
+	async function removePlaylist(id: number) {
+		await playlistsApi.delete(id);
+		await loadPlaylists();
+	}
+
 	function formatSize(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
 		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -161,7 +187,7 @@
 
 	<!-- Tabs -->
 	<div class="flex gap-2 mb-4">
-		{#each [['folders', t('content.tab_folders')], ['radio', t('content.tab_radio')], ['podcasts', t('content.tab_podcasts')]] as [key, label]}
+		{#each [['folders', t('content.tab_folders')], ['radio', t('content.tab_radio')], ['podcasts', t('content.tab_podcasts')], ['playlists', t('content.tab_playlists')]] as [key, label]}
 			<button
 				onclick={() => (tab = key as Tab)}
 				class="px-3 py-1.5 text-xs font-medium rounded-full transition-colors
@@ -399,6 +425,68 @@
 							<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
 						</div>
 						<button onclick={() => removePodcast(podcast.id)} class="p-1.5 text-text-muted hover:text-red-400">
+							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M18 6L6 18M6 6l12 12"/>
+							</svg>
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+
+	<!-- Playlists tab -->
+	{#if tab === 'playlists'}
+		<div class="flex justify-end mb-3">
+			{#if showNewPlaylist}
+				<button onclick={() => (showNewPlaylist = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
+			{:else}
+				<button onclick={() => (showNewPlaylist = true)} class="text-sm text-primary font-medium">
+					+ {t('content.playlist_new')}
+				</button>
+			{/if}
+		</div>
+
+		{#if showNewPlaylist}
+			<div class="flex gap-2 mb-4 p-3 bg-surface-light rounded-xl">
+				<input
+					type="text"
+					bind:value={newPlaylistName}
+					placeholder={t('content.playlist_name')}
+					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					onkeydown={(e) => e.key === 'Enter' && createPlaylist()}
+				/>
+				<button onclick={createPlaylist} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
+			</div>
+		{/if}
+
+		{#if loadingPlaylists}
+			<div class="flex justify-center py-12">
+				<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+			</div>
+		{:else if allPlaylists.length === 0}
+			<div class="text-center py-12 text-text-muted text-sm">
+				{t('content.playlist_empty')}
+			</div>
+		{:else}
+			<div class="flex flex-col gap-2">
+				{#each allPlaylists as pl (pl.id)}
+					<div class="flex items-center gap-3 p-3 bg-surface-light rounded-xl">
+						<div class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
+							<svg class="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<line x1="8" y1="6" x2="21" y2="6"/>
+								<line x1="8" y1="12" x2="21" y2="12"/>
+								<line x1="8" y1="18" x2="21" y2="18"/>
+								<line x1="3" y1="6" x2="3.01" y2="6"/>
+								<line x1="3" y1="12" x2="3.01" y2="12"/>
+								<line x1="3" y1="18" x2="3.01" y2="18"/>
+							</svg>
+						</div>
+						<div class="flex-1 min-w-0">
+							<p class="text-sm font-medium text-text truncate">{pl.name}</p>
+							<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
+						</div>
+						<button onclick={() => removePlaylist(pl.id)} class="p-1.5 text-text-muted hover:text-red-400">
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M18 6L6 18M6 6l12 12"/>
 							</svg>

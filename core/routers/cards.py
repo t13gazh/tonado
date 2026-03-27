@@ -73,3 +73,24 @@ async def delete_card(card_id: str) -> dict:
     if not deleted:
         raise HTTPException(404, "Karte nicht gefunden")
     return {"status": "ok"}
+
+
+@router.get("/scan/wait")
+async def wait_for_scan(timeout: float = 30.0) -> dict:
+    """Wait for a card to be scanned. Used by the card wizard.
+
+    Long-polls until a card is detected or timeout is reached.
+    """
+    timeout = min(timeout, 60.0)  # Cap at 60s
+    card_id = await _get_service().wait_for_scan(timeout=timeout)
+    if card_id is None:
+        return {"scanned": False, "card_id": None}
+
+    # Check if card already has a mapping
+    existing = await _get_service().get_mapping(card_id)
+    return {
+        "scanned": True,
+        "card_id": card_id,
+        "has_mapping": existing is not None,
+        "mapping": existing.to_dict() if existing else None,
+    }

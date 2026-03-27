@@ -15,6 +15,7 @@
 	const navItems = [
 		{ href: '/', label: () => t('nav.player'), icon: 'player' },
 		{ href: '/library', label: () => t('nav.library'), icon: 'library' },
+		{ href: '/cards', label: () => t('nav.cards'), icon: 'cards' },
 	];
 </script>
 
@@ -47,6 +48,11 @@
 						<rect x="14" y="3" width="7" height="7" rx="1"/>
 						<rect x="3" y="14" width="7" height="7" rx="1"/>
 						<rect x="14" y="14" width="7" height="7" rx="1"/>
+					</svg>
+				{:else if item.icon === 'cards'}
+					<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<rect x="2" y="4" width="14" height="16" rx="2"/>
+						<path d="M18 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/>
 					</svg>
 				{/if}
 				<span class="text-xs font-medium">{item.label()}</span>

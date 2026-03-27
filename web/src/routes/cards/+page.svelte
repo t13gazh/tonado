@@ -1,0 +1,235 @@
+<script lang="ts">
+	import { t } from '$lib/i18n';
+	import { cards, type CardMapping } from '$lib/api';
+	import { onMount } from 'svelte';
+
+	let allCards = $state<CardMapping[]>([]);
+	let loading = $state(true);
+	let error = $state('');
+	let editingCard = $state<CardMapping | null>(null);
+	let deletingCard = $state<CardMapping | null>(null);
+
+	// Edit form state
+	let editName = $state('');
+	let editContentType = $state('');
+	let editContentPath = $state('');
+
+	onMount(loadCards);
+
+	async function loadCards() {
+		loading = true;
+		error = '';
+		try {
+			allCards = await cards.list();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Fehler';
+		} finally {
+			loading = false;
+		}
+	}
+
+	function startEdit(card: CardMapping) {
+		editingCard = card;
+		editName = card.name;
+		editContentType = card.content_type;
+		editContentPath = card.content_path;
+	}
+
+	async function saveEdit() {
+		if (!editingCard) return;
+		try {
+			await cards.update(editingCard.card_id, {
+				name: editName,
+				content_type: editContentType,
+				content_path: editContentPath,
+			});
+			editingCard = null;
+			await loadCards();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Fehler';
+		}
+	}
+
+	async function confirmDelete() {
+		if (!deletingCard) return;
+		try {
+			await cards.delete(deletingCard.card_id);
+			deletingCard = null;
+			await loadCards();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Fehler';
+		}
+	}
+</script>
+
+<div class="p-4">
+	<!-- Header -->
+	<div class="flex items-center justify-between mb-4">
+		<h1 class="text-xl font-bold text-text">{t('card.title')}</h1>
+		<a
+			href="/cards/wizard"
+			class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors"
+		>
+			<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+				<path d="M12 5v14M5 12h14"/>
+			</svg>
+			{t('card.add')}
+		</a>
+	</div>
+
+	{#if loading}
+		<div class="flex items-center justify-center py-20">
+			<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+		</div>
+	{:else if error}
+		<div class="text-center py-20">
+			<p class="text-red-400 mb-2">{error}</p>
+			<button onclick={loadCards} class="text-primary text-sm">{t('general.retry')}</button>
+		</div>
+	{:else if allCards.length === 0}
+		<div class="text-center py-20 text-text-muted">
+			<svg class="w-16 h-16 mx-auto mb-4 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+				<rect x="2" y="4" width="14" height="16" rx="2"/>
+				<path d="M18 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/>
+			</svg>
+			<p class="text-sm font-medium">{t('card.empty')}</p>
+			<p class="text-xs mt-1">{t('card.empty_hint')}</p>
+		</div>
+	{:else}
+		<!-- Card Wall Grid -->
+		<div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+			{#each allCards as card (card.card_id)}
+				<div class="bg-surface-light rounded-xl overflow-hidden group relative">
+					<!-- Cover -->
+					<div class="aspect-square bg-surface-lighter flex items-center justify-center">
+						{#if card.cover_path}
+							<img src={card.cover_path} alt={card.name} class="w-full h-full object-cover" />
+						{:else}
+							<div class="flex flex-col items-center text-text-muted opacity-30">
+								<svg class="w-10 h-10" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+								</svg>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Info -->
+					<div class="p-2.5">
+						<p class="text-sm font-medium text-text truncate">{card.name}</p>
+						<p class="text-xs text-text-muted mt-0.5 capitalize">{card.content_type}</p>
+						<p class="text-[10px] text-text-muted mt-0.5 font-mono truncate">{card.card_id}</p>
+					</div>
+
+					<!-- Actions (visible on hover / always on mobile) -->
+					<div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+						<button
+							onclick={() => startEdit(card)}
+							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-text"
+						>
+							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+							</svg>
+						</button>
+						<button
+							onclick={() => (deletingCard = card)}
+							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-red-400"
+						>
+							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+							</svg>
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+</div>
+
+<!-- Edit Modal -->
+{#if editingCard}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" onclick={() => (editingCard = null)}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="bg-surface-light w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6" onclick={(e) => e.stopPropagation()}>
+			<h2 class="text-lg font-bold mb-4">{t('card.edit')}</h2>
+
+			<label class="block mb-3">
+				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
+				<input
+					type="text"
+					bind:value={editName}
+					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+				/>
+			</label>
+
+			<label class="block mb-3">
+				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_type')}</span>
+				<select
+					bind:value={editContentType}
+					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+				>
+					<option value="folder">{t('wizard.type_folder')}</option>
+					<option value="stream">{t('wizard.type_stream')}</option>
+					<option value="podcast">{t('wizard.type_podcast')}</option>
+					<option value="command">{t('wizard.type_command')}</option>
+				</select>
+			</label>
+
+			<label class="block mb-4">
+				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_path')}</span>
+				<input
+					type="text"
+					bind:value={editContentPath}
+					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+				/>
+			</label>
+
+			<div class="flex gap-3">
+				<button
+					onclick={() => (editingCard = null)}
+					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
+				>
+					{t('general.cancel')}
+				</button>
+				<button
+					onclick={saveEdit}
+					class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light rounded-lg text-white text-sm font-medium transition-colors"
+				>
+					{t('general.save')}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Delete Confirmation -->
+{#if deletingCard}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" onclick={() => (deletingCard = null)}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="bg-surface-light w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6" onclick={(e) => e.stopPropagation()}>
+			<h2 class="text-lg font-bold mb-2">{t('general.delete')}</h2>
+			<p class="text-sm text-text-muted mb-4">{t('card.delete_confirm', { name: deletingCard.name })}</p>
+
+			<div class="flex gap-3">
+				<button
+					onclick={() => (deletingCard = null)}
+					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
+				>
+					{t('general.cancel')}
+				</button>
+				<button
+					onclick={confirmDelete}
+					class="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors"
+				>
+					{t('general.delete')}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

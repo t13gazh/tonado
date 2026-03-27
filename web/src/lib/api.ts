@@ -59,6 +59,13 @@ export const player = {
 	shuffle: () => request<void>('/player/shuffle', { method: 'POST' }),
 };
 
+export interface ScanResult {
+	scanned: boolean;
+	card_id: string | null;
+	has_mapping?: boolean;
+	mapping?: CardMapping | null;
+}
+
 // Cards API
 export const cards = {
 	list: () => request<CardMapping[]>('/cards/'),
@@ -68,6 +75,7 @@ export const cards = {
 	update: (id: string, data: Partial<CardCreate>) =>
 		request<CardMapping>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 	delete: (id: string) => request<void>(`/cards/${id}`, { method: 'DELETE' }),
+	waitForScan: (timeout = 30) => request<ScanResult>(`/cards/scan/wait?timeout=${timeout}`),
 };
 
 // Config API

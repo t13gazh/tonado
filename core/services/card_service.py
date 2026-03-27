@@ -74,6 +74,7 @@ class CardService:
         self._last_card_id: str | None = None
         self._last_scan_time: float = 0.0
         self._card_on_reader: bool = False
+        self._scan_waiters: list[asyncio.Future[str]] = []
 
     async def start(self) -> None:
         """Initialize card table and start scanning loop."""
@@ -131,6 +132,12 @@ class CardService:
 
         self._last_card_id = card_id
         self._last_scan_time = now
+
+        # Notify any wizard waiters
+        for future in self._scan_waiters:
+            if not future.done():
+                future.set_result(card_id)
+        self._scan_waiters.clear()
 
         mapping = await self.get_mapping(card_id)
         if mapping is None:
@@ -224,3 +231,17 @@ class CardService:
             (position, card_id),
         )
         await self._db.commit()
+
+    async def wait_for_scan(self, timeout: float = 30.0) -> str | None:
+        """Wait for the next card to be scanned. Used by the card wizard.
+
+        Returns card_id or None on timeout.
+        """
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[str] = loop.create_future()
+        self._scan_waiters.append(future)
+        try:
+            return await asyncio.wait_for(future, timeout=timeout)
+        except asyncio.TimeoutError:
+            self._scan_waiters.remove(future) if future in self._scan_waiters else None
+            return None

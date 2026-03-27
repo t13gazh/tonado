@@ -11,6 +11,7 @@ Media layout:
 
 Each folder = one album/audiobook. cover.jpg is the album art.
 Folder name is the title (no ID3 parsing — deliberate simplicity).
+Duration is read from audio headers via mutagen.
 """
 
 import logging
@@ -25,6 +26,18 @@ _AUDIO_EXTENSIONS = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus", "
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
 
+def _get_duration(file_path: Path) -> float:
+    """Get audio file duration in seconds using mutagen. Returns 0 on failure."""
+    try:
+        from mutagen import File as MutagenFile
+        audio = MutagenFile(file_path)
+        if audio and audio.info:
+            return audio.info.length
+    except Exception:
+        pass
+    return 0
+
+
 @dataclass
 class MediaFolder:
     """A folder in the media library (= one album/audiobook)."""
@@ -33,7 +46,7 @@ class MediaFolder:
     path: str  # Relative path from media root (used by MPD)
     track_count: int = 0
     cover_path: str | None = None
-    size_bytes: int = 0
+    duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -41,7 +54,7 @@ class MediaFolder:
             "path": self.path,
             "track_count": self.track_count,
             "cover_path": self.cover_path,
-            "size_bytes": self.size_bytes,
+            "duration_seconds": round(self.duration_seconds),
         }
 
 
@@ -51,13 +64,13 @@ class MediaTrack:
 
     filename: str
     path: str
-    size_bytes: int = 0
+    duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "filename": self.filename,
             "path": self.path,
-            "size_bytes": self.size_bytes,
+            "duration_seconds": round(self.duration_seconds),
         }
 
 
@@ -83,14 +96,14 @@ class LibraryService:
 
             tracks = [f for f in entry.iterdir() if f.suffix.lower() in _AUDIO_EXTENSIONS]
             cover = self._find_cover(entry)
-            size = sum(f.stat().st_size for f in tracks)
+            total_duration = sum(_get_duration(f) for f in tracks)
 
             folders.append(MediaFolder(
                 name=entry.name,
-                path=entry.name,  # MPD relative path
+                path=entry.name,
                 track_count=len(tracks),
                 cover_path=f"/api/library/{entry.name}/cover" if cover else None,
-                size_bytes=size,
+                duration_seconds=total_duration,
             ))
 
         return folders
@@ -103,18 +116,18 @@ class LibraryService:
 
         tracks = [f for f in folder_path.iterdir() if f.suffix.lower() in _AUDIO_EXTENSIONS]
         cover = self._find_cover(folder_path)
-        size = sum(f.stat().st_size for f in tracks)
+        total_duration = sum(_get_duration(f) for f in tracks)
 
         return MediaFolder(
             name=folder_name,
             path=folder_name,
             track_count=len(tracks),
             cover_path=f"/api/library/{folder_name}/cover" if cover else None,
-            size_bytes=size,
+            duration_seconds=total_duration,
         )
 
     def list_tracks(self, folder_name: str) -> list[MediaTrack]:
-        """List all audio tracks in a folder."""
+        """List all audio tracks in a folder with durations."""
         folder_path = self._media_dir / folder_name
         if not folder_path.is_dir():
             return []
@@ -125,7 +138,7 @@ class LibraryService:
                 tracks.append(MediaTrack(
                     filename=f.name,
                     path=f"{folder_name}/{f.name}",
-                    size_bytes=f.stat().st_size,
+                    duration_seconds=_get_duration(f),
                 ))
         return tracks
 
@@ -191,16 +204,11 @@ class LibraryService:
         """Find cover art in a folder. Prioritizes 'cover.*' then any image."""
         if not folder_path.is_dir():
             return None
-
-        # Check for cover.* files first
         for ext in _IMAGE_EXTENSIONS:
             cover = folder_path / f"cover{ext}"
             if cover.exists():
                 return cover
-
-        # Fall back to any image file
         for f in folder_path.iterdir():
             if f.suffix.lower() in _IMAGE_EXTENSIONS:
                 return f
-
         return None

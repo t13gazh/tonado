@@ -90,13 +90,19 @@ export interface MediaFolder {
 	path: string;
 	track_count: number;
 	cover_path: string | null;
-	size_bytes: number;
+	duration_seconds: number;
+}
+
+export interface MediaTrack {
+	filename: string;
+	path: string;
+	duration_seconds: number;
 }
 
 export const library = {
 	folders: () => request<MediaFolder[]>('/library/folders'),
 	folder: (name: string) => request<MediaFolder>(`/library/folders/${name}`),
-	tracks: (name: string) => request<{ filename: string; path: string }[]>(`/library/folders/${name}/tracks`),
+	tracks: (name: string) => request<MediaTrack[]>(`/library/folders/${name}/tracks`),
 	createFolder: (name: string) => {
 		const form = new FormData();
 		form.append('name', name);

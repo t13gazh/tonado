@@ -16,6 +16,7 @@ dependencies = [
     "websockets>=14,<15",
     "bcrypt>=4.2,<5",
     "PyJWT>=2.10,<3",
+    "mutagen>=1.47,<2",
 ]
 
 [project.optional-dependencies]

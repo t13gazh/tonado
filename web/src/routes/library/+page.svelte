@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { library, streams, playlistsApi, type MediaFolder, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
+	import { library, streams, playlistsApi, type MediaFolder, type MediaTrack, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
+	import { formatDuration } from '$lib/utils';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -14,7 +15,7 @@
 	let showNewFolder = $state(false);
 	let newFolderName = $state('');
 	let expandedFolder = $state<string | null>(null);
-	let folderTracks = $state<{ filename: string; path: string }[]>([]);
+	let folderTracks = $state<MediaTrack[]>([]);
 	let uploadFolder = $state('');
 	let uploadProgress = $state(0);
 	let uploading = $state(false);
@@ -62,7 +63,6 @@
 		} catch {}
 	}
 
-	// Folder actions
 	async function createFolder() { if (!newFolderName.trim()) return; await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); }
 	async function deleteFolder(name: string) { await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
 	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; folderTracks = await library.tracks(name); } }
@@ -73,32 +73,60 @@
 		if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
 	}
 
-	// Radio actions
 	function isValidUrl(url: string): boolean { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; } }
 	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); }
 	async function removeStation(id: number) { await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
-
-	// Podcast actions
 	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
 	async function removePodcast(id: number) { await streams.deletePodcast(id); expandedPodcast = null; await loadPodcasts(); }
-
-	// Playlist actions
 	async function createPlaylist() { if (!newPlaylistName.trim()) return; await playlistsApi.create(newPlaylistName.trim()); newPlaylistName = ''; showNewPlaylist = false; await loadPlaylists(); }
 	async function removePlaylist(id: number) { await playlistsApi.delete(id); if (expandedPlaylist?.id === id) expandedPlaylist = null; await loadPlaylists(); }
 	async function togglePlaylist(id: number) { if (expandedPlaylist?.id === id) { expandedPlaylist = null; } else { expandedPlaylist = await playlistsApi.get(id); } }
 	async function addPlaylistItem() { if (!expandedPlaylist || !newItemPath.trim()) return; await playlistsApi.addItem(expandedPlaylist.id, 'folder', newItemPath.trim(), newItemTitle.trim() || undefined); newItemPath = ''; newItemTitle = ''; showAddItem = false; expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); }
 	async function removePlaylistItem(itemId: number) { if (!expandedPlaylist) return; await playlistsApi.removeItem(itemId); expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); }
-
-	function formatSize(bytes: number): string { if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 </script>
 
 <!--
-  UNIFIED ROW: [ ▶ play ]  Title + Subtitle  [  ˅ chevron  ]
-  Play = circle button, primary color, leftmost
-  Center = clickable to expand
-  Chevron = rightmost, rotates on expand
-  Delete = only inside expanded area
+  UNIFIED ROW PATTERN:
+  [ ▶ circle ]  [ thumb ]  Title + Subtitle + Duration  [ ˅ chevron ]
 -->
+
+{#snippet playCircle(onclick: () => void, disabled?: boolean)}
+	<button {onclick} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''}" {disabled} aria-label="Abspielen">
+		<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+	</button>
+{/snippet}
+
+{#snippet thumbnail(src: string | null, fallbackIcon: string)}
+	<div class="w-10 h-10 rounded-lg bg-surface-lighter flex-shrink-0 overflow-hidden flex items-center justify-center">
+		{#if src}
+			<img {src} alt="" class="w-full h-full object-cover" />
+		{:else if fallbackIcon === 'folder'}
+			<svg class="w-5 h-5 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+		{:else if fallbackIcon === 'radio'}
+			<svg class="w-5 h-5 text-accent opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+		{:else if fallbackIcon === 'podcast'}
+			<svg class="w-5 h-5 text-accent opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.69 2 6 4.69 6 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm-1.5 6.5v3h3v-3h-3z"/></svg>
+		{:else}
+			<svg class="w-5 h-5 text-primary opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet chevron(expanded: boolean, onclick: () => void)}
+	<button {onclick} class="p-1">
+		<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+	</button>
+{/snippet}
+
+{#snippet spinner()}
+	<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+{/snippet}
+
+{#snippet addForm(show: boolean, onClose: () => void)}
+	{#if show}
+		<div class="flex justify-end mb-3"><button onclick={onClose} class="text-sm text-text-muted">{t('content.close_form')}</button></div>
+	{/if}
+{/snippet}
 
 <div class="p-4">
 	<h1 class="text-xl font-bold mb-4">{t('library.title')}</h1>
@@ -129,7 +157,7 @@
 			</div>
 		{/if}
 		{#if loadingFolders}
-			<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+			{@render spinner()}
 		{:else if folders.length === 0}
 			<div class="text-center py-16 text-text-muted"><p class="text-sm">{t('library.empty')}</p><p class="text-xs mt-1">{t('library.empty_hint')}</p></div>
 		{:else}
@@ -137,20 +165,14 @@
 				{#each folders as folder (folder.path)}
 					{@const expanded = expandedFolder === folder.path}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
-						<div class="flex items-center gap-3 p-3">
-							<!-- Play circle -->
-							<button onclick={() => playContent('folder', folder.path)} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors" aria-label="Abspielen">
-								<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-							</button>
-							<!-- Info (click to expand) -->
+						<div class="flex items-center gap-2.5 p-3">
+							{@render playCircle(() => playContent('folder', folder.path))}
+							{@render thumbnail(folder.cover_path, 'folder')}
 							<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{folder.name}</p>
-								<p class="text-xs text-text-muted">{t('content.tracks', { count: folder.track_count })} · {formatSize(folder.size_bytes)}</p>
+								<p class="text-xs text-text-muted">{t('content.tracks', { count: folder.track_count })}{folder.duration_seconds ? ` · ${formatDuration(folder.duration_seconds)}` : ''}</p>
 							</button>
-							<!-- Chevron -->
-							<button onclick={() => toggleFolder(folder.path)} class="p-1">
-								<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-							</button>
+							{@render chevron(expanded, () => toggleFolder(folder.path))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
@@ -169,7 +191,8 @@
 										{#each folderTracks as track, i}
 											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 												<span class="w-5 text-text-muted text-right tabular-nums">{i + 1}</span>
-												<span class="text-text truncate">{track.filename}</span>
+												<span class="flex-1 text-text truncate">{track.filename}</span>
+												<span class="text-text-muted tabular-nums shrink-0">{formatDuration(track.duration_seconds)}</span>
 											</div>
 										{/each}
 									</div>
@@ -205,23 +228,20 @@
 			</div>
 		{/if}
 		{#if loadingRadio}
-			<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+			{@render spinner()}
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each stations as station (station.id)}
 					{@const expanded = expandedRadio === station.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
-						<div class="flex items-center gap-3 p-3">
-							<button onclick={() => playContent('url', station.url)} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors" aria-label="Abspielen">
-								<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-							</button>
+						<div class="flex items-center gap-2.5 p-3">
+							{@render playCircle(() => playContent('url', station.url))}
+							{@render thumbnail(station.logo_url, 'radio')}
 							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{station.name}</p>
 								<p class="text-xs text-text-muted">{station.category === 'kinder' ? 'Kindersender' : 'Eigener Sender'}</p>
 							</button>
-							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="p-1">
-								<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-							</button>
+							{@render chevron(expanded, () => (expandedRadio = expanded ? null : station.id))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
@@ -253,7 +273,7 @@
 			</div>
 		{/if}
 		{#if loadingPodcasts}
-			<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+			{@render spinner()}
 		{:else if podcasts.length === 0}
 			<div class="text-center py-12 text-text-muted text-sm">Noch keine Podcasts hinzugefügt.</div>
 		{:else}
@@ -261,17 +281,14 @@
 				{#each podcasts as podcast (podcast.id)}
 					{@const expanded = expandedPodcast === podcast.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
-						<div class="flex items-center gap-3 p-3">
-							<button onclick={() => playContent('url', podcast.feed_url)} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors" aria-label="Abspielen">
-								<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-							</button>
+						<div class="flex items-center gap-2.5 p-3">
+							{@render playCircle(() => playContent('url', podcast.feed_url))}
+							{@render thumbnail(podcast.logo_url, 'podcast')}
 							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
 								<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
 							</button>
-							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="p-1">
-								<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-							</button>
+							{@render chevron(expanded, () => (expandedPodcast = expanded ? null : podcast.id))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
@@ -301,7 +318,7 @@
 			</div>
 		{/if}
 		{#if loadingPlaylists}
-			<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+			{@render spinner()}
 		{:else if allPlaylists.length === 0}
 			<div class="text-center py-12 text-text-muted text-sm">{t('content.playlist_empty')}</div>
 		{:else}
@@ -309,17 +326,14 @@
 				{#each allPlaylists as pl (pl.id)}
 					{@const expanded = expandedPlaylist?.id === pl.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
-						<div class="flex items-center gap-3 p-3">
-							<button onclick={() => {/* TODO: play playlist */}} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors {pl.item_count === 0 ? 'opacity-30' : ''}" aria-label="Abspielen" disabled={pl.item_count === 0}>
-								<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-							</button>
+						<div class="flex items-center gap-2.5 p-3">
+							{@render playCircle(() => {}, pl.item_count === 0)}
+							{@render thumbnail(null, 'playlist')}
 							<button onclick={() => togglePlaylist(pl.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{pl.name}</p>
 								<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
 							</button>
-							<button onclick={() => togglePlaylist(pl.id)} class="p-1">
-								<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-							</button>
+							{@render chevron(expanded, () => togglePlaylist(pl.id))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">

@@ -67,6 +67,27 @@ export default {
 	'setup.complete': 'Fertig!',
 	'setup.connect': 'Verbinden',
 
+	// Content
+	'content.title': 'Inhalte',
+	'content.upload': 'Hochladen',
+	'content.upload_hint': 'Dateien hierher ziehen oder klicken',
+	'content.uploading': 'Wird hochgeladen...',
+	'content.upload_done': 'Upload abgeschlossen',
+	'content.new_folder': 'Neuer Ordner',
+	'content.folder_name': 'Ordnername',
+	'content.tracks': '{count} Titel',
+	'content.radio': 'Internetradio',
+	'content.radio_add': 'Sender hinzufügen',
+	'content.radio_name': 'Sendername',
+	'content.radio_url': 'Stream-URL',
+	'content.podcasts': 'Podcasts',
+	'content.podcast_add': 'Podcast hinzufügen',
+	'content.podcast_url': 'RSS-Feed URL',
+	'content.podcast_name': 'Podcast-Name',
+	'content.tab_folders': 'Ordner',
+	'content.tab_radio': 'Radio',
+	'content.tab_podcasts': 'Podcasts',
+
 	// General
 	'general.loading': 'Laden...',
 	'general.error': 'Fehler',

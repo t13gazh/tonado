@@ -1,0 +1,303 @@
+"""Stream service for internet radio and podcast feeds.
+
+Manages radio stream URLs, podcast RSS feeds, and provides
+a pre-configured catalog of German children's radio stations.
+"""
+
+import asyncio
+import logging
+import xml.etree.ElementTree as ET
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlparse
+
+import aiosqlite
+
+logger = logging.getLogger(__name__)
+
+_INIT_SQL = """
+CREATE TABLE IF NOT EXISTS radio_stations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    category TEXT DEFAULT 'custom',
+    logo_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS podcasts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    feed_url TEXT NOT NULL UNIQUE,
+    last_checked TIMESTAMP,
+    auto_download INTEGER DEFAULT 1,
+    logo_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS podcast_episodes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    audio_url TEXT NOT NULL,
+    published TEXT,
+    duration TEXT,
+    downloaded INTEGER DEFAULT 0,
+    local_path TEXT,
+    UNIQUE(podcast_id, audio_url)
+);
+"""
+
+# Pre-configured German children's radio stations
+_DEFAULT_STATIONS = [
+    ("KiRaKa (WDR)", "https://wdr-kiraka-live.icecastssl.wdr.de/wdr/kiraka/live/mp3/128/stream.mp3", "kinder", None),
+    ("Radio TEDDY", "https://streams.radioteddy.de/live/mp3-192/", "kinder", None),
+    ("KiKA Radio", "https://kika-live.akamaized.net/hls/live/2093065/kika-hls/master.m3u8", "kinder", None),
+    ("BR Mikro", "https://streams.br.de/br-mikro_2.m3u", "kinder", None),
+    ("NDR Mikado", "https://www.ndr.de/resources/metadaten/audio_ssl/m3u/ndr_info_spez.m3u", "kinder", None),
+    ("Deutschlandfunk Kultur Kakadu", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3", "kinder", None),
+]
+
+
+@dataclass
+class RadioStation:
+    id: int
+    name: str
+    url: str
+    category: str = "custom"
+    logo_url: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "url": self.url,
+            "category": self.category,
+            "logo_url": self.logo_url,
+        }
+
+
+@dataclass
+class Podcast:
+    id: int
+    name: str
+    feed_url: str
+    auto_download: bool = True
+    logo_url: str | None = None
+    episodes: list[dict] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "feed_url": self.feed_url,
+            "auto_download": self.auto_download,
+            "logo_url": self.logo_url,
+            "episode_count": len(self.episodes),
+        }
+
+
+@dataclass
+class PodcastEpisode:
+    id: int
+    podcast_id: int
+    title: str
+    audio_url: str
+    published: str | None = None
+    duration: str | None = None
+    downloaded: bool = False
+    local_path: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "podcast_id": self.podcast_id,
+            "title": self.title,
+            "audio_url": self.audio_url,
+            "published": self.published,
+            "duration": self.duration,
+            "downloaded": self.downloaded,
+            "local_path": self.local_path,
+        }
+
+
+class StreamService:
+    """Manages internet radio stations and podcast feeds."""
+
+    def __init__(self, db: aiosqlite.Connection, podcast_dir: Path | None = None) -> None:
+        self._db = db
+        self._podcast_dir = podcast_dir or Path.home() / "tonado" / "podcasts"
+
+    async def start(self) -> None:
+        await self._db.executescript(_INIT_SQL)
+        await self._db.commit()
+        await self._seed_stations()
+        self._podcast_dir.mkdir(parents=True, exist_ok=True)
+        logger.info("Stream service started")
+
+    async def _seed_stations(self) -> None:
+        """Insert default radio stations if table is empty."""
+        cursor = await self._db.execute("SELECT COUNT(*) FROM radio_stations")
+        row = await cursor.fetchone()
+        if row and row[0] > 0:
+            return
+
+        for name, url, category, logo in _DEFAULT_STATIONS:
+            await self._db.execute(
+                "INSERT OR IGNORE INTO radio_stations (name, url, category, logo_url) VALUES (?, ?, ?, ?)",
+                (name, url, category, logo),
+            )
+        await self._db.commit()
+        logger.info("Seeded %d default radio stations", len(_DEFAULT_STATIONS))
+
+    # --- Radio stations ---
+
+    async def list_stations(self, category: str | None = None) -> list[RadioStation]:
+        if category:
+            cursor = await self._db.execute(
+                "SELECT id, name, url, category, logo_url FROM radio_stations WHERE category = ? ORDER BY name",
+                (category,),
+            )
+        else:
+            cursor = await self._db.execute(
+                "SELECT id, name, url, category, logo_url FROM radio_stations ORDER BY category, name"
+            )
+        return [RadioStation(*row) for row in await cursor.fetchall()]
+
+    async def add_station(self, name: str, url: str, category: str = "custom") -> RadioStation:
+        cursor = await self._db.execute(
+            "INSERT INTO radio_stations (name, url, category) VALUES (?, ?, ?)",
+            (name, url, category),
+        )
+        await self._db.commit()
+        return RadioStation(id=cursor.lastrowid or 0, name=name, url=url, category=category)
+
+    async def delete_station(self, station_id: int) -> bool:
+        cursor = await self._db.execute(
+            "DELETE FROM radio_stations WHERE id = ?", (station_id,)
+        )
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    # --- Podcasts ---
+
+    async def list_podcasts(self) -> list[Podcast]:
+        cursor = await self._db.execute(
+            "SELECT id, name, feed_url, auto_download, logo_url FROM podcasts ORDER BY name"
+        )
+        podcasts = []
+        for row in await cursor.fetchall():
+            p = Podcast(id=row[0], name=row[1], feed_url=row[2], auto_download=bool(row[3]), logo_url=row[4])
+            podcasts.append(p)
+        return podcasts
+
+    async def add_podcast(self, name: str, feed_url: str, auto_download: bool = True) -> Podcast:
+        cursor = await self._db.execute(
+            "INSERT INTO podcasts (name, feed_url, auto_download) VALUES (?, ?, ?)",
+            (name, feed_url, int(auto_download)),
+        )
+        await self._db.commit()
+        podcast = Podcast(id=cursor.lastrowid or 0, name=name, feed_url=feed_url, auto_download=auto_download)
+
+        # Immediately fetch episodes
+        await self.refresh_podcast(podcast.id)
+        return podcast
+
+    async def delete_podcast(self, podcast_id: int) -> bool:
+        cursor = await self._db.execute("DELETE FROM podcasts WHERE id = ?", (podcast_id,))
+        await self._db.commit()
+        return cursor.rowcount > 0
+
+    async def list_episodes(self, podcast_id: int) -> list[PodcastEpisode]:
+        cursor = await self._db.execute(
+            "SELECT id, podcast_id, title, audio_url, published, duration, downloaded, local_path "
+            "FROM podcast_episodes WHERE podcast_id = ? ORDER BY published DESC",
+            (podcast_id,),
+        )
+        return [
+            PodcastEpisode(
+                id=row[0], podcast_id=row[1], title=row[2], audio_url=row[3],
+                published=row[4], duration=row[5], downloaded=bool(row[6]), local_path=row[7],
+            )
+            for row in await cursor.fetchall()
+        ]
+
+    async def refresh_podcast(self, podcast_id: int) -> int:
+        """Fetch RSS feed and update episodes. Returns number of new episodes."""
+        cursor = await self._db.execute(
+            "SELECT feed_url FROM podcasts WHERE id = ?", (podcast_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return 0
+
+        feed_url = row[0]
+        try:
+            episodes = await self._parse_rss(feed_url)
+        except Exception as e:
+            logger.error("Failed to fetch RSS feed %s: %s", feed_url, e)
+            return 0
+
+        new_count = 0
+        for ep in episodes:
+            try:
+                await self._db.execute(
+                    "INSERT OR IGNORE INTO podcast_episodes "
+                    "(podcast_id, title, audio_url, published, duration) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (podcast_id, ep["title"], ep["audio_url"], ep.get("published"), ep.get("duration")),
+                )
+                new_count += 1
+            except Exception:
+                pass
+
+        await self._db.execute(
+            "UPDATE podcasts SET last_checked = CURRENT_TIMESTAMP WHERE id = ?",
+            (podcast_id,),
+        )
+        await self._db.commit()
+        logger.info("Refreshed podcast %d: %d episodes", podcast_id, new_count)
+        return new_count
+
+    @staticmethod
+    async def _parse_rss(feed_url: str) -> list[dict]:
+        """Parse an RSS feed and extract audio episodes."""
+        import urllib.request
+
+        loop = asyncio.get_event_loop()
+
+        def fetch() -> bytes:
+            req = urllib.request.Request(feed_url, headers={"User-Agent": "Tonado/0.1"})
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read()
+
+        data = await loop.run_in_executor(None, fetch)
+        root = ET.fromstring(data)
+
+        episodes = []
+        for item in root.iter("item"):
+            title_el = item.find("title")
+            enclosure = item.find("enclosure")
+            pub_date = item.find("pubDate")
+
+            if title_el is None or enclosure is None:
+                continue
+
+            audio_url = enclosure.get("url", "")
+            if not audio_url:
+                continue
+
+            # Try to get duration from itunes:duration
+            duration = None
+            for child in item:
+                if "duration" in child.tag.lower():
+                    duration = child.text
+                    break
+
+            episodes.append({
+                "title": title_el.text or "Untitled",
+                "audio_url": audio_url,
+                "published": pub_date.text if pub_date is not None else None,
+                "duration": duration,
+            })
+
+        return episodes[:50]  # Limit to 50 most recent

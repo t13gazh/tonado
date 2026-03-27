@@ -78,6 +78,82 @@ export const cards = {
 	waitForScan: (timeout = 30) => request<ScanResult>(`/cards/scan/wait?timeout=${timeout}`),
 };
 
+// Library API
+export interface MediaFolder {
+	name: string;
+	path: string;
+	track_count: number;
+	cover_path: string | null;
+	size_bytes: number;
+}
+
+export const library = {
+	folders: () => request<MediaFolder[]>('/library/folders'),
+	folder: (name: string) => request<MediaFolder>(`/library/folders/${name}`),
+	tracks: (name: string) => request<{ filename: string; path: string }[]>(`/library/folders/${name}/tracks`),
+	createFolder: (name: string) => {
+		const form = new FormData();
+		form.append('name', name);
+		return fetch(`${BASE}/library/folders`, { method: 'POST', body: form }).then((r) => r.json());
+	},
+	deleteFolder: (name: string) => request<void>(`/library/folders/${name}`, { method: 'DELETE' }),
+	upload: (folder: string, file: File, onProgress?: (pct: number) => void) => {
+		return new Promise<void>((resolve, reject) => {
+			const xhr = new XMLHttpRequest();
+			const form = new FormData();
+			form.append('file', file);
+			xhr.open('POST', `${BASE}/library/upload/${folder}`);
+			if (onProgress) {
+				xhr.upload.onprogress = (e) => {
+					if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
+				};
+			}
+			xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error(xhr.statusText)));
+			xhr.onerror = () => reject(new Error('Upload fehlgeschlagen'));
+			xhr.send(form);
+		});
+	},
+	stats: () => request<{ total_bytes: number; file_count: number; folder_count: number }>('/library/stats'),
+};
+
+// Streams API
+export interface RadioStation {
+	id: number;
+	name: string;
+	url: string;
+	category: string;
+	logo_url: string | null;
+}
+
+export interface PodcastInfo {
+	id: number;
+	name: string;
+	feed_url: string;
+	auto_download: boolean;
+	episode_count: number;
+}
+
+export const streams = {
+	listRadio: (category?: string) =>
+		request<RadioStation[]>(`/streams/radio${category ? `?category=${category}` : ''}`),
+	addRadio: (name: string, url: string) =>
+		request<RadioStation>('/streams/radio', { method: 'POST', body: JSON.stringify({ name, url }) }),
+	deleteRadio: (id: number) => request<void>(`/streams/radio/${id}`, { method: 'DELETE' }),
+	listPodcasts: () => request<PodcastInfo[]>('/streams/podcasts'),
+	addPodcast: (name: string, feed_url: string) =>
+		request<PodcastInfo>('/streams/podcasts', {
+			method: 'POST',
+			body: JSON.stringify({ name, feed_url }),
+		}),
+	deletePodcast: (id: number) => request<void>(`/streams/podcasts/${id}`, { method: 'DELETE' }),
+	episodes: (id: number) => request<{ title: string; audio_url: string; published: string | null }[]>(
+		`/streams/podcasts/${id}/episodes`
+	),
+	refreshPodcast: (id: number) => request<{ new_episodes: number }>(
+		`/streams/podcasts/${id}/refresh`, { method: 'POST' }
+	),
+};
+
 // Config API
 export const config = {
 	getAll: () => request<Record<string, unknown>>('/config/'),

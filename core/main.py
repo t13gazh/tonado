@@ -9,14 +9,16 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
-from core.routers import cards, config, player, setup
+from core.routers import cards, config, library, player, setup, streams
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
 from core.services.player_service import PlayerService
+from core.services.library_service import LibraryService
 from core.services.setup_wizard import SetupWizard
+from core.services.stream_service import StreamService
 from core.services.websocket_hub import WebSocketHub
 from core.services.wifi_service import WifiService
 from core.settings import Settings
@@ -87,6 +89,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     await gyro_service.start()
 
+    # Library service
+    library_service = LibraryService(settings.media_dir)
+    await library_service.start()
+
+    # Stream service
+    stream_service = StreamService(db)
+    await stream_service.start()
+
     # WebSocket hub
     ws_hub = WebSocketHub(event_bus)
     await ws_hub.start()
@@ -144,6 +154,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     player.init(player_service)
     cards.init(card_service)
     config.init(config_service)
+    library.init(library_service)
+    streams.init(stream_service)
     setup.init(setup_wizard, wifi_service, captive_portal)
 
     # Store hub on app state for WebSocket endpoint
@@ -175,6 +187,8 @@ app = FastAPI(
 app.include_router(player.router)
 app.include_router(cards.router)
 app.include_router(config.router)
+app.include_router(library.router)
+app.include_router(streams.router)
 app.include_router(setup.router)
 
 

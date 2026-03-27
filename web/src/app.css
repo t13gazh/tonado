@@ -1,0 +1,43 @@
+@import 'tailwindcss';
+
+@theme {
+	/* Tonado brand colors */
+	--color-primary: #6366f1;
+	--color-primary-light: #818cf8;
+	--color-primary-dark: #4f46e5;
+	--color-surface: #1e1e2e;
+	--color-surface-light: #2a2a3e;
+	--color-surface-lighter: #363650;
+	--color-text: #e2e2f0;
+	--color-text-muted: #9393a8;
+	--color-accent: #f59e0b;
+
+	/* Fonts */
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+	/* Spacing for safe areas (mobile) */
+	--spacing-safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Base styles */
+html {
+	-webkit-tap-highlight-color: transparent;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	background-color: var(--color-surface);
+	color: var(--color-text);
+	font-family: var(--font-sans);
+	overscroll-behavior: none;
+	user-select: none;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 4px;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--color-surface-lighter);
+	border-radius: 2px;
+}

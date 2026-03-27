@@ -52,3 +52,9 @@ coverage/
 # Build artifacts
 *.whl
 *.tar.gz
+
+# Claude tooling
+.claude-flow/
+.claude/
+.swarm/
+.mcp.json

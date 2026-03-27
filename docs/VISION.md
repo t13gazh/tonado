@@ -2,12 +2,12 @@
 
 ## Elevator Pitch
 
-> Eine Musikbox für Kinder — sofort zu verstehen, auch für Kleinkinder bedienbar. Eltern steuern alles vom Smartphone. Open Source, selbst gebaut, für immer deins. Besser als die sauteure Musikbox.
+> Eine Musikbox für Kinder — sofort zu verstehen, auch für Kleinkinder bedienbar. Eltern steuern alles vom Smartphone. Open Source, selbst gebaut, für immer deins.
 
 ## Kernprinzip
 
 ```
-Kind legt Karte auf → Musik spielt sofort.
+Kind legt Figur oder Karte auf → Musik spielt sofort.
 Eltern öffnen App → steuern alles vom Smartphone.
 ```
 
@@ -17,9 +17,9 @@ Alles andere ist Infrastruktur, die diese zwei Momente ermöglicht.
 
 ### Primär: Technik-affine Eltern
 - Haben einen Raspberry Pi oder trauen sich, einen zu kaufen
-- Ärgern sich über Musikbox-Kosten (30 Figuren × 18 € = 540 €)
 - Wollen eigene Hörbücher, Podcasts, Musik ohne Limits abspielen
 - Schätzen Open Source und Datenschutz
+- Wollen keine laufenden Kosten für Inhalte
 
 ### Sekundär: Datenschutz-bewusste Eltern
 - Wollen keine Cloud-Abhängigkeit im Kinderzimmer
@@ -31,27 +31,9 @@ Alles andere ist Infrastruktur, die diese zwei Momente ermöglicht.
 - 3D-Druck-Gehäuse, Custom-Buttons, LED-Integration
 - Beiträge zur Software
 
-## Wettbewerbs-Positionierung
+## Positionierung
 
-```
-          Einfachheit
-              ▲
-              │
-   Musikbox ●─┤─────── Tonado (Ziel) ●
-              │                        \
-   andere Box ●     │                         \
-              │                          \
-   kommerzielle Box ● │                           \
-              │                            ● DIY-Box
-              │
-   anderes DIY-Projekt ●  │
-              │
-   Vorgängerprojekt ●│
-              │
-              └─────────────────────────► Freiheit
-```
-
-**Tonado besetzt den Quadranten oben-rechts:** Hohe Einfachheit UND hohe Freiheit.
+Tonado vereint das Beste aus zwei Welten: Die Einfachheit und das polierte Erlebnis kommerzieller Kinder-Musikboxen mit der Freiheit und Erweiterbarkeit eines Open-Source-Projekts. Kein Vendor-Lock-in, keine laufenden Kosten, volle Kontrolle.
 
 ## UX-Prinzipien
 
@@ -60,21 +42,21 @@ Das Interface erklärt sich selbst. Keine Overlay-Guides, keine "Tipp hier"-Popu
 
 ### 2. Onboarding durch Tun
 Wie ein Spiel, das Mechaniken durch kleine Aufgaben lehrt:
-- "Leg eine Karte auf den Reader." ✓
+- "Leg eine Figur auf die Box." ✓
 - "Wähle ein Hörbuch dafür aus." ✓
-- "Die Karte ist fertig! Leg sie nochmal auf — hörst du?" ✓
+- "Fertig! Leg sie nochmal auf — hörst du?" ✓
 
 Kein separater Tutorial-Modus. Das Setup IST das Lernen.
 
 ### 3. Progressive Disclosure
 - **Player-Ansicht:** Nur Play/Pause, Volume, Cover Art. Sofort verstanden.
-- **Eltern-Bereich:** Bibliothek, Karten, Einstellungen. PIN-geschützt.
+- **Eltern-Bereich:** Bibliothek, Figuren, Einstellungen. PIN-geschützt.
 - **Experten-Bereich:** Hardware, System, Debug. Separate PIN.
 
 Jeder sieht nur, was er braucht.
 
 ### 4. Fehler verzeihen
-- Karte falsch zugewiesen? Ein Tipp zum Ändern.
+- Figur falsch zugewiesen? Ein Tipp zum Ändern.
 - Upload abgebrochen? Wird beim nächsten Mal fortgesetzt.
 - WiFi weg? Lokale Musik spielt weiter.
 
@@ -85,7 +67,7 @@ Jeder sieht nur, was er braucht.
 
 Ein Elternteil erzählt einer Freundin:
 
-> "Schau mal, mein Kind hat so eine Musikbox. Karte drauf, Musik läuft. Und ich kann hier auf dem Handy alles steuern — neue Hörbücher draufladen, Karten zuweisen, Lautstärke begrenzen. Hat mich 70 Euro gekostet, nicht 500 wie bei der Musikbox. Und kein Abo."
+> "Schau mal, mein Kind hat so eine Musikbox. Figur drauf, Musik läuft. Und ich kann hier auf dem Handy alles steuern — neue Hörbücher draufladen, Figuren zuweisen, Lautstärke begrenzen. Hat mich 70 Euro gekostet und keine laufenden Kosten. Kein Abo."
 
 Die Freundin: *"Kann ich auch so eine haben?"*
 
@@ -93,26 +75,24 @@ Das ist der Moment. Dafür bauen wir.
 
 ## Was Tonado NICHT ist
 
-- **Keine Musikbox-Kopie.** Wir kopieren nicht das Design, wir lösen das gleiche Problem besser.
+- **Keine Kopie.** Wir lösen das gleiche Problem — besser und günstiger.
 - **Kein Bastelprojekt.** Es soll sich anfühlen wie ein Produkt, nicht wie ein Hack.
 - **Keine eierlegende Wollmilchsau.** Kein Spotify-Player, kein Smart-Home-Hub, kein Bluetooth-Speaker. Es ist eine Musikbox für Kinder.
 - **Kein kommerzielles Produkt.** Open Source, Community-getrieben, MIT-Lizenz.
 
-## Marktlücke
+## Warum Tonado?
 
-| Problem | Wer hat es | Tonado löst es |
-|---------|-----------|----------------|
-| Teuer auf Dauer | Musikbox (Figuren), kommerzielle Box (Abo) | Eigene MP3s, kein Abo |
-| Cloud-Pflicht | Musikbox, kommerzielle Box, andere Box | Komplett offline möglich |
-| Content-Limits | Musikbox (90 Min/Kreativ-Figur) | Unbegrenzt |
-| Komplexes Setup | Vorgängerprojekt (SSH, Terminal) | Hardware-Wizard im Browser |
-| Veraltetes UI | Vorgängerprojekt (jQuery 1.12) | Svelte 5, Mobile-First |
-| Nicht erweiterbar | Alle kommerziellen | GPIO, Gyro, Plugins |
+| Problem | Tonado |
+|---------|--------|
+| Teure Inhalte / laufende Kosten | Eigene MP3s, kein Abo |
+| Cloud-Pflicht | Komplett offline möglich |
+| Content-Limits | Unbegrenzt |
+| Komplexes Setup | Hardware-Wizard im Browser |
+| Nicht erweiterbar | GPIO, Gyro, Plugins |
 
-## Phase 2+ (Zukunft, nicht jetzt)
+## Zukunft
 
 - Spotify Connect (Box als Receiver)
-- TeddyCloud/TAF-Kompatibilität (Musikbox-Umsteiger)
 - BLE-Provisioning (Setup via App statt Captive Portal)
 - 3D-Druck-Gehäuse-Vorlagen
 - Community-Plugins (LED-Ring, Display, NFC-Figuren)

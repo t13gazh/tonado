@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { cards } from '$lib/api';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	type Step = 'scan' | 'content' | 'done';
 
@@ -17,11 +18,16 @@
 	let contentPath = $state('');
 
 	const contentTypes = [
-		{ value: 'folder' as const, label: () => t('wizard.type_folder'), icon: 'folder' },
-		{ value: 'stream' as const, label: () => t('wizard.type_stream'), icon: 'stream' },
-		{ value: 'podcast' as const, label: () => t('wizard.type_podcast'), icon: 'podcast' },
-		{ value: 'command' as const, label: () => t('wizard.type_command'), icon: 'command' },
+		{ value: 'folder' as const, label: () => t('wizard.type_folder') },
+		{ value: 'stream' as const, label: () => t('wizard.type_stream') },
+		{ value: 'podcast' as const, label: () => t('wizard.type_podcast') },
+		{ value: 'command' as const, label: () => t('wizard.type_command') },
 	];
+
+	// Auto-start scanning on mount
+	onMount(() => {
+		startScan();
+	});
 
 	async function startScan() {
 		scanning = true;
@@ -38,11 +44,11 @@
 				}
 				step = 'content';
 			} else {
-				error = 'Keine Karte erkannt. Versuche es erneut.';
+				// Timeout — not an error, just retry
+				scanning = false;
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Fehler';
-		} finally {
 			scanning = false;
 		}
 	}
@@ -86,23 +92,20 @@
 	<!-- Step indicators -->
 	<div class="flex items-center gap-2 mb-8 px-4">
 		{#each ['scan', 'content', 'done'] as s, i}
-			{@const active = s === step}
 			{@const completed = ['scan', 'content', 'done'].indexOf(step) > i}
+			{@const active = s === step}
 			<div class="flex-1 h-1 rounded-full {active || completed ? 'bg-primary' : 'bg-surface-lighter'}"></div>
 		{/each}
 	</div>
 
-	<!-- Step: Scan -->
+	<!-- Step: Scan (auto-started) -->
 	{#if step === 'scan'}
 		<div class="flex-1 flex flex-col items-center justify-center text-center gap-6">
-			<!-- Animated card icon -->
-			<div class="w-32 h-32 rounded-2xl bg-surface-light flex items-center justify-center {scanning ? 'animate-pulse' : ''}">
-				<svg class="w-16 h-16 {scanning ? 'text-primary' : 'text-text-muted'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+			<div class="w-32 h-32 rounded-2xl bg-surface-light flex items-center justify-center animate-pulse">
+				<svg class="w-16 h-16 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 					<rect x="2" y="4" width="14" height="16" rx="2"/>
 					<path d="M18 8h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2"/>
-					{#if scanning}
-						<circle cx="9" cy="12" r="3" fill="currentColor" stroke="none" class="animate-ping"/>
-					{/if}
+					<circle cx="9" cy="12" r="3" fill="currentColor" stroke="none" class="animate-ping"/>
 				</svg>
 			</div>
 
@@ -115,13 +118,16 @@
 				<p class="text-sm text-red-400">{error}</p>
 			{/if}
 
-			<button
-				onclick={startScan}
-				disabled={scanning}
-				class="px-8 py-3 bg-primary hover:bg-primary-light disabled:opacity-50 text-white rounded-xl text-sm font-medium transition-colors"
-			>
-				{scanning ? t('wizard.scanning') : t('wizard.step_scan')}
-			</button>
+			{#if !scanning}
+				<button
+					onclick={startScan}
+					class="px-6 py-2.5 bg-primary hover:bg-primary-light text-white rounded-xl text-sm font-medium transition-colors"
+				>
+					{t('general.retry')}
+				</button>
+			{:else}
+				<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
+			{/if}
 		</div>
 	{/if}
 
@@ -133,10 +139,6 @@
 					{t('wizard.already_assigned')}
 				</div>
 			{/if}
-
-			<div class="px-3 py-2 bg-surface-light rounded-lg text-xs text-text-muted font-mono">
-				Karten-ID: {scannedCardId}
-			</div>
 
 			<!-- Content type selector -->
 			<div>
@@ -182,10 +184,9 @@
 				<p class="text-sm text-red-400">{error}</p>
 			{/if}
 
-			<!-- Actions -->
 			<div class="mt-auto flex gap-3 pt-4">
 				<button
-					onclick={() => (step = 'scan')}
+					onclick={() => { step = 'scan'; startScan(); }}
 					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
 				>
 					{t('general.back')}
@@ -223,7 +224,7 @@
 					{t('wizard.finish')}
 				</button>
 				<button
-					onclick={() => { step = 'scan'; scannedCardId = ''; name = ''; contentPath = ''; hasExisting = false; }}
+					onclick={() => { step = 'scan'; scannedCardId = ''; name = ''; contentPath = ''; hasExisting = false; startScan(); }}
 					class="px-8 py-2.5 text-text-muted text-sm"
 				>
 					{t('card.add')}

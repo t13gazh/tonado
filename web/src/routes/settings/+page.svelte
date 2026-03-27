@@ -6,11 +6,11 @@
 	let authStatus = $state<AuthStatus | null>(null);
 	let allConfig = $state<Record<string, unknown>>({});
 	let error = $state('');
-	let saved = $state('');
+	let showToast = $state(false);
 
 	// PIN forms
-	let parentPin = $state('');
-	let expertPin = $state('');
+	let parentPinValue = $state('');
+	let expertPinValue = $state('');
 	let loginPin = $state('');
 	let loginError = $state('');
 
@@ -22,6 +22,8 @@
 	let sleepRemaining = $state(0);
 	let idleMinutes = $state(0);
 	let cardRemovePauses = $state(false);
+	let gyroEnabled = $state(true);
+	let gyroSensitivity = $state('normal');
 
 	onMount(async () => {
 		await loadAll();
@@ -37,6 +39,8 @@
 			startupVolume = (allConfig['player.startup_volume'] as number) ?? 50;
 			idleMinutes = (allConfig['system.idle_shutdown_minutes'] as number) ?? 0;
 			cardRemovePauses = (allConfig['card.remove_pauses'] as boolean) ?? false;
+			gyroEnabled = (allConfig['gyro.enabled'] as boolean) ?? true;
+			gyroSensitivity = (allConfig['gyro.sensitivity'] as string) ?? 'normal';
 
 			const timer = await authApi.sleepTimer();
 			sleepActive = timer.active;
@@ -65,28 +69,28 @@
 
 	async function saveSetting(key: string, value: unknown) {
 		await config.set(key, value);
-		showSaved();
+		flashToast();
 	}
 
-	function showSaved() {
-		saved = t('settings.saved');
-		setTimeout(() => (saved = ''), 2000);
+	function flashToast() {
+		showToast = true;
+		setTimeout(() => (showToast = false), 2000);
 	}
 
 	async function setParentPin() {
-		if (parentPin.length < 4) return;
-		await authApi.setPin('parent', parentPin);
-		parentPin = '';
+		if (parentPinValue.length < 4) return;
+		await authApi.setPin('parent', parentPinValue);
+		parentPinValue = '';
 		await loadAll();
-		showSaved();
+		flashToast();
 	}
 
 	async function setExpertPin() {
-		if (expertPin.length < 4) return;
-		await authApi.setPin('expert', expertPin);
-		expertPin = '';
+		if (expertPinValue.length < 4) return;
+		await authApi.setPin('expert', expertPinValue);
+		expertPinValue = '';
 		await loadAll();
-		showSaved();
+		flashToast();
 	}
 
 	async function startSleep() {
@@ -102,20 +106,22 @@
 	}
 </script>
 
+<!-- Fixed toast (does not affect layout) -->
+<div
+	class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-500/90 text-white text-sm rounded-xl shadow-lg transition-all duration-300 pointer-events-none
+		{showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}"
+>
+	{t('settings.saved')}
+</div>
+
 <div class="p-4">
 	<h1 class="text-xl font-bold mb-4">{t('settings.title')}</h1>
-
-	{#if saved}
-		<div class="mb-3 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
-			{saved}
-		</div>
-	{/if}
 
 	{#if error}
 		<div class="mb-3 text-sm text-red-400">{error}</div>
 	{/if}
 
-	<!-- Login section (if PINs are set) -->
+	<!-- Login section -->
 	{#if authStatus && (authStatus.parent_pin_set || authStatus.expert_pin_set) && !authStatus.authenticated}
 		<div class="bg-surface-light rounded-xl p-4 mb-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.login')}</h2>
@@ -143,7 +149,7 @@
 	{/if}
 
 	<div class="flex flex-col gap-4">
-		<!-- Volume settings -->
+		<!-- Volume -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.max_volume')}</h2>
 			<div class="flex items-center gap-3">
@@ -200,17 +206,43 @@
 			<div class="flex gap-2">
 				<button
 					onclick={() => { cardRemovePauses = true; saveSetting('card.remove_pauses', true); }}
-					class="flex-1 px-3 py-2 rounded-lg text-sm {cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+					class="flex-1 px-3 py-2 rounded-lg text-sm transition-colors {cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
 				>
 					{t('settings.card_remove_pause')}
 				</button>
 				<button
 					onclick={() => { cardRemovePauses = false; saveSetting('card.remove_pauses', false); }}
-					class="flex-1 px-3 py-2 rounded-lg text-sm {!cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+					class="flex-1 px-3 py-2 rounded-lg text-sm transition-colors {!cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
 				>
 					{t('settings.card_remove_continue')}
 				</button>
 			</div>
+		</div>
+
+		<!-- Gyro settings -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<div class="flex items-center justify-between mb-3">
+				<h2 class="text-sm font-semibold">{t('settings.gyro')}</h2>
+				<button
+					onclick={() => { gyroEnabled = !gyroEnabled; saveSetting('gyro.enabled', gyroEnabled); }}
+					class="px-3 py-1 rounded-full text-xs font-medium transition-colors {gyroEnabled ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+				>
+					{gyroEnabled ? t('settings.gyro_enabled') : t('settings.gyro_disabled')}
+				</button>
+			</div>
+			{#if gyroEnabled}
+				<div class="flex gap-2">
+					{#each ['gentle', 'normal', 'wild'] as level}
+						{@const label = level === 'gentle' ? t('settings.gyro_gentle') : level === 'normal' ? t('settings.gyro_normal') : t('settings.gyro_wild')}
+						<button
+							onclick={() => { gyroSensitivity = level; saveSetting('gyro.sensitivity', level); }}
+							class="flex-1 px-3 py-2 rounded-lg text-sm transition-colors {gyroSensitivity === level ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+						>
+							{label}
+						</button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Idle shutdown -->
@@ -236,11 +268,17 @@
 			</p>
 			<div class="flex gap-2">
 				<input
-					type="password" bind:value={parentPin}
+					type="password"
+					bind:value={parentPinValue}
 					placeholder={t('settings.pin_placeholder')}
 					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					onkeydown={(e) => e.key === 'Enter' && setParentPin()}
 				/>
-				<button onclick={setParentPin} disabled={parentPin.length < 4} class="px-4 py-2 bg-primary disabled:opacity-50 text-white rounded-lg text-sm">
+				<button
+					onclick={setParentPin}
+					disabled={parentPinValue.length < 4}
+					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+				>
 					{t('settings.pin_set')}
 				</button>
 			</div>
@@ -251,17 +289,23 @@
 			</p>
 			<div class="flex gap-2">
 				<input
-					type="password" bind:value={expertPin}
+					type="password"
+					bind:value={expertPinValue}
 					placeholder={t('settings.pin_placeholder')}
 					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					onkeydown={(e) => e.key === 'Enter' && setExpertPin()}
 				/>
-				<button onclick={setExpertPin} disabled={expertPin.length < 4} class="px-4 py-2 bg-primary disabled:opacity-50 text-white rounded-lg text-sm">
+				<button
+					onclick={setExpertPin}
+					disabled={expertPinValue.length < 4}
+					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+				>
 					{t('settings.pin_set')}
 				</button>
 			</div>
 		</div>
 
-		<!-- System (expert area) -->
+		<!-- System link -->
 		<a
 			href="/settings/system"
 			class="flex items-center justify-between bg-surface-light rounded-xl p-4 hover:bg-surface-lighter transition-colors"

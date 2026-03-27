@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { library, streams, type MediaFolder, type RadioStation, type PodcastInfo } from '$lib/api';
+	import { library, streams, player, type MediaFolder, type RadioStation, type PodcastInfo } from '$lib/api';
 	import { onMount } from 'svelte';
 
 	type Tab = 'folders' | 'radio' | 'podcasts';
@@ -11,6 +11,8 @@
 	let loadingFolders = $state(true);
 	let showNewFolder = $state(false);
 	let newFolderName = $state('');
+	let expandedFolder = $state<string | null>(null);
+	let folderTracks = $state<{ filename: string; path: string }[]>([]);
 
 	// Upload
 	let uploadFolder = $state('');
@@ -23,6 +25,7 @@
 	let showAddStation = $state(false);
 	let newStationName = $state('');
 	let newStationUrl = $state('');
+	let stationUrlError = $state('');
 
 	// Podcasts
 	let podcasts = $state<PodcastInfo[]>([]);
@@ -30,6 +33,7 @@
 	let showAddPodcast = $state(false);
 	let newPodcastName = $state('');
 	let newPodcastUrl = $state('');
+	let podcastUrlError = $state('');
 
 	let error = $state('');
 
@@ -65,6 +69,27 @@
 		await loadFolders();
 	}
 
+	async function toggleFolder(folderName: string) {
+		if (expandedFolder === folderName) {
+			expandedFolder = null;
+			folderTracks = [];
+		} else {
+			expandedFolder = folderName;
+			folderTracks = await library.tracks(folderName);
+		}
+	}
+
+	async function playFolder(folderPath: string) {
+		try {
+			// Use the player API to play a folder via MPD
+			await fetch('/api/player/play-folder', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: folderPath }),
+			});
+		} catch {}
+	}
+
 	async function handleFiles(folderName: string, files: FileList) {
 		uploadFolder = folderName;
 		uploading = true;
@@ -77,8 +102,22 @@
 		await loadFolders();
 	}
 
+	function isValidUrl(url: string): boolean {
+		try {
+			const u = new URL(url);
+			return u.protocol === 'http:' || u.protocol === 'https:';
+		} catch {
+			return false;
+		}
+	}
+
 	async function addStation() {
+		stationUrlError = '';
 		if (!newStationName.trim() || !newStationUrl.trim()) return;
+		if (!isValidUrl(newStationUrl)) {
+			stationUrlError = t('content.radio_url_invalid');
+			return;
+		}
 		await streams.addRadio(newStationName.trim(), newStationUrl.trim());
 		newStationName = '';
 		newStationUrl = '';
@@ -92,7 +131,12 @@
 	}
 
 	async function addPodcast() {
+		podcastUrlError = '';
 		if (!newPodcastName.trim() || !newPodcastUrl.trim()) return;
+		if (!isValidUrl(newPodcastUrl)) {
+			podcastUrlError = t('content.radio_url_invalid');
+			return;
+		}
 		await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim());
 		newPodcastName = '';
 		newPodcastUrl = '';
@@ -135,18 +179,22 @@
 	<!-- Folders tab -->
 	{#if tab === 'folders'}
 		<div class="flex justify-end mb-3">
-			<button onclick={() => (showNewFolder = !showNewFolder)} class="text-sm text-primary font-medium">
-				+ {t('content.new_folder')}
-			</button>
+			{#if showNewFolder}
+				<button onclick={() => (showNewFolder = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
+			{:else}
+				<button onclick={() => (showNewFolder = true)} class="text-sm text-primary font-medium">
+					+ {t('content.new_folder')}
+				</button>
+			{/if}
 		</div>
 
 		{#if showNewFolder}
-			<div class="flex gap-2 mb-4">
+			<div class="flex gap-2 mb-4 p-3 bg-surface-light rounded-xl">
 				<input
 					type="text"
 					bind:value={newFolderName}
 					placeholder={t('content.folder_name')}
-					class="flex-1 px-3 py-2 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
 					onkeydown={(e) => e.key === 'Enter' && createFolder()}
 				/>
 				<button onclick={createFolder} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
@@ -165,8 +213,12 @@
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each folders as folder (folder.path)}
-					<div class="bg-surface-light rounded-xl p-3">
-						<div class="flex items-center gap-3">
+					<div class="bg-surface-light rounded-xl overflow-hidden">
+						<!-- Folder header -->
+						<button
+							onclick={() => toggleFolder(folder.path)}
+							class="w-full flex items-center gap-3 p-3 text-left hover:bg-surface-lighter transition-colors"
+						>
 							<div class="w-12 h-12 rounded-lg bg-surface-lighter flex-shrink-0 overflow-hidden flex items-center justify-center">
 								{#if folder.cover_path}
 									<img src={folder.cover_path} alt={folder.name} class="w-full h-full object-cover" />
@@ -182,27 +234,63 @@
 									{t('content.tracks', { count: folder.track_count })} · {formatSize(folder.size_bytes)}
 								</p>
 							</div>
-							<!-- Upload button for this folder -->
-							<label class="p-2 text-text-muted hover:text-primary cursor-pointer transition-colors">
-								<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-								</svg>
-								<input
-									type="file"
-									multiple
-									accept="audio/*,image/*"
-									class="hidden"
-									onchange={(e) => {
-										const target = e.target as HTMLInputElement;
-										if (target.files) handleFiles(folder.path, target.files);
-									}}
-								/>
-							</label>
-						</div>
+							<svg class="w-4 h-4 text-text-muted shrink-0 transition-transform {expandedFolder === folder.path ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M6 9l6 6 6-6"/>
+							</svg>
+						</button>
 
-						{#if uploading && uploadFolder === folder.path}
-							<div class="mt-2 h-1.5 bg-surface-lighter rounded-full overflow-hidden">
-								<div class="h-full bg-primary transition-[width] duration-200" style="width: {uploadProgress}%"></div>
+						<!-- Expanded: tracks + actions -->
+						{#if expandedFolder === folder.path}
+							<div class="px-3 pb-3 border-t border-surface-lighter">
+								<!-- Actions row -->
+								<div class="flex items-center gap-2 py-2">
+									<button
+										onclick={() => playFolder(folder.path)}
+										class="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-medium hover:bg-primary/20"
+									>
+										<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+											<path d="M8 5v14l11-7z"/>
+										</svg>
+										{t('library.play_folder')}
+									</button>
+									<!-- Upload -->
+									<label class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-lighter rounded-lg text-xs text-text-muted hover:text-text cursor-pointer">
+										<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+										</svg>
+										Hochladen
+										<input
+											type="file"
+											multiple
+											accept="audio/*,image/*"
+											class="hidden"
+											onchange={(e) => {
+												const target = e.target as HTMLInputElement;
+												if (target.files) handleFiles(folder.path, target.files);
+											}}
+										/>
+									</label>
+								</div>
+
+								{#if uploading && uploadFolder === folder.path}
+									<div class="mb-2 h-1.5 bg-surface-lighter rounded-full overflow-hidden">
+										<div class="h-full bg-primary transition-[width] duration-200" style="width: {uploadProgress}%"></div>
+									</div>
+								{/if}
+
+								<!-- Track list -->
+								{#if folderTracks.length > 0}
+									<div class="flex flex-col">
+										{#each folderTracks as track, i}
+											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
+												<span class="w-5 text-text-muted text-right tabular-nums">{i + 1}</span>
+												<span class="text-text truncate">{track.filename}</span>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<p class="text-xs text-text-muted py-2">Keine Titel in diesem Ordner.</p>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -214,9 +302,13 @@
 	<!-- Radio tab -->
 	{#if tab === 'radio'}
 		<div class="flex justify-end mb-3">
-			<button onclick={() => (showAddStation = !showAddStation)} class="text-sm text-primary font-medium">
-				+ {t('content.radio_add')}
-			</button>
+			{#if showAddStation}
+				<button onclick={() => { showAddStation = false; stationUrlError = ''; }} class="text-sm text-text-muted">{t('content.close_form')}</button>
+			{:else}
+				<button onclick={() => (showAddStation = true)} class="text-sm text-primary font-medium">
+					+ {t('content.radio_add')}
+				</button>
+			{/if}
 		</div>
 
 		{#if showAddStation}
@@ -224,7 +316,10 @@
 				<input type="text" bind:value={newStationName} placeholder={t('content.radio_name')}
 					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
 				<input type="url" bind:value={newStationUrl} placeholder={t('content.radio_url')}
-					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
+					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary {stationUrlError ? 'border-red-500' : ''}" />
+				{#if stationUrlError}
+					<p class="text-xs text-red-400">{stationUrlError}</p>
+				{/if}
 				<button onclick={addStation} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
 			</div>
 		{/if}
@@ -260,9 +355,13 @@
 	<!-- Podcasts tab -->
 	{#if tab === 'podcasts'}
 		<div class="flex justify-end mb-3">
-			<button onclick={() => (showAddPodcast = !showAddPodcast)} class="text-sm text-primary font-medium">
-				+ {t('content.podcast_add')}
-			</button>
+			{#if showAddPodcast}
+				<button onclick={() => { showAddPodcast = false; podcastUrlError = ''; }} class="text-sm text-text-muted">{t('content.close_form')}</button>
+			{:else}
+				<button onclick={() => (showAddPodcast = true)} class="text-sm text-primary font-medium">
+					+ {t('content.podcast_add')}
+				</button>
+			{/if}
 		</div>
 
 		{#if showAddPodcast}
@@ -270,7 +369,10 @@
 				<input type="text" bind:value={newPodcastName} placeholder={t('content.podcast_name')}
 					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
 				<input type="url" bind:value={newPodcastUrl} placeholder={t('content.podcast_url')}
-					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
+					class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary {podcastUrlError ? 'border-red-500' : ''}" />
+				{#if podcastUrlError}
+					<p class="text-xs text-red-400">{podcastUrlError}</p>
+				{/if}
 				<button onclick={addPodcast} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
 			</div>
 		{/if}

@@ -71,7 +71,7 @@ In aktiver Entwicklung.
 
 ---
 
-*Inspiriert von großartigen Open-Source-Projekten wie [Vorgängerprojekt](https://github.com/MiczFlor/RPi-Jukebox) und [anderes DIY-Projekt](https://www.voss.earth/tonuino/) — und der Idee, dass Kinderzimmer keine Cloud-Anbindung brauchen.*
+*Inspiriert von großartigen Open-Source-Projekten wie [Phoniebox](https://github.com/MiczFlor/RPi-Jukebox-RFID) und [TonUINO](https://www.voss.earth/tonuino/) — und der Idee, dass Kinderzimmer keine Cloud-Anbindung brauchen.*
 
 ## Lizenz
 

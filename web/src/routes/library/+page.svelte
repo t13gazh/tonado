@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { library, streams, playlistsApi, player, type MediaFolder, type RadioStation, type PodcastInfo, type PlaylistSummary } from '$lib/api';
+	import { library, streams, playlistsApi, player, type MediaFolder, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	type Tab = 'folders' | 'radio' | 'podcasts' | 'playlists';
 	let tab = $state<Tab>('folders');
@@ -40,6 +41,11 @@
 	let loadingPlaylists = $state(true);
 	let showNewPlaylist = $state(false);
 	let newPlaylistName = $state('');
+	let expandedPlaylist = $state<PlaylistDetail | null>(null);
+	let showAddItem = $state(false);
+	let newItemType = $state<'folder' | 'stream' | 'track'>('folder');
+	let newItemPath = $state('');
+	let newItemTitle = $state('');
 
 	let error = $state('');
 
@@ -88,12 +94,23 @@
 
 	async function playFolder(folderPath: string) {
 		try {
-			// Use the player API to play a folder via MPD
 			await fetch('/api/player/play-folder', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ path: folderPath }),
 			});
+			goto('/');
+		} catch {}
+	}
+
+	async function playRadio(url: string) {
+		try {
+			await fetch('/api/player/play-url', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ url }),
+			});
+			goto('/');
 		} catch {}
 	}
 
@@ -172,6 +189,32 @@
 
 	async function removePlaylist(id: number) {
 		await playlistsApi.delete(id);
+		expandedPlaylist = null;
+		await loadPlaylists();
+	}
+
+	async function togglePlaylist(id: number) {
+		if (expandedPlaylist?.id === id) {
+			expandedPlaylist = null;
+		} else {
+			expandedPlaylist = await playlistsApi.get(id);
+		}
+	}
+
+	async function addPlaylistItem() {
+		if (!expandedPlaylist || !newItemPath.trim()) return;
+		await playlistsApi.addItem(expandedPlaylist.id, newItemType, newItemPath.trim(), newItemTitle.trim() || undefined);
+		newItemPath = '';
+		newItemTitle = '';
+		showAddItem = false;
+		expandedPlaylist = await playlistsApi.get(expandedPlaylist.id);
+		await loadPlaylists();
+	}
+
+	async function removePlaylistItem(itemId: number) {
+		if (!expandedPlaylist) return;
+		await playlistsApi.removeItem(itemId);
+		expandedPlaylist = await playlistsApi.get(expandedPlaylist.id);
 		await loadPlaylists();
 	}
 
@@ -367,6 +410,11 @@
 							<p class="text-sm font-medium text-text truncate">{station.name}</p>
 							<p class="text-[10px] text-text-muted truncate font-mono">{station.url}</p>
 						</div>
+						<button onclick={() => playRadio(station.url)} class="p-1.5 text-text-muted hover:text-primary transition-colors">
+							<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+								<path d="M8 5v14l11-7z"/>
+							</svg>
+						</button>
 						<button onclick={() => removeStation(station.id)} class="p-1.5 text-text-muted hover:text-red-400">
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M18 6L6 18M6 6l12 12"/>
@@ -471,26 +519,90 @@
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each allPlaylists as pl (pl.id)}
-					<div class="flex items-center gap-3 p-3 bg-surface-light rounded-xl">
-						<div class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
-							<svg class="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<line x1="8" y1="6" x2="21" y2="6"/>
-								<line x1="8" y1="12" x2="21" y2="12"/>
-								<line x1="8" y1="18" x2="21" y2="18"/>
-								<line x1="3" y1="6" x2="3.01" y2="6"/>
-								<line x1="3" y1="12" x2="3.01" y2="12"/>
-								<line x1="3" y1="18" x2="3.01" y2="18"/>
-							</svg>
-						</div>
-						<div class="flex-1 min-w-0">
-							<p class="text-sm font-medium text-text truncate">{pl.name}</p>
-							<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
-						</div>
-						<button onclick={() => removePlaylist(pl.id)} class="p-1.5 text-text-muted hover:text-red-400">
-							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M18 6L6 18M6 6l12 12"/>
+					<div class="bg-surface-light rounded-xl overflow-hidden">
+						<!-- Playlist header -->
+						<button
+							onclick={() => togglePlaylist(pl.id)}
+							class="w-full flex items-center gap-3 p-3 text-left hover:bg-surface-lighter transition-colors"
+						>
+							<div class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
+								<svg class="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<line x1="8" y1="6" x2="21" y2="6"/>
+									<line x1="8" y1="12" x2="21" y2="12"/>
+									<line x1="8" y1="18" x2="21" y2="18"/>
+									<line x1="3" y1="6" x2="3.01" y2="6"/>
+									<line x1="3" y1="12" x2="3.01" y2="12"/>
+									<line x1="3" y1="18" x2="3.01" y2="18"/>
+								</svg>
+							</div>
+							<div class="flex-1 min-w-0">
+								<p class="text-sm font-medium text-text truncate">{pl.name}</p>
+								<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
+							</div>
+							<svg class="w-4 h-4 text-text-muted shrink-0 transition-transform {expandedPlaylist?.id === pl.id ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M6 9l6 6 6-6"/>
 							</svg>
 						</button>
+
+						<!-- Expanded: items + add -->
+						{#if expandedPlaylist?.id === pl.id}
+							<div class="px-3 pb-3 border-t border-surface-lighter">
+								<!-- Add item button -->
+								<div class="py-2">
+									{#if showAddItem}
+										<div class="flex flex-col gap-2 p-2 bg-surface rounded-lg">
+											<div class="flex gap-2">
+												{#each ['folder', 'stream', 'track'] as type}
+													<button
+														onclick={() => (newItemType = type as any)}
+														class="px-2 py-1 rounded text-xs {newItemType === type ? 'bg-primary text-white' : 'bg-surface-lighter text-text-muted'}"
+													>
+														{type === 'folder' ? 'Ordner' : type === 'stream' ? 'Stream' : 'Titel'}
+													</button>
+												{/each}
+											</div>
+											<input type="text" bind:value={newItemPath} placeholder="Pfad oder URL"
+												class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
+											<input type="text" bind:value={newItemTitle} placeholder="Anzeigename (optional)"
+												class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
+											<div class="flex gap-2 justify-end">
+												<button onclick={() => (showAddItem = false)} class="text-xs text-text-muted">{t('general.cancel')}</button>
+												<button onclick={addPlaylistItem} class="px-3 py-1 bg-primary text-white rounded text-xs">{t('general.save')}</button>
+											</div>
+										</div>
+									{:else}
+										<button onclick={() => (showAddItem = true)} class="text-xs text-primary font-medium">+ Eintrag hinzufügen</button>
+									{/if}
+								</div>
+
+								<!-- Item list -->
+								{#if expandedPlaylist.items.length > 0}
+									<div class="flex flex-col">
+										{#each expandedPlaylist.items as item, i}
+											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
+												<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
+												<span class="flex-1 text-text truncate">{item.title || item.content_path}</span>
+												<span class="text-text-muted capitalize text-[10px]">{item.content_type}</span>
+												<button onclick={() => removePlaylistItem(item.id)} class="p-0.5 text-text-muted hover:text-red-400">
+													<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+														<path d="M18 6L6 18M6 6l12 12"/>
+													</svg>
+												</button>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<p class="text-xs text-text-muted py-1">Noch keine Einträge.</p>
+								{/if}
+
+								<!-- Delete playlist -->
+								<div class="mt-2 pt-2 border-t border-surface-lighter">
+									<button onclick={() => removePlaylist(pl.id)} class="text-xs text-red-400 hover:text-red-300">
+										Playlist löschen
+									</button>
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>

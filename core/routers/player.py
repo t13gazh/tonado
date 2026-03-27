@@ -92,3 +92,14 @@ async def play_folder(req: PlayFolderRequest) -> dict:
     """Play all tracks in a media folder."""
     await _get_player().play_folder(req.path)
     return {"status": "ok"}
+
+
+class PlayUrlRequest(BaseModel):
+    url: str
+
+
+@router.post("/play-url")
+async def play_url(req: PlayUrlRequest) -> dict:
+    """Play a stream URL (radio, podcast)."""
+    await _get_player().play_url(req.url)
+    return {"status": "ok"}

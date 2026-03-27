@@ -33,9 +33,15 @@ export interface CardCreate {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+	const { headers: extraHeaders, ...rest } = options ?? {};
 	const res = await fetch(`${BASE}${path}`, {
-		headers: { 'Content-Type': 'application/json' },
-		...options,
+		headers: {
+			'Content-Type': 'application/json',
+			...(extraHeaders instanceof Headers
+				? Object.fromEntries(extraHeaders.entries())
+				: (extraHeaders as Record<string, string>) ?? {}),
+		},
+		...rest,
 	});
 	if (!res.ok) {
 		throw new Error(`API error: ${res.status} ${res.statusText}`);

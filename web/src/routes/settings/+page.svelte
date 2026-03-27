@@ -156,7 +156,7 @@
 
 	{#if authStatus?.authenticated}
 		<div class="flex items-center justify-between mb-4 px-1">
-			<span class="text-xs text-text-muted">Angemeldet als: <span class="text-primary capitalize">{authStatus.tier}</span></span>
+			<span class="text-xs text-text-muted">Angemeldet als: <span class="text-primary">{authStatus.tier === 'expert' ? 'Experte' : authStatus.tier === 'parent' ? 'Eltern' : 'Offen'}</span></span>
 			<button onclick={logout} class="text-xs text-text-muted hover:text-text">{t('settings.logout')}</button>
 		</div>
 	{/if}

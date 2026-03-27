@@ -26,11 +26,13 @@
 	let newStationName = $state('');
 	let newStationUrl = $state('');
 	let urlError = $state('');
+	let expandedRadio = $state<number | null>(null);
 
 	// --- Podcasts ---
 	let podcasts = $state<PodcastInfo[]>([]);
 	let loadingPodcasts = $state(true);
 	let showAddPodcast = $state(false);
+	let expandedPodcast = $state<number | null>(null);
 	let newPodcastName = $state('');
 	let newPodcastUrl = $state('');
 
@@ -245,10 +247,10 @@
 							<button onclick={() => playContent('folder', folder.path)} class="p-2 text-primary hover:text-primary-light transition-colors" aria-label="Abspielen">
 								<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 							</button>
-							<!-- Delete -->
-							<button onclick={() => deleteFolder(folder.path)} class="p-1.5 text-text-muted/40 hover:text-red-400 transition-colors" aria-label="Löschen">
-								<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-							</button>
+							<!-- Expand chevron -->
+							<svg class="w-4 h-4 text-text-muted shrink-0 transition-transform {expandedFolder === folder.path ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M6 9l6 6 6-6"/>
+							</svg>
 						</div>
 
 						{#if expandedFolder === folder.path}
@@ -278,6 +280,9 @@
 								{:else}
 									<p class="text-xs text-text-muted py-2">Keine Titel in diesem Ordner.</p>
 								{/if}
+								<div class="mt-2 pt-2 border-t border-surface-lighter">
+									<button onclick={() => deleteFolder(folder.path)} class="text-xs text-red-400 hover:text-red-300">Ordner löschen</button>
+								</div>
 							</div>
 						{/if}
 					</div>
@@ -312,25 +317,27 @@
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each stations as station (station.id)}
-					<div class="flex items-center gap-3 p-3 bg-surface-light rounded-xl">
-						<div class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
-							<svg class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="currentColor">
-								<path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
-							</svg>
-						</div>
-						<div class="flex-1 min-w-0">
-							<p class="text-sm font-medium text-text truncate">{station.name}</p>
-							<p class="text-[10px] text-text-muted truncate">{station.category}</p>
-						</div>
-						<!-- Play -->
-						<button onclick={() => playContent('url', station.url)} class="p-2 text-primary hover:text-primary-light transition-colors" aria-label="Abspielen">
-							<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-						</button>
-						<!-- Delete (only custom) -->
-						{#if station.category === 'custom'}
-							<button onclick={() => removeStation(station.id)} class="p-1.5 text-text-muted/40 hover:text-red-400 transition-colors" aria-label="Löschen">
-								<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+					{@const expanded = expandedRadio === station.id}
+					<div class="bg-surface-light rounded-xl overflow-hidden">
+						<div class="flex items-center gap-3 p-3">
+							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
+								<svg class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/>
+								</svg>
 							</button>
+							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
+								<p class="text-sm font-medium text-text truncate">{station.name}</p>
+								<p class="text-[10px] text-text-muted truncate">{station.category === 'kinder' ? 'Kindersender' : 'Eigener Sender'}</p>
+							</button>
+							<button onclick={() => playContent('url', station.url)} class="p-2 text-primary hover:text-primary-light transition-colors" aria-label="Abspielen">
+								<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+							</button>
+						</div>
+						{#if expanded}
+							<div class="px-3 pb-3 border-t border-surface-lighter">
+								<p class="text-[10px] text-text-muted font-mono py-2 truncate">{station.url}</p>
+								<button onclick={() => removeStation(station.id)} class="text-xs text-red-400 hover:text-red-300">Sender löschen</button>
+							</div>
 						{/if}
 					</div>
 				{/each}
@@ -366,24 +373,28 @@
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each podcasts as podcast (podcast.id)}
-					<div class="flex items-center gap-3 p-3 bg-surface-light rounded-xl">
-						<div class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
-							<svg class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="currentColor">
-								<path d="M6 18.5c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5V15h-3v2H9v-2H6v3.5zM12 2C8.69 2 6 4.69 6 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
-							</svg>
+					{@const expanded = expandedPodcast === podcast.id}
+					<div class="bg-surface-light rounded-xl overflow-hidden">
+						<div class="flex items-center gap-3 p-3">
+							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="w-10 h-10 rounded-lg bg-surface-lighter flex items-center justify-center flex-shrink-0">
+								<svg class="w-5 h-5 text-accent" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M6 18.5c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5V15h-3v2H9v-2H6v3.5zM12 2C8.69 2 6 4.69 6 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z"/>
+								</svg>
+							</button>
+							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="flex-1 min-w-0 text-left">
+								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
+								<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
+							</button>
+							<button onclick={() => playContent('url', podcast.feed_url)} class="p-2 text-primary hover:text-primary-light transition-colors" aria-label="Abspielen">
+								<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+							</button>
 						</div>
-						<div class="flex-1 min-w-0">
-							<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
-							<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
-						</div>
-						<!-- Play (latest episode via feed URL) -->
-						<button onclick={() => playContent('url', podcast.feed_url)} class="p-2 text-primary hover:text-primary-light transition-colors" aria-label="Abspielen">
-							<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-						</button>
-						<!-- Delete -->
-						<button onclick={() => removePodcast(podcast.id)} class="p-1.5 text-text-muted/40 hover:text-red-400 transition-colors" aria-label="Löschen">
-							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-						</button>
+						{#if expanded}
+							<div class="px-3 pb-3 border-t border-surface-lighter">
+								<p class="text-[10px] text-text-muted font-mono py-2 truncate">{podcast.feed_url}</p>
+								<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">Podcast löschen</button>
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
@@ -428,14 +439,13 @@
 								<p class="text-sm font-medium text-text truncate">{pl.name}</p>
 								<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
 							</button>
-							<!-- Play (first item) -->
+							<!-- Play -->
 							<button onclick={() => {/* TODO: play full playlist */}} class="p-2 text-primary hover:text-primary-light transition-colors {pl.item_count === 0 ? 'opacity-30' : ''}" aria-label="Abspielen" disabled={pl.item_count === 0}>
 								<svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 							</button>
-							<!-- Delete -->
-							<button onclick={() => removePlaylist(pl.id)} class="p-1.5 text-text-muted/40 hover:text-red-400 transition-colors" aria-label="Löschen">
-								<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-							</button>
+							<svg class="w-4 h-4 text-text-muted shrink-0 transition-transform {expandedPlaylist?.id === pl.id ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M6 9l6 6 6-6"/>
+							</svg>
 						</div>
 
 						{#if expandedPlaylist?.id === pl.id}

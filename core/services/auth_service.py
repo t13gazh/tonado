@@ -11,7 +11,9 @@ import secrets
 from enum import StrEnum
 from typing import Any
 
-import bcrypt
+import hashlib
+import hmac
+
 import jwt
 
 from core.services.config_service import ConfigService
@@ -58,7 +60,9 @@ class AuthService:
         """Set or update the PIN for a tier."""
         if len(pin) < 4:
             raise ValueError("PIN muss mindestens 4 Zeichen lang sein")
-        pin_hash = bcrypt.hashpw(pin.encode(), bcrypt.gensalt()).decode()
+        salt = secrets.token_hex(16)
+        derived = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000).hex()
+        pin_hash = f"{salt}${derived}"
         await self._config.set(f"auth.pin_hash.{tier}", pin_hash)
         logger.info("PIN set for tier: %s", tier)
 
@@ -72,7 +76,11 @@ class AuthService:
         pin_hash = await self._config.get(f"auth.pin_hash.{tier}")
         if not pin_hash:
             return True  # No PIN set = always pass
-        return bcrypt.checkpw(pin.encode(), pin_hash.encode())
+        if "$" not in pin_hash:
+            return False
+        salt, stored_hash = pin_hash.split("$", 1)
+        derived = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000).hex()
+        return hmac.compare_digest(derived, stored_hash)
 
     async def login(self, pin: str) -> dict[str, Any] | None:
         """Attempt login with a PIN. Returns JWT token and tier on success.

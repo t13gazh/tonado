@@ -54,6 +54,7 @@ coverage/
 *.tar.gz
 
 # Claude tooling
+CLAUDE.md
 .claude-flow/
 .claude/
 .swarm/

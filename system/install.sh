@@ -1,14 +1,16 @@
 #!/bin/bash
 # Tonado installation script for Raspberry Pi
-# Usage: curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
 
 set -euo pipefail
 
 TONADO_DIR="/opt/tonado"
-TONADO_USER="tonado"
-MEDIA_DIR="/home/${TONADO_USER}/media"
+TONADO_USER="${SUDO_USER:-pi}"
+MEDIA_DIR="/home/${TONADO_USER}/tonado/media"
+CONFIG_DIR="/home/${TONADO_USER}/tonado/config"
 
 echo "=== Tonado Installation ==="
+echo "User: $TONADO_USER"
 echo ""
 
 # Check if running as root
@@ -17,12 +19,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Check if running on a Raspberry Pi
-if ! grep -q "Raspberry Pi" /proc/cpuinfo 2>/dev/null; then
-    echo "WARNUNG: Kein Raspberry Pi erkannt. Installation wird trotzdem fortgesetzt."
-fi
-
-echo "[1/7] System-Pakete installieren..."
+echo "[1/8] System-Pakete installieren..."
 apt-get update -qq
 apt-get install -y -qq \
     python3 python3-venv python3-pip \
@@ -30,19 +27,15 @@ apt-get install -y -qq \
     hostapd dnsmasq \
     nginx \
     git \
-    i2c-tools spi-tools
+    i2c-tools spi-tools \
+    python3-dev
 
-echo "[2/7] Benutzer erstellen..."
-if ! id "$TONADO_USER" &>/dev/null; then
-    useradd -r -m -s /bin/bash -G audio,spi,i2c,gpio "$TONADO_USER"
-fi
+echo "[2/8] Verzeichnisse erstellen..."
+mkdir -p "$TONADO_DIR"
+mkdir -p "$MEDIA_DIR" "$MEDIA_DIR/.playlists" "$CONFIG_DIR"
+chown -R "$TONADO_USER:$TONADO_USER" "/home/${TONADO_USER}/tonado"
 
-echo "[3/7] Verzeichnisse erstellen..."
-mkdir -p "$TONADO_DIR"/{config,logs}
-mkdir -p "$MEDIA_DIR"
-chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR" "$MEDIA_DIR"
-
-echo "[4/7] Tonado installieren..."
+echo "[3/8] Tonado installieren..."
 if [ -d "${TONADO_DIR}/.git" ]; then
     cd "$TONADO_DIR" && git pull
 else
@@ -51,14 +44,33 @@ fi
 
 cd "$TONADO_DIR"
 python3 -m venv .venv
-.venv/bin/pip install -e ".[pi]"
+.venv/bin/pip install --upgrade pip -q
+.venv/bin/pip install -e ".[pi]" -q
 
-echo "[5/7] MPD konfigurieren..."
-cat > /etc/mpd.conf <<'MPD'
-music_directory     "/home/tonado/media"
-playlist_directory  "/home/tonado/media/.playlists"
+# Add user to hardware groups
+usermod -aG audio,spi,i2c,gpio "$TONADO_USER" 2>/dev/null || true
+
+echo "[4/8] HifiBerry MiniAmp konfigurieren..."
+BOOT_CONFIG="/boot/firmware/config.txt"
+[ ! -f "$BOOT_CONFIG" ] && BOOT_CONFIG="/boot/config.txt"
+
+# Disable onboard audio, enable HifiBerry MiniAmp
+if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
+    # Comment out onboard audio
+    sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$BOOT_CONFIG"
+    echo "" >> "$BOOT_CONFIG"
+    echo "# Tonado: HifiBerry MiniAmp" >> "$BOOT_CONFIG"
+    echo "dtoverlay=hifiberry-dac" >> "$BOOT_CONFIG"
+    echo "gpio=25=op,dh" >> "$BOOT_CONFIG"
+    echo "HINWEIS: HifiBerry MiniAmp Overlay hinzugefuegt. Neustart erforderlich."
+fi
+
+echo "[5/8] MPD konfigurieren..."
+cat > /etc/mpd.conf <<MPD
+music_directory     "$MEDIA_DIR"
+playlist_directory  "$MEDIA_DIR/.playlists"
 db_file             "/var/lib/mpd/database"
-log_file            "/var/log/mpd/mpd.log"
+log_file            "syslog"
 pid_file            "/run/mpd/pid"
 state_file          "/var/lib/mpd/state"
 sticker_file        "/var/lib/mpd/sticker.sql"
@@ -66,38 +78,105 @@ sticker_file        "/var/lib/mpd/sticker.sql"
 bind_to_address     "localhost"
 port                "6600"
 
+auto_update         "yes"
+
 audio_output {
-    type        "alsa"
-    name        "Tonado Audio"
-    mixer_type  "software"
+    type            "alsa"
+    name            "Tonado Audio"
+    device          "default"
+    mixer_type      "software"
 }
 MPD
 
-mkdir -p "$MEDIA_DIR/.playlists"
 chown -R mpd:audio /var/lib/mpd
-systemctl restart mpd
+systemctl enable mpd
+systemctl restart mpd || true
 
-echo "[6/7] Hardware-Interfaces aktivieren..."
-# Enable SPI
+echo "[6/8] Hardware-Interfaces aktivieren..."
 raspi-config nonint do_spi 0 2>/dev/null || true
-# Enable I2C
 raspi-config nonint do_i2c 0 2>/dev/null || true
 
-echo "[7/7] systemd-Services installieren..."
-cp "$TONADO_DIR/system/tonado.service" /etc/systemd/system/
-cp "$TONADO_DIR/system/tonado-ap.service" /etc/systemd/system/
-chmod +x "$TONADO_DIR/system/setup-ap.sh"
+echo "[7/8] systemd-Service installieren..."
+cat > /etc/systemd/system/tonado.service <<SERVICE
+[Unit]
+Description=Tonado Music Box
+After=network.target mpd.service
+Wants=mpd.service
+
+[Service]
+Type=simple
+User=$TONADO_USER
+Group=$TONADO_USER
+WorkingDirectory=$TONADO_DIR
+ExecStart=$TONADO_DIR/.venv/bin/uvicorn core.main:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+Environment=TONADO_DB_PATH=$CONFIG_DIR/tonado.db
+Environment=TONADO_MEDIA_DIR=$MEDIA_DIR
+Environment=TONADO_HARDWARE_MODE=auto
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
 
 systemctl daemon-reload
 systemctl enable tonado.service
-systemctl enable tonado-ap.service
-systemctl start tonado.service
+systemctl start tonado.service || true
 
+echo "[8/9] Frontend bauen..."
+# Install Node.js if not present
+if ! command -v node &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    apt-get install -y -qq nodejs
+fi
+cd "$TONADO_DIR/web"
+npm install --production=false -q
+npm run build
+chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR"
+
+echo "[9/9] Nginx Reverse Proxy konfigurieren..."
+cat > /etc/nginx/sites-available/tonado <<'NGINX'
+server {
+    listen 80 default_server;
+    server_name _;
+
+    # Static frontend (built files)
+    root /opt/tonado/web/build;
+    index index.html;
+
+    # API and WebSocket proxy
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+    }
+
+    # SPA fallback
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+NGINX
+
+ln -sf /etc/nginx/sites-available/tonado /etc/nginx/sites-enabled/tonado
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl restart nginx
+
+IP=$(hostname -I | awk '{print $1}')
 echo ""
 echo "=== Installation abgeschlossen ==="
 echo ""
-echo "Tonado laeuft auf http://$(hostname -I | awk '{print $1}'):8080"
+echo "Tonado laeuft auf http://${IP}"
+echo "(API auf Port 8080, Nginx auf Port 80)"
 echo ""
-echo "Falls kein WiFi konfiguriert ist, verbinde dich mit dem"
-echo "WLAN 'Tonado-Setup' und oeffne http://192.168.4.1:8080"
+echo "WICHTIG: Neustart empfohlen fuer HifiBerry-Overlay:"
+echo "  sudo reboot"
 echo ""

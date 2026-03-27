@@ -9,7 +9,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
-from core.routers import cards, config, library, player, setup, streams
+from core.routers import auth, cards, config, library, player, setup, streams
+from core.services.auth_service import AuthService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
@@ -19,6 +20,7 @@ from core.services.player_service import PlayerService
 from core.services.library_service import LibraryService
 from core.services.setup_wizard import SetupWizard
 from core.services.stream_service import StreamService
+from core.services.timer_service import TimerService
 from core.services.websocket_hub import WebSocketHub
 from core.services.wifi_service import WifiService
 from core.settings import Settings
@@ -97,12 +99,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     stream_service = StreamService(db)
     await stream_service.start()
 
+    # Auth service
+    auth_service = AuthService(config_service)
+    await auth_service.start()
+
+    # Timer service (sleep timer, idle shutdown, volume enforcement, resume)
+    timer_service = TimerService(event_bus, player_service, config_service)
+    await timer_service.start()
+
     # WebSocket hub
     ws_hub = WebSocketHub(event_bus)
     await ws_hub.start()
 
     # Wire event bus: card → player
     async def on_card_scanned(card_id: str, mapping: dict, **_) -> None:
+        nonlocal _current_card_id
+        # Save resume position of previous card
+        if _current_card_id and _current_card_id != card_id:
+            await timer_service.save_resume_position(_current_card_id)
+        _current_card_id = card_id
+
         content_type = mapping["content_type"]
         content_path = mapping["content_path"]
         resume = mapping.get("resume_position", 0)
@@ -112,9 +128,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         elif content_type in ("stream", "podcast"):
             await player_service.play_url(content_path)
 
-    async def on_card_removed(should_pause: bool, **_) -> None:
+    # Track current card for resume position
+    _current_card_id: str | None = None
+
+    async def on_card_removed(card_id: str | None = None, should_pause: bool = False, **_) -> None:
+        nonlocal _current_card_id
+        # Save resume position before pausing
+        if _current_card_id:
+            await timer_service.save_resume_position(_current_card_id)
         if should_pause:
             await player_service.pause()
+        _current_card_id = None
 
     async def on_gesture(action: str, **_) -> None:
         match action:
@@ -129,9 +153,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             case "shuffle":
                 await player_service.shuffle()
 
+    async def on_resume_save(card_id: str, position: float, **_) -> None:
+        await card_service.update_resume_position(card_id, position)
+
     event_bus.subscribe("card_scanned", on_card_scanned)
     event_bus.subscribe("card_removed", on_card_removed)
     event_bus.subscribe("gesture_detected", on_gesture)
+    event_bus.subscribe("resume_position_save", on_resume_save)
 
     # WiFi + Setup wizard + Captive portal
     wifi_service = WifiService()
@@ -156,6 +184,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     config.init(config_service)
     library.init(library_service)
     streams.init(stream_service)
+    auth.init(auth_service, timer_service)
     setup.init(setup_wizard, wifi_service, captive_portal)
 
     # Store hub on app state for WebSocket endpoint
@@ -168,6 +197,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Shutting down Tonado...")
     if captive_portal.active:
         await captive_portal.stop()
+    await timer_service.stop()
     await gyro_service.stop()
     await card_service.stop()
     await player_service.stop()
@@ -189,6 +219,7 @@ app.include_router(cards.router)
 app.include_router(config.router)
 app.include_router(library.router)
 app.include_router(streams.router)
+app.include_router(auth.router)
 app.include_router(setup.router)
 
 

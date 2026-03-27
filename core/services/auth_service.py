@@ -1,0 +1,134 @@
+"""PIN-based authentication service with JWT tokens.
+
+Three access tiers:
+- open: Player view, no PIN needed
+- parent: Library, cards, uploads, settings — PIN protected
+- expert: Hardware, system, WiFi, debug — separate PIN
+"""
+
+import logging
+import secrets
+from enum import StrEnum
+from typing import Any
+
+import bcrypt
+import jwt
+
+from core.services.config_service import ConfigService
+
+logger = logging.getLogger(__name__)
+
+# JWT settings
+_JWT_ALGORITHM = "HS256"
+_JWT_EXPIRE_HOURS = 24
+
+
+class AuthTier(StrEnum):
+    OPEN = "open"
+    PARENT = "parent"
+    EXPERT = "expert"
+
+
+# Tier hierarchy: expert > parent > open
+_TIER_LEVELS = {AuthTier.OPEN: 0, AuthTier.PARENT: 1, AuthTier.EXPERT: 2}
+
+
+class AuthService:
+    """Manages PIN-based authentication with JWT tokens."""
+
+    def __init__(self, config: ConfigService) -> None:
+        self._config = config
+        self._jwt_secret: str = ""
+
+    async def start(self) -> None:
+        """Initialize auth service. Generate JWT secret if not set."""
+        secret = await self._config.get("auth.jwt_secret")
+        if not secret:
+            secret = secrets.token_hex(32)
+            await self._config.set("auth.jwt_secret", secret)
+        self._jwt_secret = secret
+        logger.info("Auth service started")
+
+    async def is_pin_set(self, tier: AuthTier) -> bool:
+        """Check if a PIN is configured for a tier."""
+        pin_hash = await self._config.get(f"auth.pin_hash.{tier}")
+        return pin_hash is not None and pin_hash != ""
+
+    async def set_pin(self, tier: AuthTier, pin: str) -> None:
+        """Set or update the PIN for a tier."""
+        if len(pin) < 4:
+            raise ValueError("PIN muss mindestens 4 Zeichen lang sein")
+        pin_hash = bcrypt.hashpw(pin.encode(), bcrypt.gensalt()).decode()
+        await self._config.set(f"auth.pin_hash.{tier}", pin_hash)
+        logger.info("PIN set for tier: %s", tier)
+
+    async def remove_pin(self, tier: AuthTier) -> None:
+        """Remove the PIN for a tier (makes it unprotected)."""
+        await self._config.delete(f"auth.pin_hash.{tier}")
+        logger.info("PIN removed for tier: %s", tier)
+
+    async def verify_pin(self, tier: AuthTier, pin: str) -> bool:
+        """Verify a PIN against the stored hash."""
+        pin_hash = await self._config.get(f"auth.pin_hash.{tier}")
+        if not pin_hash:
+            return True  # No PIN set = always pass
+        return bcrypt.checkpw(pin.encode(), pin_hash.encode())
+
+    async def login(self, pin: str) -> dict[str, Any] | None:
+        """Attempt login with a PIN. Returns JWT token and tier on success.
+
+        Tries expert first, then parent. Returns the highest matching tier.
+        """
+        # Try expert PIN
+        if await self.is_pin_set(AuthTier.EXPERT):
+            if await self.verify_pin(AuthTier.EXPERT, pin):
+                token = self._create_token(AuthTier.EXPERT)
+                return {"token": token, "tier": AuthTier.EXPERT.value}
+
+        # Try parent PIN
+        if await self.is_pin_set(AuthTier.PARENT):
+            if await self.verify_pin(AuthTier.PARENT, pin):
+                token = self._create_token(AuthTier.PARENT)
+                return {"token": token, "tier": AuthTier.PARENT.value}
+
+        return None
+
+    def verify_token(self, token: str) -> dict[str, Any] | None:
+        """Verify a JWT token and return its claims."""
+        try:
+            payload = jwt.decode(token, self._jwt_secret, algorithms=[_JWT_ALGORITHM])
+            return payload
+        except jwt.InvalidTokenError:
+            return None
+
+    def check_access(self, token: str | None, required_tier: AuthTier) -> bool:
+        """Check if a token grants access to the required tier.
+
+        Open tier always passes. Parent/Expert tiers need valid tokens.
+        Expert token also grants parent access.
+        """
+        if required_tier == AuthTier.OPEN:
+            return True
+
+        if not token:
+            return False
+
+        claims = self.verify_token(token)
+        if not claims:
+            return False
+
+        token_tier = claims.get("tier", "open")
+        token_level = _TIER_LEVELS.get(AuthTier(token_tier), 0)
+        required_level = _TIER_LEVELS.get(required_tier, 0)
+
+        return token_level >= required_level
+
+    def _create_token(self, tier: AuthTier) -> str:
+        """Create a JWT token for a tier."""
+        import time
+        payload = {
+            "tier": tier.value,
+            "iat": int(time.time()),
+            "exp": int(time.time()) + _JWT_EXPIRE_HOURS * 3600,
+        }
+        return jwt.encode(payload, self._jwt_secret, algorithm=_JWT_ALGORITHM)

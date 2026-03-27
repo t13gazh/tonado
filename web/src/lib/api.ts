@@ -154,6 +154,61 @@ export const streams = {
 	),
 };
 
+// Auth API
+export interface AuthStatus {
+	authenticated: boolean;
+	tier: string;
+	parent_pin_set: boolean;
+	expert_pin_set: boolean;
+}
+
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+	_authToken = token;
+	if (token) localStorage.setItem('tonado_token', token);
+	else localStorage.removeItem('tonado_token');
+}
+
+export function getAuthToken(): string | null {
+	if (!_authToken) _authToken = localStorage.getItem('tonado_token');
+	return _authToken;
+}
+
+function authHeaders(): Record<string, string> {
+	const token = getAuthToken();
+	return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export const authApi = {
+	login: async (pin: string) => {
+		const res = await request<{ token: string; tier: string }>('/auth/login', {
+			method: 'POST',
+			body: JSON.stringify({ pin }),
+		});
+		setAuthToken(res.token);
+		return res;
+	},
+	logout: () => { setAuthToken(null); },
+	status: () => request<AuthStatus>('/auth/status', { headers: authHeaders() }),
+	setPin: (tier: string, pin: string) =>
+		request<void>('/auth/pin', {
+			method: 'POST',
+			body: JSON.stringify({ tier, pin }),
+			headers: authHeaders(),
+		}),
+	removePin: (tier: string) =>
+		request<void>('/auth/pin', {
+			method: 'DELETE',
+			body: JSON.stringify({ tier }),
+			headers: authHeaders(),
+		}),
+	sleepTimer: () => request<{ active: boolean; remaining_seconds: number }>('/auth/sleep-timer'),
+	startSleepTimer: (minutes: number) =>
+		request<void>('/auth/sleep-timer', { method: 'POST', body: JSON.stringify({ minutes }) }),
+	cancelSleepTimer: () => request<void>('/auth/sleep-timer', { method: 'DELETE' }),
+};
+
 // Config API
 export const config = {
 	getAll: () => request<Record<string, unknown>>('/config/'),

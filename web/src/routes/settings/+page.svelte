@@ -1,0 +1,264 @@
+<script lang="ts">
+	import { t } from '$lib/i18n';
+	import { config, authApi, type AuthStatus } from '$lib/api';
+	import { onMount } from 'svelte';
+
+	let authStatus = $state<AuthStatus | null>(null);
+	let allConfig = $state<Record<string, unknown>>({});
+	let error = $state('');
+	let saved = $state('');
+
+	// PIN forms
+	let parentPin = $state('');
+	let expertPin = $state('');
+	let loginPin = $state('');
+	let loginError = $state('');
+
+	// Settings values
+	let maxVolume = $state(80);
+	let startupVolume = $state(50);
+	let sleepMinutes = $state(30);
+	let sleepActive = $state(false);
+	let sleepRemaining = $state(0);
+	let idleMinutes = $state(0);
+	let cardRemovePauses = $state(false);
+
+	onMount(async () => {
+		await loadAll();
+	});
+
+	async function loadAll() {
+		try {
+			[authStatus, allConfig] = await Promise.all([
+				authApi.status(),
+				config.getAll(),
+			]);
+			maxVolume = (allConfig['player.max_volume'] as number) ?? 80;
+			startupVolume = (allConfig['player.startup_volume'] as number) ?? 50;
+			idleMinutes = (allConfig['system.idle_shutdown_minutes'] as number) ?? 0;
+			cardRemovePauses = (allConfig['card.remove_pauses'] as boolean) ?? false;
+
+			const timer = await authApi.sleepTimer();
+			sleepActive = timer.active;
+			sleepRemaining = timer.remaining_seconds;
+		} catch (e) {
+			error = String(e);
+		}
+	}
+
+	async function login() {
+		loginError = '';
+		try {
+			await authApi.login(loginPin);
+			loginPin = '';
+			await loadAll();
+		} catch {
+			loginError = t('settings.login_error');
+		}
+	}
+
+	function logout() {
+		authApi.logout();
+		authStatus = null;
+		loadAll();
+	}
+
+	async function saveSetting(key: string, value: unknown) {
+		await config.set(key, value);
+		showSaved();
+	}
+
+	function showSaved() {
+		saved = t('settings.saved');
+		setTimeout(() => (saved = ''), 2000);
+	}
+
+	async function setParentPin() {
+		if (parentPin.length < 4) return;
+		await authApi.setPin('parent', parentPin);
+		parentPin = '';
+		await loadAll();
+		showSaved();
+	}
+
+	async function setExpertPin() {
+		if (expertPin.length < 4) return;
+		await authApi.setPin('expert', expertPin);
+		expertPin = '';
+		await loadAll();
+		showSaved();
+	}
+
+	async function startSleep() {
+		await authApi.startSleepTimer(sleepMinutes);
+		sleepActive = true;
+		sleepRemaining = sleepMinutes * 60;
+	}
+
+	async function cancelSleep() {
+		await authApi.cancelSleepTimer();
+		sleepActive = false;
+		sleepRemaining = 0;
+	}
+</script>
+
+<div class="p-4">
+	<h1 class="text-xl font-bold mb-4">{t('settings.title')}</h1>
+
+	{#if saved}
+		<div class="mb-3 px-3 py-2 bg-green-500/10 border border-green-500/20 rounded-lg text-green-400 text-sm">
+			{saved}
+		</div>
+	{/if}
+
+	{#if error}
+		<div class="mb-3 text-sm text-red-400">{error}</div>
+	{/if}
+
+	<!-- Login section (if PINs are set) -->
+	{#if authStatus && (authStatus.parent_pin_set || authStatus.expert_pin_set) && !authStatus.authenticated}
+		<div class="bg-surface-light rounded-xl p-4 mb-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.login')}</h2>
+			<div class="flex gap-2">
+				<input
+					type="password"
+					bind:value={loginPin}
+					placeholder={t('settings.login_pin')}
+					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					onkeydown={(e) => e.key === 'Enter' && login()}
+				/>
+				<button onclick={login} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('settings.login')}</button>
+			</div>
+			{#if loginError}
+				<p class="text-xs text-red-400 mt-2">{loginError}</p>
+			{/if}
+		</div>
+	{/if}
+
+	{#if authStatus?.authenticated}
+		<div class="flex items-center justify-between mb-4 px-1">
+			<span class="text-xs text-text-muted">Angemeldet als: <span class="text-primary capitalize">{authStatus.tier}</span></span>
+			<button onclick={logout} class="text-xs text-text-muted hover:text-text">{t('settings.logout')}</button>
+		</div>
+	{/if}
+
+	<div class="flex flex-col gap-4">
+		<!-- Volume settings -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.max_volume')}</h2>
+			<div class="flex items-center gap-3">
+				<input
+					type="range" min="10" max="100" bind:value={maxVolume}
+					onchange={() => saveSetting('player.max_volume', maxVolume)}
+					class="flex-1 h-2 bg-surface-lighter rounded-full appearance-none cursor-pointer
+						[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+						[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+				/>
+				<span class="text-sm text-text-muted w-8 text-right tabular-nums">{maxVolume}</span>
+			</div>
+
+			<h2 class="text-sm font-semibold mt-4 mb-3">{t('settings.startup_volume')}</h2>
+			<div class="flex items-center gap-3">
+				<input
+					type="range" min="0" max="100" bind:value={startupVolume}
+					onchange={() => saveSetting('player.startup_volume', startupVolume)}
+					class="flex-1 h-2 bg-surface-lighter rounded-full appearance-none cursor-pointer
+						[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
+						[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary"
+				/>
+				<span class="text-sm text-text-muted w-8 text-right tabular-nums">{startupVolume}</span>
+			</div>
+		</div>
+
+		<!-- Sleep timer -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.sleep_timer')}</h2>
+			{#if sleepActive}
+				<div class="flex items-center justify-between">
+					<span class="text-sm text-accent">
+						{t('settings.sleep_active', { minutes: Math.ceil(sleepRemaining / 60) })}
+					</span>
+					<button onclick={cancelSleep} class="text-sm text-red-400">{t('settings.sleep_cancel')}</button>
+				</div>
+			{:else}
+				<div class="flex items-center gap-3">
+					<input
+						type="number" min="1" max="120" bind:value={sleepMinutes}
+						class="w-20 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm text-center focus:outline-none focus:border-primary"
+					/>
+					<span class="text-sm text-text-muted">{t('settings.sleep_minutes')}</span>
+					<button onclick={startSleep} class="ml-auto px-4 py-2 bg-primary text-white rounded-lg text-sm">
+						{t('settings.sleep_start')}
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Card remove behavior -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.card_remove')}</h2>
+			<div class="flex gap-2">
+				<button
+					onclick={() => { cardRemovePauses = true; saveSetting('card.remove_pauses', true); }}
+					class="flex-1 px-3 py-2 rounded-lg text-sm {cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+				>
+					{t('settings.card_remove_pause')}
+				</button>
+				<button
+					onclick={() => { cardRemovePauses = false; saveSetting('card.remove_pauses', false); }}
+					class="flex-1 px-3 py-2 rounded-lg text-sm {!cardRemovePauses ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+				>
+					{t('settings.card_remove_continue')}
+				</button>
+			</div>
+		</div>
+
+		<!-- Idle shutdown -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
+			<select
+				bind:value={idleMinutes}
+				onchange={() => saveSetting('system.idle_shutdown_minutes', idleMinutes)}
+				class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+			>
+				<option value={0}>{t('settings.idle_off')}</option>
+				<option value={15}>{t('settings.idle_minutes', { minutes: 15 })}</option>
+				<option value={30}>{t('settings.idle_minutes', { minutes: 30 })}</option>
+				<option value={60}>{t('settings.idle_minutes', { minutes: 60 })}</option>
+			</select>
+		</div>
+
+		<!-- PIN management -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.pin_parent')}</h2>
+			<p class="text-xs text-text-muted mb-2">
+				{authStatus?.parent_pin_set ? t('settings.pin_active') : t('settings.pin_not_set')}
+			</p>
+			<div class="flex gap-2">
+				<input
+					type="password" bind:value={parentPin}
+					placeholder={t('settings.pin_placeholder')}
+					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+				/>
+				<button onclick={setParentPin} disabled={parentPin.length < 4} class="px-4 py-2 bg-primary disabled:opacity-50 text-white rounded-lg text-sm">
+					{t('settings.pin_set')}
+				</button>
+			</div>
+
+			<h2 class="text-sm font-semibold mt-4 mb-3">{t('settings.pin_expert')}</h2>
+			<p class="text-xs text-text-muted mb-2">
+				{authStatus?.expert_pin_set ? t('settings.pin_active') : t('settings.pin_not_set')}
+			</p>
+			<div class="flex gap-2">
+				<input
+					type="password" bind:value={expertPin}
+					placeholder={t('settings.pin_placeholder')}
+					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+				/>
+				<button onclick={setExpertPin} disabled={expertPin.length < 4} class="px-4 py-2 bg-primary disabled:opacity-50 text-white rounded-lg text-sm">
+					{t('settings.pin_set')}
+				</button>
+			</div>
+		</div>
+	</div>
+</div>

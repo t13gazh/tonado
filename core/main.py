@@ -103,7 +103,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await stream_service.start()
 
     # Playlist service
-    playlist_service = PlaylistService(db)
+    playlist_service = PlaylistService(db, media_dir=settings.media_dir)
     await playlist_service.start()
 
     # Auth service

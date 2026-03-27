@@ -171,10 +171,11 @@ export interface PlaylistSummary {
 	id: number;
 	name: string;
 	item_count: number;
+	duration_seconds: number;
 }
 
 export interface PlaylistDetail extends PlaylistSummary {
-	items: { id: number; position: number; content_type: string; content_path: string; title: string | null }[];
+	items: { id: number; position: number; content_type: string; content_path: string; title: string | null; duration_seconds: number }[];
 }
 
 export const playlistsApi = {

@@ -331,7 +331,7 @@
 							{@render thumbnail(null, 'playlist')}
 							<button onclick={() => togglePlaylist(pl.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{pl.name}</p>
-								<p class="text-xs text-text-muted">{pl.item_count} Einträge</p>
+								<p class="text-xs text-text-muted">{pl.item_count} Einträge{pl.duration_seconds ? ` · ${formatDuration(pl.duration_seconds)}` : ''}</p>
 							</button>
 							{@render chevron(expanded, () => togglePlaylist(pl.id))}
 						</div>
@@ -367,6 +367,7 @@
 											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 												<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
 												<span class="flex-1 text-text truncate">{item.title || item.content_path}</span>
+												{#if item.duration_seconds}<span class="text-text-muted tabular-nums shrink-0">{formatDuration(item.duration_seconds)}</span>{/if}
 												<button onclick={() => removePlaylistItem(item.id)} class="p-0.5 text-text-muted/40 hover:text-red-400">
 													<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
 												</button>

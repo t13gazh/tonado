@@ -6,6 +6,7 @@ Stored in SQLite alongside other config.
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import aiosqlite
@@ -38,6 +39,7 @@ class PlaylistItem:
     content_type: str  # "track", "folder", "stream"
     content_path: str
     title: str | None = None
+    duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -46,6 +48,7 @@ class PlaylistItem:
             "content_type": self.content_type,
             "content_path": self.content_path,
             "title": self.title,
+            "duration_seconds": round(self.duration_seconds),
         }
 
 
@@ -55,11 +58,16 @@ class Playlist:
     name: str
     items: list[PlaylistItem] = field(default_factory=list)
 
+    @property
+    def total_duration(self) -> float:
+        return sum(i.duration_seconds for i in self.items)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "name": self.name,
             "item_count": len(self.items),
+            "duration_seconds": round(self.total_duration),
             "items": [i.to_dict() for i in self.items],
         }
 
@@ -68,14 +76,16 @@ class Playlist:
             "id": self.id,
             "name": self.name,
             "item_count": len(self.items),
+            "duration_seconds": round(self.total_duration),
         }
 
 
 class PlaylistService:
     """Manages user-created playlists."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: aiosqlite.Connection, media_dir: Path | None = None) -> None:
         self._db = db
+        self._media_dir = media_dir or Path.home() / "tonado" / "media"
 
     async def start(self) -> None:
         await self._db.executescript(_INIT_SQL)
@@ -167,7 +177,30 @@ class PlaylistService:
             "FROM playlist_items WHERE playlist_id = ? ORDER BY position",
             (playlist_id,),
         )
-        return [
-            PlaylistItem(id=row[0], position=row[1], content_type=row[2], content_path=row[3], title=row[4])
-            for row in await cursor.fetchall()
-        ]
+        items = []
+        for row in await cursor.fetchall():
+            item = PlaylistItem(
+                id=row[0], position=row[1], content_type=row[2],
+                content_path=row[3], title=row[4],
+            )
+            item.duration_seconds = self._resolve_duration(item)
+            items.append(item)
+        return items
+
+    def _resolve_duration(self, item: PlaylistItem) -> float:
+        """Calculate duration for a playlist item based on its content."""
+        from core.services.library_service import _get_duration, _AUDIO_EXTENSIONS
+
+        content_path = self._media_dir / item.content_path
+
+        if item.content_type == "folder" and content_path.is_dir():
+            # Sum duration of all audio files in folder
+            total = 0.0
+            for f in content_path.iterdir():
+                if f.suffix.lower() in _AUDIO_EXTENSIONS:
+                    total += _get_duration(f)
+            return total
+        elif content_path.is_file() and content_path.suffix.lower() in _AUDIO_EXTENSIONS:
+            return _get_duration(content_path)
+
+        return 0

@@ -9,13 +9,16 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
-from core.routers import cards, config, player
+from core.routers import cards, config, player, setup
+from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
 from core.services.player_service import PlayerService
+from core.services.setup_wizard import SetupWizard
 from core.services.websocket_hub import WebSocketHub
+from core.services.wifi_service import WifiService
 from core.settings import Settings
 
 logging.basicConfig(
@@ -120,10 +123,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_bus.subscribe("card_removed", on_card_removed)
     event_bus.subscribe("gesture_detected", on_gesture)
 
+    # WiFi + Setup wizard + Captive portal
+    wifi_service = WifiService()
+    await wifi_service.start()
+
+    captive_portal = CaptivePortalService()
+
+    setup_wizard = SetupWizard(
+        config_service=config_service,
+        wifi_service=wifi_service,
+    )
+    await setup_wizard.start()
+
+    # If setup not complete and on Pi, start captive portal
+    if not setup_wizard.is_complete and not settings.hardware_mode == "mock":
+        logger.info("Setup not complete — starting captive portal")
+        await captive_portal.start()
+
     # Initialize routers with service instances
     player.init(player_service)
     cards.init(card_service)
     config.init(config_service)
+    setup.init(setup_wizard, wifi_service, captive_portal)
 
     # Store hub on app state for WebSocket endpoint
     app.state.ws_hub = ws_hub
@@ -133,6 +154,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Shutdown
     logger.info("Shutting down Tonado...")
+    if captive_portal.active:
+        await captive_portal.stop()
     await gyro_service.stop()
     await card_service.stop()
     await player_service.stop()
@@ -152,6 +175,7 @@ app = FastAPI(
 app.include_router(player.router)
 app.include_router(cards.router)
 app.include_router(config.router)
+app.include_router(setup.router)
 
 
 @app.get("/api/health")

@@ -1,0 +1,13 @@
+[Unit]
+Description=Tonado Setup Access Point
+Before=tonado.service
+ConditionPathExists=!/opt/tonado/config/.setup-complete
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/tonado/system/setup-ap.sh start
+ExecStop=/opt/tonado/system/setup-ap.sh stop
+
+[Install]
+WantedBy=multi-user.target

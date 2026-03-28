@@ -195,30 +195,39 @@
 
 	<!-- Progress bar -->
 	<div class="w-full max-w-sm">
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="w-full h-2 bg-surface-lighter rounded-full relative {canSeek ? 'cursor-pointer' : 'cursor-default opacity-50'}"
-			onclick={canSeek ? handleSeekClick : undefined}
-			onpointerdown={canSeek ? handleSeekDragStart : undefined}
-			onpointermove={canSeek ? handleSeekDragMove : undefined}
-			onpointerup={canSeek ? handleSeekDragEnd : undefined}
-		>
+		{#if state.loading}
+			<div class="w-full h-2 bg-surface-lighter rounded-full overflow-hidden">
+				<div class="h-full w-1/3 bg-primary rounded-full animate-pulse"></div>
+			</div>
+			<div class="flex justify-center mt-1">
+				<span class="text-xs text-text-muted">Lädt...</span>
+			</div>
+		{:else}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
-				class="h-full bg-primary rounded-full pointer-events-none"
-				style="width: {progress}%"
-			></div>
-			{#if canSeek && (seekThumbVisible || seekDragging)}
+				class="w-full h-2 bg-surface-lighter rounded-full relative {canSeek ? 'cursor-pointer' : 'cursor-default opacity-50'}"
+				onclick={canSeek ? handleSeekClick : undefined}
+				onpointerdown={canSeek ? handleSeekDragStart : undefined}
+				onpointermove={canSeek ? handleSeekDragMove : undefined}
+				onpointerup={canSeek ? handleSeekDragEnd : undefined}
+			>
 				<div
-					class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow transition-opacity duration-200 pointer-events-none"
-					style="left: {progress}%"
+					class="h-full bg-primary rounded-full pointer-events-none"
+					style="width: {progress}%"
 				></div>
-			{/if}
-		</div>
-		<div class="flex justify-between mt-1 text-xs text-text-muted">
-			<span>{formatTime(state.elapsed)}</span>
+				{#if canSeek && (seekThumbVisible || seekDragging)}
+					<div
+						class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow transition-opacity duration-200 pointer-events-none"
+						style="left: {progress}%"
+					></div>
+				{/if}
+			</div>
+			<div class="flex justify-between mt-1 text-xs text-text-muted">
+				<span>{formatTime(state.elapsed)}</span>
 			<span>{formatTime(state.duration)}</span>
 		</div>
+		{/if}
 	</div>
 
 	<!-- Controls -->

@@ -47,9 +47,10 @@ class PlayerState:
             "current_track": self.current_track,
             "current_album": self.current_album,
             "current_uri": self.current_uri,
-            "is_stream": self.current_uri.startswith(("http://", "https://")),
+            "is_stream": self.current_uri.startswith(("http://", "https://")) and self.duration == 0,
             "elapsed": self.elapsed,
             "duration": self.duration,
+            "loading": self.state == PlaybackState.PLAYING and self.duration == 0 and self.elapsed == 0 and self.current_uri != "",
             "playlist_length": len(self.playlist),
             "playlist_position": self.playlist_position,
             "repeat_mode": self.repeat_mode.value,
@@ -103,6 +104,7 @@ class PlayerService:
         """Clear queue, load folder, and start playback."""
         if not self._connected:
             return
+        await self._client.stop()
         await self._client.clear()
         await self._client.add(folder_path)
         await self._client.play(0)
@@ -110,10 +112,27 @@ class PlayerService:
             await self._client.seekcur(resume_position)
         await self._sync_state()
 
+    async def play_urls(self, urls: list[str], start_index: int = 0) -> None:
+        """Clear queue, add URLs from start_index onward, play immediately."""
+        if not self._connected:
+            return
+        await self._client.stop()
+        await asyncio.sleep(0.3)
+        await self._client.clear()
+        # Add the selected track and start playback immediately
+        await self._client.add(urls[start_index])
+        await self._client.play(0)
+        # Queue remaining tracks after the selected one
+        for url in urls[start_index + 1:]:
+            await self._client.add(url)
+        await self._sync_state()
+
     async def play_url(self, url: str) -> None:
         """Clear queue, add stream URL, and start playback."""
         if not self._connected:
             return
+        await self._client.stop()
+        await asyncio.sleep(0.3)
         await self._client.clear()
         await self._client.add(url)
         await self._client.play(0)

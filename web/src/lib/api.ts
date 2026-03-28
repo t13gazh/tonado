@@ -16,6 +16,7 @@ export interface PlayerState {
 	repeat_mode: 'off' | 'all' | 'single';
 	current_uri: string;
 	is_stream: boolean;
+	loading: boolean;
 }
 
 export interface CardMapping {

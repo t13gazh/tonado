@@ -95,6 +95,19 @@
 	async function removeStation(id: number) { await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
 	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
 	async function removePodcast(id: number) { await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
+	async function playPodcastEpisode(index: number) {
+		if (podcastEpisodes.length === 0) return;
+		const urls = podcastEpisodes.map(e => e.audio_url);
+		try {
+			await fetch('/api/player/play-urls', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ urls, start_index: index }),
+			});
+			goto('/');
+		} catch {}
+	}
+
 	async function togglePodcast(id: number) {
 		if (expandedPodcast === id) { expandedPodcast = null; podcastEpisodes = []; return; }
 		expandedPodcast = id; loadingEpisodes = true;
@@ -310,7 +323,10 @@
 					{@const expanded = expandedPodcast === podcast.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('url', podcast.feed_url), false, isNowPlaying('url', podcast.feed_url))}
+							{@render playCircle(async () => {
+								if (expandedPodcast !== podcast.id) await togglePodcast(podcast.id);
+								playPodcastEpisode(0);
+							})}
 							{@render thumbnail(podcast.logo_url, 'podcast')}
 							<button onclick={() => togglePodcast(podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
@@ -326,7 +342,7 @@
 									<div class="flex flex-col">
 										{#each podcastEpisodes as ep, i}
 											<button
-												onclick={() => playContent('url', ep.audio_url)}
+												onclick={() => playPodcastEpisode(i)}
 												class="flex items-center gap-2 py-2 text-left {i > 0 ? 'border-t border-surface-lighter/50' : ''}"
 											>
 												<span class="w-5 flex-shrink-0 flex items-center justify-center">

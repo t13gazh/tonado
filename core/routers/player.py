@@ -132,6 +132,18 @@ async def audio_stream():
         raise HTTPException(503, f"Stream not available: {e}")
 
 
+class PlayUrlsRequest(BaseModel):
+    urls: list[str]
+    start_index: int = 0
+
+
+@router.post("/play-urls")
+async def play_urls(req: PlayUrlsRequest) -> dict:
+    """Play multiple URLs as a queue, starting at given index."""
+    await _get_player().play_urls(req.urls, req.start_index)
+    return {"status": "ok"}
+
+
 class PlayFolderRequest(BaseModel):
     path: str
 

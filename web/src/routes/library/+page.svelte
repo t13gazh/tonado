@@ -42,6 +42,8 @@
 	let newPodcastName = $state('');
 	let newPodcastUrl = $state('');
 	let expandedPodcast = $state<number | null>(null);
+	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null }[]>([]);
+	let loadingEpisodes = $state(false);
 
 	// Playlists
 	let allPlaylists = $state<PlaylistSummary[]>([]);
@@ -92,7 +94,13 @@
 	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); }
 	async function removeStation(id: number) { await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
 	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
-	async function removePodcast(id: number) { await streams.deletePodcast(id); expandedPodcast = null; await loadPodcasts(); }
+	async function removePodcast(id: number) { await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
+	async function togglePodcast(id: number) {
+		if (expandedPodcast === id) { expandedPodcast = null; podcastEpisodes = []; return; }
+		expandedPodcast = id; loadingEpisodes = true;
+		try { podcastEpisodes = await streams.episodes(id); } catch { podcastEpisodes = []; }
+		finally { loadingEpisodes = false; }
+	}
 	async function createPlaylist() { if (!newPlaylistName.trim()) return; await playlistsApi.create(newPlaylistName.trim()); newPlaylistName = ''; showNewPlaylist = false; await loadPlaylists(); }
 	async function removePlaylist(id: number) { await playlistsApi.delete(id); if (expandedPlaylist?.id === id) expandedPlaylist = null; await loadPlaylists(); }
 	async function togglePlaylist(id: number) { if (expandedPlaylist?.id === id) { expandedPlaylist = null; } else { expandedPlaylist = await playlistsApi.get(id); } }
@@ -304,16 +312,45 @@
 						<div class="flex items-center gap-2.5 p-3">
 							{@render playCircle(() => playContent('url', podcast.feed_url), false, isNowPlaying('url', podcast.feed_url))}
 							{@render thumbnail(podcast.logo_url, 'podcast')}
-							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="flex-1 min-w-0 text-left">
+							<button onclick={() => togglePodcast(podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
 								<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
 							</button>
-							{@render chevron(expanded, () => (expandedPodcast = expanded ? null : podcast.id))}
+							{@render chevron(expanded, () => togglePodcast(podcast.id))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
-								<p class="text-[10px] text-text-muted font-mono py-2 truncate">{podcast.feed_url}</p>
-								<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">Podcast löschen</button>
+								{#if loadingEpisodes}
+									<div class="flex justify-center py-4"><div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+								{:else if podcastEpisodes.length > 0}
+									<div class="flex flex-col">
+										{#each podcastEpisodes as ep, i}
+											<button
+												onclick={() => playContent('url', ep.audio_url)}
+												class="flex items-center gap-2 py-2 text-left {i > 0 ? 'border-t border-surface-lighter/50' : ''}"
+											>
+												<span class="w-5 flex-shrink-0 flex items-center justify-center">
+													{#if isNowPlaying('url', ep.audio_url) && isPlaying}
+														<svg class="w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+													{:else}
+														<svg class="w-3.5 h-3.5 text-text-muted" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+													{/if}
+												</span>
+												<span class="flex-1 min-w-0">
+													<span class="text-xs block truncate {isNowPlaying('url', ep.audio_url) ? 'text-primary font-medium' : 'text-text'}">{ep.title}</span>
+													{#if ep.published}
+														<span class="text-[10px] text-text-muted">{new Date(ep.published).toLocaleDateString('de-DE')}</span>
+													{/if}
+												</span>
+											</button>
+										{/each}
+									</div>
+								{:else}
+									<p class="text-xs text-text-muted py-2">Keine Folgen verfügbar.</p>
+								{/if}
+								<div class="mt-2 pt-2 border-t border-surface-lighter">
+									<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">Podcast löschen</button>
+								</div>
 							</div>
 						{/if}
 					</div>

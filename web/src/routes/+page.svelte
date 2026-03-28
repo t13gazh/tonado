@@ -3,6 +3,7 @@
 	import { player } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
+	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio } from '$lib/stores/browser-audio.svelte';
 	import { tick, onMount } from 'svelte';
 
 	const state = $derived(getPlayerState());
@@ -17,8 +18,8 @@
 	let localVolume = $state(50);
 	let muted = $state(false);
 	let outputs = $state<{ id: number; name: string; enabled: boolean }[]>([]);
-	let browserAudio = $state<HTMLAudioElement | null>(null);
-	let browserPlaying = $state(false);
+	const browserPlaying = $derived(getBrowserAudioActive());
+	const browserLoading = $derived(getBrowserAudioLoading());
 	let premuteVolume = $state(50);
 	let shuffleOn = $state(false);
 	let seekDragging = $state(false);
@@ -144,19 +145,11 @@
 		const browserOut = outputs.find(o => o.name === 'Browser');
 		if (!browserOut) return;
 		if (browserPlaying) {
-			// Turn off browser streaming
 			await player.toggleOutput(browserOut.id, false);
-			browserAudio?.pause();
-			browserPlaying = false;
+			stopBrowserAudio();
 		} else {
-			// Turn on browser streaming
 			await player.toggleOutput(browserOut.id, true);
-			if (browserAudio) {
-				browserAudio.src = `/api/player/stream`;
-				browserAudio.load();
-				browserAudio.play().catch(() => {});
-			}
-			browserPlaying = true;
+			startBrowserAudio();
 		}
 		outputs = await player.outputs();
 	}
@@ -350,22 +343,26 @@
 		<div class="w-full max-w-sm flex justify-center">
 			<button
 				onclick={toggleBrowserAudio}
-				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-colors {browserPlaying ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'}"
+				disabled={browserLoading}
+				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-colors {browserPlaying ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'} {browserLoading ? 'opacity-70' : ''}"
 			>
-				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					{#if browserPlaying}
-						<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
-						<line x1="12" y1="18" x2="12" y2="18.01"/>
-					{:else}
-						<path d="M3 9v6h4l5 5V4L7 9H3z"/>
-						<line x1="12" y1="9" x2="12" y2="15"/>
-					{/if}
-				</svg>
-				{browserPlaying ? 'Browser-Audio an' : 'Auf diesem Gerät hören'}
+				{#if browserLoading}
+					<div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+					Verbinde...
+				{:else}
+					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						{#if browserPlaying}
+							<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+							<line x1="12" y1="18" x2="12" y2="18.01"/>
+						{:else}
+							<path d="M3 9v6h4l5 5V4L7 9H3z"/>
+							<line x1="12" y1="9" x2="12" y2="15"/>
+						{/if}
+					</svg>
+					{browserPlaying ? 'Browser-Audio an' : 'Auf diesem Gerät hören'}
+				{/if}
 			</button>
 		</div>
 	{/if}
 
-	<!-- Hidden audio element for browser streaming -->
-	<audio bind:this={browserAudio} class="hidden"></audio>
 </div>

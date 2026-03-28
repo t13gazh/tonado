@@ -2,8 +2,15 @@
 	import '../app.css';
 	import { t } from '$lib/i18n';
 	import { connectWebSocket, disconnectWebSocket, isConnected } from '$lib/stores/player.svelte';
+	import { setBrowserAudioElement } from '$lib/stores/browser-audio.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+
+	let audioEl = $state<HTMLAudioElement | null>(null);
+
+	$effect(() => {
+		if (audioEl) setBrowserAudioElement(audioEl);
+	});
 
 	let { children } = $props();
 
@@ -70,4 +77,7 @@
 			<div class="w-2 h-2 rounded-full {isConnected() ? 'bg-green-500' : 'bg-red-500'}"></div>
 		</div>
 	</nav>
+
+	<!-- Persistent audio element for browser streaming -->
+	<audio bind:this={audioEl} class="hidden"></audio>
 </div>

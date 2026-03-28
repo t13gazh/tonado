@@ -3,6 +3,7 @@
 	import { library, streams, playlistsApi, type MediaFolder, type MediaTrack, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
 	import { getPlayerState } from '$lib/stores/player.svelte';
+	import { player } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -59,8 +60,17 @@
 	async function loadPodcasts() { loadingPodcasts = true; try { podcasts = await streams.listPodcasts(); } catch (e) { error = String(e); } finally { loadingPodcasts = false; } }
 	async function loadPlaylists() { loadingPlaylists = true; try { allPlaylists = await playlistsApi.list(); } catch (e) { error = String(e); } finally { loadingPlaylists = false; } }
 
+	function isNowPlaying(type: 'folder' | 'url', path: string): boolean {
+		if (type === 'folder') return nowPlayingUri.startsWith(path);
+		return nowPlayingUri === path;
+	}
+
 	async function playContent(type: 'folder' | 'url', path: string) {
 		try {
+			if (isNowPlaying(type, path)) {
+				await player.toggle();
+				return;
+			}
 			const endpoint = type === 'folder' ? '/api/player/play-folder' : '/api/player/play-url';
 			const body = type === 'folder' ? { path } : { url: path };
 			await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -95,9 +105,10 @@
   [ ▶ circle ]  [ thumb ]  Title + Subtitle + Duration  [ ˅ chevron ]
 -->
 
-{#snippet playCircle(onclick: () => void, disabled?: boolean, playing?: boolean)}
-	<button {onclick} class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''} {playing ? 'bg-primary text-white' : 'bg-primary/10 hover:bg-primary/20 text-primary'}" {disabled} aria-label="Abspielen">
-		{#if playing}
+{#snippet playCircle(onclick: () => void, disabled?: boolean, nowActive?: boolean)}
+	{@const showPause = nowActive && isPlaying}
+	<button {onclick} class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''} {showPause ? 'bg-primary text-white' : nowActive ? 'bg-primary/20 text-primary' : 'bg-primary/10 hover:bg-primary/20 text-primary'}" {disabled} aria-label={showPause ? 'Pause' : 'Abspielen'}>
+		{#if showPause}
 			<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 		{:else}
 			<svg class="w-5 h-5 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -175,7 +186,7 @@
 					{@const expanded = expandedFolder === folder.path}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('folder', folder.path), false, isPlaying && nowPlayingUri.startsWith(folder.path))}
+							{@render playCircle(() => playContent('folder', folder.path), false, isNowPlaying('folder', folder.path))}
 							{@render thumbnail(folder.cover_path, 'folder')}
 							<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{folder.name}</p>
@@ -244,7 +255,7 @@
 					{@const expanded = expandedRadio === station.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('url', station.url), false, isPlaying && nowPlayingUri === station.url)}
+							{@render playCircle(() => playContent('url', station.url), false, isNowPlaying('url', station.url))}
 							{@render thumbnail(station.logo_url, 'radio')}
 							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{station.name}</p>
@@ -291,7 +302,7 @@
 					{@const expanded = expandedPodcast === podcast.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('url', podcast.feed_url), false, isPlaying && nowPlayingUri === podcast.feed_url)}
+							{@render playCircle(() => playContent('url', podcast.feed_url), false, isNowPlaying('url', podcast.feed_url))}
 							{@render thumbnail(podcast.logo_url, 'podcast')}
 							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>

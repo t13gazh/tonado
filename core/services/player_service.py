@@ -19,6 +19,12 @@ class PlaybackState(StrEnum):
     STOPPED = "stopped"
 
 
+class RepeatMode(StrEnum):
+    OFF = "off"
+    ALL = "all"
+    SINGLE = "single"
+
+
 @dataclass
 class PlayerState:
     """Current player state broadcast via WebSocket."""
@@ -27,10 +33,12 @@ class PlayerState:
     volume: int = 50
     current_track: str = ""
     current_album: str = ""
+    current_uri: str = ""
     elapsed: float = 0.0
     duration: float = 0.0
     playlist: list[str] = field(default_factory=list)
     playlist_position: int = -1
+    repeat_mode: RepeatMode = RepeatMode.OFF
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -38,10 +46,13 @@ class PlayerState:
             "volume": self.volume,
             "current_track": self.current_track,
             "current_album": self.current_album,
+            "current_uri": self.current_uri,
+            "is_stream": self.current_uri.startswith(("http://", "https://")),
             "elapsed": self.elapsed,
             "duration": self.duration,
             "playlist_length": len(self.playlist),
             "playlist_position": self.playlist_position,
+            "repeat_mode": self.repeat_mode.value,
         }
 
 
@@ -55,6 +66,7 @@ class PlayerService:
         self._client = MPDClient()
         self._state = PlayerState()
         self._idle_task: asyncio.Task | None = None
+        self._elapsed_task: asyncio.Task | None = None
         self._connected = False
 
     @property
@@ -69,18 +81,20 @@ class PlayerService:
             logger.info("Connected to MPD at %s:%d", self._host, self._port)
             await self._sync_state()
             self._idle_task = asyncio.create_task(self._idle_loop())
+            self._elapsed_task = asyncio.create_task(self._elapsed_loop())
         except (ConnectionRefusedError, OSError) as e:
             logger.warning("Could not connect to MPD: %s. Player will be unavailable.", e)
             self._connected = False
 
     async def stop(self) -> None:
         """Disconnect from MPD."""
-        if self._idle_task:
-            self._idle_task.cancel()
-            try:
-                await self._idle_task
-            except asyncio.CancelledError:
-                pass
+        for task in (self._idle_task, self._elapsed_task):
+            if task:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
         if self._connected:
             self._client.disconnect()
             self._connected = False
@@ -184,6 +198,25 @@ class PlayerService:
         await self._client.shuffle()
         await self._sync_state()
 
+    async def cycle_repeat(self) -> RepeatMode:
+        """Cycle through repeat modes: off → all → single → off."""
+        if not self._connected:
+            return RepeatMode.OFF
+        if self._state.repeat_mode == RepeatMode.OFF:
+            await self._client.repeat(1)
+            await self._client.single(0)
+            self._state.repeat_mode = RepeatMode.ALL
+        elif self._state.repeat_mode == RepeatMode.ALL:
+            await self._client.repeat(1)
+            await self._client.single(1)
+            self._state.repeat_mode = RepeatMode.SINGLE
+        else:
+            await self._client.repeat(0)
+            await self._client.single(0)
+            self._state.repeat_mode = RepeatMode.OFF
+        await self._publish_state()
+        return self._state.repeat_mode
+
     async def get_elapsed(self) -> float:
         """Get current elapsed position in seconds."""
         if not self._connected:
@@ -204,15 +237,28 @@ class PlayerService:
             self._state.elapsed = float(status.get("elapsed", 0))
             self._state.duration = float(status.get("duration", 0))
 
+            # Sync repeat mode from MPD
+            repeat = status.get("repeat", "0")
+            single = status.get("single", "0")
+            if repeat == "1" and single == "1":
+                self._state.repeat_mode = RepeatMode.SINGLE
+            elif repeat == "1":
+                self._state.repeat_mode = RepeatMode.ALL
+            else:
+                self._state.repeat_mode = RepeatMode.OFF
+
             song = status.get("song")
             if song is not None:
                 self._state.playlist_position = int(song)
                 try:
                     current = await self._client.currentsong()
-                    self._state.current_track = current.get("title", current.get("file", ""))
+                    self._state.current_uri = current.get("file", "")
+                    self._state.current_track = current.get("title", self._state.current_uri)
                     self._state.current_album = current.get("album", "")
                 except Exception:
                     pass
+            else:
+                self._state.playlist_position = -1
 
             playlist_info = await self._client.playlistinfo()
             self._state.playlist = [t.get("file", "") for t in playlist_info]
@@ -229,11 +275,26 @@ class PlayerService:
         """Listen for MPD subsystem changes and sync state."""
         while self._connected:
             try:
-                async for _ in self._client.idle(["player", "mixer", "playlist"]):
+                async for _ in self._client.idle(["player", "mixer", "playlist", "options"]):
                     await self._sync_state()
                     break  # Process one event, then re-enter idle
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.error("MPD idle error: %s", e)
+                await asyncio.sleep(1)
+
+    async def _elapsed_loop(self) -> None:
+        """Periodically update elapsed time during playback for smooth progress."""
+        while self._connected:
+            try:
+                if self._state.state == PlaybackState.PLAYING:
+                    self._state.elapsed += 1.0
+                    if self._state.elapsed > self._state.duration and self._state.duration > 0:
+                        self._state.elapsed = self._state.duration
+                    await self._publish_state()
+                await asyncio.sleep(1)
+            except asyncio.CancelledError:
+                break
+            except Exception:
                 await asyncio.sleep(1)

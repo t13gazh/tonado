@@ -86,6 +86,13 @@ async def shuffle() -> dict:
     return {"status": "ok"}
 
 
+@router.post("/repeat")
+async def cycle_repeat() -> dict:
+    """Cycle repeat mode: off → all → single → off."""
+    mode = await _get_player().cycle_repeat()
+    return {"status": "ok", "repeat_mode": mode.value}
+
+
 class PlayFolderRequest(BaseModel):
     path: str
 

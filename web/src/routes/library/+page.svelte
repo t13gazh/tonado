@@ -1,9 +1,14 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { library, streams, playlistsApi, type MediaFolder, type MediaTrack, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
-	import { formatDuration } from '$lib/utils';
+	import { formatDuration, parseTrackName } from '$lib/utils';
+	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+
+	const playerState = $derived(getPlayerState());
+	const nowPlayingUri = $derived(playerState.current_uri);
+	const isPlaying = $derived(playerState.state === 'playing');
 
 	type Tab = 'folders' | 'radio' | 'podcasts' | 'playlists';
 	let tab = $state<Tab>('folders');
@@ -90,9 +95,13 @@
   [ ▶ circle ]  [ thumb ]  Title + Subtitle + Duration  [ ˅ chevron ]
 -->
 
-{#snippet playCircle(onclick: () => void, disabled?: boolean)}
-	<button {onclick} class="w-10 h-10 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''}" {disabled} aria-label="Abspielen">
-		<svg class="w-5 h-5 text-primary ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+{#snippet playCircle(onclick: () => void, disabled?: boolean, playing?: boolean)}
+	<button {onclick} class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''} {playing ? 'bg-primary text-white' : 'bg-primary/10 hover:bg-primary/20 text-primary'}" {disabled} aria-label="Abspielen">
+		{#if playing}
+			<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+		{:else}
+			<svg class="w-5 h-5 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+		{/if}
 	</button>
 {/snippet}
 
@@ -166,7 +175,7 @@
 					{@const expanded = expandedFolder === folder.path}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('folder', folder.path))}
+							{@render playCircle(() => playContent('folder', folder.path), false, isPlaying && nowPlayingUri.startsWith(folder.path))}
 							{@render thumbnail(folder.cover_path, 'folder')}
 							<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{folder.name}</p>
@@ -191,7 +200,7 @@
 										{#each folderTracks as track, i}
 											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 												<span class="w-5 text-text-muted text-right tabular-nums">{i + 1}</span>
-												<span class="flex-1 text-text truncate">{track.filename}</span>
+												<span class="flex-1 text-text truncate">{parseTrackName(track.filename).title}</span>
 												<span class="text-text-muted tabular-nums shrink-0">{formatDuration(track.duration_seconds)}</span>
 											</div>
 										{/each}
@@ -235,7 +244,7 @@
 					{@const expanded = expandedRadio === station.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('url', station.url))}
+							{@render playCircle(() => playContent('url', station.url), false, isPlaying && nowPlayingUri === station.url)}
 							{@render thumbnail(station.logo_url, 'radio')}
 							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{station.name}</p>
@@ -282,7 +291,7 @@
 					{@const expanded = expandedPodcast === podcast.id}
 					<div class="bg-surface-light rounded-xl overflow-hidden">
 						<div class="flex items-center gap-2.5 p-3">
-							{@render playCircle(() => playContent('url', podcast.feed_url))}
+							{@render playCircle(() => playContent('url', podcast.feed_url), false, isPlaying && nowPlayingUri === podcast.feed_url)}
 							{@render thumbnail(podcast.logo_url, 'podcast')}
 							<button onclick={() => (expandedPodcast = expanded ? null : podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
@@ -366,7 +375,7 @@
 										{#each expandedPlaylist.items as item, i}
 											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 												<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
-												<span class="flex-1 text-text truncate">{item.title || item.content_path}</span>
+												<span class="flex-1 text-text truncate">{item.title || parseTrackName(item.content_path).title}</span>
 												{#if item.duration_seconds}<span class="text-text-muted tabular-nums shrink-0">{formatDuration(item.duration_seconds)}</span>{/if}
 												<button onclick={() => removePlaylistItem(item.id)} class="p-0.5 text-text-muted/40 hover:text-red-400">
 													<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>

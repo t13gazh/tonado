@@ -13,6 +13,9 @@ export interface PlayerState {
 	duration: number;
 	playlist_length: number;
 	playlist_position: number;
+	repeat_mode: 'off' | 'all' | 'single';
+	current_uri: string;
+	is_stream: boolean;
 }
 
 export interface CardMapping {
@@ -63,6 +66,7 @@ export const player = {
 	seek: (position: number) =>
 		request<void>('/player/seek', { method: 'POST', body: JSON.stringify({ position }) }),
 	shuffle: () => request<void>('/player/shuffle', { method: 'POST' }),
+	repeat: () => request<{ repeat_mode: string }>('/player/repeat', { method: 'POST' }),
 };
 
 export interface ScanResult {

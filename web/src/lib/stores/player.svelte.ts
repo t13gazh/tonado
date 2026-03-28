@@ -15,6 +15,9 @@ let playerState = $state<PlayerState>({
 	duration: 0,
 	playlist_length: 0,
 	playlist_position: -1,
+	repeat_mode: 'off',
+	current_uri: '',
+	is_stream: false,
 });
 
 let connected = $state(false);

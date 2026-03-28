@@ -2,18 +2,28 @@
 	import { t } from '$lib/i18n';
 	import { player } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
-	import { formatTime } from '$lib/utils';
+	import { formatTime, parseTrackName } from '$lib/utils';
 
 	const state = $derived(getPlayerState());
 	const isPlaying = $derived(state.state === 'playing');
 	const hasTrack = $derived(state.current_track !== '');
-	const progress = $derived(state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0);
+	const isLastTrack = $derived(state.playlist_position >= state.playlist_length - 1);
+	const canPlay = $derived(hasTrack || state.playlist_length > 0);
+	const canSeek = $derived(!state.is_stream && state.duration > 0);
+	const trackInfo = $derived(parseTrackName(state.current_track));
 
 	let volumeChanging = $state(false);
 	let localVolume = $state(50);
 	let muted = $state(false);
 	let premuteVolume = $state(50);
 	let shuffleOn = $state(false);
+	let seekDragging = $state(false);
+	let seekOverride = $state(false);
+	let seekThumbVisible = $state(false);
+	let seekLocalProgress = $state(0);
+	let seekHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const progress = $derived((seekDragging || seekOverride) ? seekLocalProgress : (state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0));
 
 	$effect(() => {
 		if (!volumeChanging) {
@@ -26,8 +36,11 @@
 	}
 
 	function handleVolumeEnd() {
-		volumeChanging = false;
-		player.volume(localVolume);
+		const v = localVolume;
+		player.volume(v).then(() => {
+			localVolume = v;
+			volumeChanging = false;
+		});
 	}
 
 	function toggleMute() {
@@ -48,11 +61,57 @@
 		player.shuffle();
 	}
 
-	function handleSeek(e: MouseEvent) {
+	function getSeekRatio(e: PointerEvent | MouseEvent): number {
+		const bar = e.currentTarget as HTMLElement;
+		const rect = bar.getBoundingClientRect();
+		return Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+	}
+
+	function handleSeekDragStart(e: PointerEvent) {
+		seekDragging = true;
+		seekThumbVisible = true;
+		seekLocalProgress = getSeekRatio(e) * 100;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+
+	function handleSeekDragMove(e: PointerEvent) {
+		if (!seekDragging) return;
+		seekLocalProgress = getSeekRatio(e) * 100;
+	}
+
+	function handleSeekDragEnd(e: PointerEvent) {
+		if (seekDragging) {
+			const ratio = seekLocalProgress / 100;
+			seekDragging = false;
+			seekOverride = true;
+			player.seek(ratio * state.duration).then(() => { seekOverride = false; });
+		}
+		showSeekThumb();
+	}
+
+	function handleSeekClick(e: MouseEvent) {
+		if (seekDragging) return;
 		const bar = e.currentTarget as HTMLElement;
 		const rect = bar.getBoundingClientRect();
 		const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-		player.seek(ratio * state.duration);
+		seekLocalProgress = ratio * 100;
+		seekOverride = true;
+		player.seek(ratio * state.duration).then(() => { seekOverride = false; });
+		showSeekThumb();
+	}
+
+	function showSeekThumb() {
+		seekThumbVisible = true;
+		if (seekHideTimer) clearTimeout(seekHideTimer);
+		seekHideTimer = setTimeout(() => { seekThumbVisible = false; }, 2000);
+	}
+
+	function handleToggle() {
+		if (state.state === 'stopped' && state.playlist_length > 0) {
+			player.play();
+		} else {
+			player.toggle();
+		}
 	}
 </script>
 
@@ -60,37 +119,49 @@
 	<!-- Cover Art -->
 	<div class="w-64 h-64 sm:w-72 sm:h-72 rounded-2xl bg-surface-light flex items-center justify-center shadow-xl overflow-hidden">
 		{#if hasTrack}
-			<div class="flex flex-col items-center justify-center text-center p-4">
-				<svg class="w-16 h-16 text-primary mb-4" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-				</svg>
-				<p class="text-lg font-semibold text-text truncate max-w-full">{state.current_track}</p>
-				{#if state.current_album}
-					<p class="text-sm text-text-muted truncate max-w-full mt-1">{state.current_album}</p>
-				{/if}
-			</div>
+			<svg class="w-24 h-24 text-primary opacity-40" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+			</svg>
 		{:else}
-			<div class="flex flex-col items-center text-text-muted">
-				<svg class="w-20 h-20 mb-3 opacity-30" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-				</svg>
-				<p class="text-sm">{t('player.no_track')}</p>
-			</div>
+			<svg class="w-20 h-20 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+			</svg>
 		{/if}
 	</div>
+
+	<!-- Track info below cover -->
+	{#if hasTrack}
+		<div class="text-center max-w-sm">
+			{#if trackInfo.folder || state.current_album}
+				<p class="text-xs text-text-muted truncate">{state.current_album || trackInfo.folder}</p>
+			{/if}
+			<p class="text-lg font-semibold text-text truncate mt-0.5">{trackInfo.title}</p>
+		</div>
+	{:else}
+		<p class="text-sm text-text-muted">{t('player.no_track')}</p>
+	{/if}
 
 	<!-- Progress bar -->
 	<div class="w-full max-w-sm">
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="w-full h-2 bg-surface-lighter rounded-full cursor-pointer relative"
-			onclick={handleSeek}
+			class="w-full h-2 bg-surface-lighter rounded-full relative {canSeek ? 'cursor-pointer' : 'cursor-default opacity-50'}"
+			onclick={canSeek ? handleSeekClick : undefined}
+			onpointerdown={canSeek ? handleSeekDragStart : undefined}
+			onpointermove={canSeek ? handleSeekDragMove : undefined}
+			onpointerup={canSeek ? handleSeekDragEnd : undefined}
 		>
 			<div
-				class="h-full bg-primary rounded-full transition-[width] duration-200"
+				class="h-full bg-primary rounded-full pointer-events-none"
 				style="width: {progress}%"
 			></div>
+			{#if canSeek && (seekThumbVisible || seekDragging)}
+				<div
+					class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow transition-opacity duration-200 pointer-events-none"
+					style="left: {progress}%"
+				></div>
+			{/if}
 		</div>
 		<div class="flex justify-between mt-1 text-xs text-text-muted">
 			<span>{formatTime(state.elapsed)}</span>
@@ -128,8 +199,9 @@
 
 		<!-- Play/Pause -->
 		<button
-			onclick={() => player.toggle()}
-			class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-colors active:scale-95 shadow-lg"
+			onclick={handleToggle}
+			disabled={!canPlay}
+			class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-colors active:scale-95 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
 			aria-label={isPlaying ? t('player.pause') : t('player.play')}
 		>
 			{#if isPlaying}
@@ -146,7 +218,8 @@
 		<!-- Next -->
 		<button
 			onclick={() => player.next()}
-			class="p-3 text-text-muted hover:text-text transition-colors active:scale-95"
+			disabled={isLastTrack && state.repeat_mode === 'off'}
+			class="p-3 text-text-muted hover:text-text transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
 			aria-label={t('player.next')}
 		>
 			<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
@@ -154,8 +227,26 @@
 			</svg>
 		</button>
 
-		<!-- Mute placeholder for symmetry -->
-		<div class="w-9"></div>
+		<!-- Repeat -->
+		<button
+			onclick={() => player.repeat()}
+			class="p-2 transition-colors active:scale-95 {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
+			aria-label="Wiederholung"
+		>
+			{#if state.repeat_mode === 'single'}
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+					<text x="12" y="15" text-anchor="middle" font-size="7" font-weight="bold">1</text>
+				</svg>
+			{:else}
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<polyline points="17 1 21 5 17 9"/>
+					<path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+					<polyline points="7 23 3 19 7 15"/>
+					<path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+				</svg>
+			{/if}
+		</button>
 	</div>
 
 	<!-- Volume with mute -->

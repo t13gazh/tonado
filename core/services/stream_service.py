@@ -47,14 +47,15 @@ CREATE TABLE IF NOT EXISTS podcast_episodes (
 );
 """
 
-# Pre-configured German children's radio stations
+# Pre-configured German children's radio stations.
+# Only direct MP3 stream URLs that work reliably on Pi Zero W.
+# CDN-based streams (addradio, icecastssl) may fail due to DNS/TLS limitations.
 _DEFAULT_STATIONS = [
-    ("KiRaKa (WDR)", "https://wdr-kiraka-live.icecastssl.wdr.de/wdr/kiraka/live/mp3/128/stream.mp3", "kinder", None),
-    ("Radio TEDDY", "https://streams.radioteddy.de/live/mp3-192/", "kinder", None),
-    ("KiKA Radio", "https://kika-live.akamaized.net/hls/live/2093065/kika-hls/master.m3u8", "kinder", None),
-    ("BR Mikro", "https://streams.br.de/br-mikro_2.m3u", "kinder", None),
-    ("NDR Mikado", "https://www.ndr.de/resources/metadaten/audio_ssl/m3u/ndr_info_spez.m3u", "kinder", None),
-    ("Deutschlandfunk Kultur Kakadu", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3", "kinder", None),
+    ("Deutschlandfunk", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3", "kinder", None),
+    ("Deutschlandfunk Kultur", "https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3", "kinder", None),
+    ("Deutschlandfunk Nova", "https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3", "kinder", None),
+    ("SWR2", "https://liveradio.swr.de/sw282p3/swr2/play.mp3", "kinder", None),
+    ("SWR Aktuell", "https://liveradio.swr.de/sw282p3/swraktuell/play.mp3", "kinder", None),
 ]
 
 

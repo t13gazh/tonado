@@ -95,18 +95,11 @@ async def play_playlist(playlist_id: int) -> dict:
 
     player = _get_player()
 
-    # Build MPD queue from playlist items
-    first = p.items[0]
-    if first.content_type == "folder":
-        await player.play_folder(first.content_path)
-    elif first.content_type == "stream":
-        await player.play_url(first.content_path)
+    # Collect all content paths and play as queue
+    paths = [item.content_path for item in p.items]
+    if len(paths) == 1 and p.items[0].content_type == "folder":
+        await player.play_folder(paths[0])
     else:
-        await player.play_folder(first.content_path)
-
-    # Add remaining items to queue (MPD will play them in order)
-    for item in p.items[1:]:
-        if player._connected:
-            await player._client.add(item.content_path)
+        await player.play_urls(paths)
 
     return {"status": "ok", "items": len(p.items)}

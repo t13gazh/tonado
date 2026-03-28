@@ -305,12 +305,16 @@ class StreamService:
         """Parse an RSS feed and extract audio episodes."""
         import urllib.request
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def fetch() -> bytes:
+            max_size = 5 * 1024 * 1024  # 5 MB limit to prevent XML bombs
             req = urllib.request.Request(feed_url, headers={"User-Agent": "Tonado/0.1"})
             with urllib.request.urlopen(req, timeout=15) as resp:
-                return resp.read()
+                data = resp.read(max_size + 1)
+                if len(data) > max_size:
+                    raise ValueError(f"RSS feed too large: {len(data)} bytes")
+                return data
 
         data = await loop.run_in_executor(None, fetch)
         root = ET.fromstring(data)

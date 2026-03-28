@@ -80,7 +80,7 @@ class Rc522Reader(RfidReader):
 
     async def read_card(self) -> str | None:
         # RC522 communication runs in executor to avoid blocking the event loop
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._read_sync)
 
     async def card_present(self) -> bool:
@@ -170,7 +170,7 @@ class Pn532Reader(RfidReader):
             self._bus = None
 
     async def read_card(self) -> str | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._read_sync)
 
     async def card_present(self) -> bool:
@@ -227,7 +227,7 @@ class UsbHidReader(RfidReader):
             self._file = None
 
     async def read_card(self) -> str | None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._read_sync)
 
     async def card_present(self) -> bool:

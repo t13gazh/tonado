@@ -295,8 +295,11 @@ class PlayerService:
             else:
                 self._state.playlist_position = -1
 
-            playlist_info = await self._client.playlistinfo()
-            self._state.playlist = [t.get("file", "") for t in playlist_info]
+            status_pl_length = int(status.get("playlistlength", 0))
+            # Only reload full playlist if length changed
+            if status_pl_length != len(self._state.playlist):
+                playlist_info = await self._client.playlistinfo()
+                self._state.playlist = [t.get("file", "") for t in playlist_info]
         except Exception as e:
             logger.error("Failed to sync MPD state: %s", e)
 

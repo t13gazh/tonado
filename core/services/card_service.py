@@ -237,7 +237,7 @@ class CardService:
 
         Returns card_id or None on timeout.
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future: asyncio.Future[str] = loop.create_future()
         self._scan_waiters.append(future)
         try:

@@ -1,7 +1,9 @@
 """Player API routes."""
 
 import logging
+import urllib.request
 from fastapi import APIRouter, HTTPException
+from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,43 @@ async def cycle_repeat() -> dict:
     """Cycle repeat mode: off → all → single → off."""
     mode = await _get_player().cycle_repeat()
     return {"status": "ok", "repeat_mode": mode.value}
+
+
+@router.get("/outputs")
+async def list_outputs() -> list:
+    return await _get_player().list_outputs()
+
+
+class OutputToggle(BaseModel):
+    enabled: bool
+
+
+@router.post("/outputs/{output_id}")
+async def toggle_output(output_id: int, req: OutputToggle) -> dict:
+    await _get_player().toggle_output(output_id, req.enabled)
+    return {"status": "ok"}
+
+
+@router.get("/stream")
+async def audio_stream():
+    """Proxy MPD HTTP stream to browser (avoids CORS issues)."""
+    try:
+        req = urllib.request.Request("http://localhost:8090/")
+        resp = urllib.request.urlopen(req)
+
+        def generate():
+            try:
+                while True:
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                resp.close()
+
+        return StreamingResponse(generate(), media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(503, f"Stream not available: {e}")
 
 
 class PlayFolderRequest(BaseModel):

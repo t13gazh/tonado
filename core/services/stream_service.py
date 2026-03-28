@@ -47,15 +47,17 @@ CREATE TABLE IF NOT EXISTS podcast_episodes (
 );
 """
 
-# Pre-configured German children's radio stations.
-# Only direct MP3 stream URLs that work reliably on Pi Zero W.
-# CDN-based streams (addradio, icecastssl) may fail due to DNS/TLS limitations.
+# Pre-configured German radio stations.
+# Only direct MP3 stream URLs verified on Pi Zero W via MPD.
+# CDN-based streams (addradio.de) fail on Pi Zero W due to DNS/TLS limitations.
 _DEFAULT_STATIONS = [
-    ("Deutschlandfunk", "https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3", "kinder", None),
-    ("Deutschlandfunk Kultur", "https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3", "kinder", None),
-    ("Deutschlandfunk Nova", "https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3", "kinder", None),
-    ("SWR2", "https://liveradio.swr.de/sw282p3/swr2/play.mp3", "kinder", None),
-    ("SWR Aktuell", "https://liveradio.swr.de/sw282p3/swraktuell/play.mp3", "kinder", None),
+    # Children's radio
+    ("Die Maus (WDR)", "https://wdr-diemaus-live.icecast.wdr.de/wdr/diemaus/live/mp3/128/stream.mp3", "kinder", None),
+    # General / parents
+    ("N-JOY", "https://icecast.ndr.de/ndr/njoy/live/mp3/128/stream.mp3", "allgemein", None),
+    ("NDR 2", "https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3", "allgemein", None),
+    ("Deutschlandfunk Kultur", "https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3", "allgemein", None),
+    ("SWR2", "https://liveradio.swr.de/sw282p3/swr2/play.mp3", "allgemein", None),
 ]
 
 # Pre-configured German children's podcasts (verified feed URLs)
@@ -95,6 +97,7 @@ class Podcast:
     auto_download: bool = True
     logo_url: str | None = None
     episodes: list[dict] = field(default_factory=list)
+    _episode_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -103,7 +106,7 @@ class Podcast:
             "feed_url": self.feed_url,
             "auto_download": self.auto_download,
             "logo_url": self.logo_url,
-            "episode_count": len(self.episodes),
+            "episode_count": self._episode_count or len(self.episodes),
         }
 
 
@@ -175,6 +178,15 @@ class StreamService:
         await self._db.commit()
         logger.info("Seeded %d default podcasts", len(_DEFAULT_PODCASTS))
 
+        # Fetch episodes for seeded podcasts in background
+        cursor = await self._db.execute("SELECT id FROM podcasts")
+        rows = await cursor.fetchall()
+        for (pid,) in rows:
+            try:
+                await self.refresh_podcast(pid)
+            except Exception as e:
+                logger.warning("Failed to refresh seeded podcast %d: %s", pid, e)
+
     # --- Radio stations ---
 
     async def list_stations(self, category: str | None = None) -> list[RadioStation]:
@@ -208,11 +220,15 @@ class StreamService:
 
     async def list_podcasts(self) -> list[Podcast]:
         cursor = await self._db.execute(
-            "SELECT id, name, feed_url, auto_download, logo_url FROM podcasts ORDER BY name"
+            "SELECT p.id, p.name, p.feed_url, p.auto_download, p.logo_url, "
+            "COUNT(e.id) as ep_count "
+            "FROM podcasts p LEFT JOIN podcast_episodes e ON p.id = e.podcast_id "
+            "GROUP BY p.id ORDER BY p.name"
         )
         podcasts = []
         for row in await cursor.fetchall():
             p = Podcast(id=row[0], name=row[1], feed_url=row[2], auto_download=bool(row[3]), logo_url=row[4])
+            p._episode_count = row[5]
             podcasts.append(p)
         return podcasts
 

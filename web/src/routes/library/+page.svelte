@@ -248,7 +248,7 @@
 							{@render thumbnail(station.logo_url, 'radio')}
 							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{station.name}</p>
-								<p class="text-xs text-text-muted">{station.category === 'kinder' ? 'Kindersender' : 'Eigener Sender'}</p>
+								<p class="text-xs text-text-muted">{station.category === 'kinder' ? 'Kindersender' : station.category === 'allgemein' ? 'Radio' : 'Eigener Sender'}</p>
 							</button>
 							{@render chevron(expanded, () => (expandedRadio = expanded ? null : station.id))}
 						</div>

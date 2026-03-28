@@ -184,6 +184,22 @@ class PlayerService:
         """Adjust volume by delta."""
         await self.set_volume(self._state.volume + delta)
 
+    async def list_outputs(self) -> list[dict]:
+        """List MPD audio outputs."""
+        if not self._connected:
+            return []
+        outputs = await self._client.outputs()
+        return [{"id": int(o["outputid"]), "name": o["outputname"], "enabled": o["outputenabled"] == "1"} for o in outputs]
+
+    async def toggle_output(self, output_id: int, enabled: bool) -> None:
+        """Enable or disable an MPD audio output."""
+        if not self._connected:
+            return
+        if enabled:
+            await self._client.enableoutput(output_id)
+        else:
+            await self._client.disableoutput(output_id)
+
     async def seek(self, position: float) -> None:
         """Seek to position in seconds."""
         if not self._connected:

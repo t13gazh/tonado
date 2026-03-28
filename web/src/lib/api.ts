@@ -67,6 +67,9 @@ export const player = {
 		request<void>('/player/seek', { method: 'POST', body: JSON.stringify({ position }) }),
 	shuffle: () => request<void>('/player/shuffle', { method: 'POST' }),
 	repeat: () => request<{ repeat_mode: string }>('/player/repeat', { method: 'POST' }),
+	outputs: () => request<{ id: number; name: string; enabled: boolean }[]>('/player/outputs'),
+	toggleOutput: (id: number, enabled: boolean) =>
+		request<void>(`/player/outputs/${id}`, { method: 'POST', body: JSON.stringify({ enabled }) }),
 };
 
 export interface ScanResult {

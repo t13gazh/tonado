@@ -3,6 +3,7 @@
 	import { player } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
+	import { tick } from 'svelte';
 
 	const state = $derived(getPlayerState());
 	const isPlaying = $derived(state.state === 'playing');
@@ -106,6 +107,25 @@
 		seekHideTimer = setTimeout(() => { seekThumbVisible = false; }, 2000);
 	}
 
+	function marquee(node: HTMLElement) {
+		function setup() {
+			const span = node.querySelector('.marquee-text') as HTMLElement;
+			if (!span) return;
+			span.style.animation = 'none';
+			span.style.transform = '';
+			requestAnimationFrame(() => {
+				const overflow = span.scrollWidth - node.clientWidth;
+				if (overflow > 5) {
+					const duration = Math.max(4, overflow / 30);
+					span.style.setProperty('--marquee-distance', `-${overflow + 16}px`);
+					span.style.animation = `marquee-scroll ${duration}s linear 1.5s infinite`;
+				}
+			});
+		}
+		setup();
+		return { update: () => { tick().then(setup); } };
+	}
+
 	function handleToggle() {
 		if (state.state === 'stopped' && state.playlist_length > 0) {
 			player.play();
@@ -131,11 +151,15 @@
 
 	<!-- Track info below cover -->
 	{#if hasTrack}
-		<div class="text-center max-w-sm">
+		<div class="text-center max-w-sm w-full overflow-hidden">
 			{#if trackInfo.folder || state.current_album}
 				<p class="text-xs text-text-muted truncate">{state.current_album || trackInfo.folder}</p>
 			{/if}
-			<p class="text-lg font-semibold text-text truncate mt-0.5">{trackInfo.title}</p>
+			{#key trackInfo.title}
+				<p class="text-lg font-semibold text-text mt-0.5 marquee-container animate-fade-up" use:marquee={trackInfo.title}>
+					<span class="marquee-text">{trackInfo.title}</span>
+				</p>
+			{/key}
 		</div>
 	{:else}
 		<p class="text-sm text-text-muted">{t('player.no_track')}</p>

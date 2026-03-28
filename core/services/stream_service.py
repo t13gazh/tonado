@@ -58,6 +58,16 @@ _DEFAULT_STATIONS = [
     ("SWR Aktuell", "https://liveradio.swr.de/sw282p3/swraktuell/play.mp3", "kinder", None),
 ]
 
+# Pre-configured German children's podcasts (verified feed URLs)
+_DEFAULT_PODCASTS = [
+    ("Betthupferl", "https://feeds.br.de/betthupferl/feed.xml"),
+    ("CheckPod — Checker Tobi", "https://feeds.br.de/checkpod-der-podcast-mit-checker-tobi/feed.xml"),
+    ("Anna und die wilden Tiere", "https://feeds.br.de/anna-und-die-wilden-tiere/feed.xml"),
+    ("Lachlabor", "https://feeds.br.de/lachlabor/feed.xml"),
+    ("Do Re Mikro", "https://feeds.br.de/do-re-mikro-die-musiksendung-fuer-kinder/feed.xml"),
+    ("Klicker — Nachrichten fuer Kinder", "https://kinder.wdr.de/radio/kiraka/audio/klicker/klicker-nachrichten-fuer-kinder100.podcast"),
+]
+
 
 @dataclass
 class RadioStation:
@@ -132,6 +142,7 @@ class StreamService:
         await self._db.executescript(_INIT_SQL)
         await self._db.commit()
         await self._seed_stations()
+        await self._seed_podcasts()
         self._podcast_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Stream service started")
 
@@ -149,6 +160,20 @@ class StreamService:
             )
         await self._db.commit()
         logger.info("Seeded %d default radio stations", len(_DEFAULT_STATIONS))
+
+    async def _seed_podcasts(self) -> None:
+        """Insert default podcasts if table is empty."""
+        cursor = await self._db.execute("SELECT COUNT(*) FROM podcasts")
+        row = await cursor.fetchone()
+        if row and row[0] > 0:
+            return
+        for name, feed_url in _DEFAULT_PODCASTS:
+            await self._db.execute(
+                "INSERT OR IGNORE INTO podcasts (name, feed_url) VALUES (?, ?)",
+                (name, feed_url),
+            )
+        await self._db.commit()
+        logger.info("Seeded %d default podcasts", len(_DEFAULT_PODCASTS))
 
     # --- Radio stations ---
 

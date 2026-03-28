@@ -19,7 +19,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-echo "[1/8] System-Pakete installieren..."
+echo "[1/9] System-Pakete installieren..."
 apt-get update -qq
 apt-get install -y -qq \
     python3 python3-venv python3-pip \
@@ -27,15 +27,14 @@ apt-get install -y -qq \
     hostapd dnsmasq \
     nginx \
     git \
-    i2c-tools spi-tools \
-    python3-dev
+    i2c-tools spi-tools
 
-echo "[2/8] Verzeichnisse erstellen..."
+echo "[2/9] Verzeichnisse erstellen..."
 mkdir -p "$TONADO_DIR"
 mkdir -p "$MEDIA_DIR" "$MEDIA_DIR/.playlists" "$CONFIG_DIR"
 chown -R "$TONADO_USER:$TONADO_USER" "/home/${TONADO_USER}/tonado"
 
-echo "[3/8] Tonado installieren..."
+echo "[3/9] Tonado installieren..."
 if [ -d "${TONADO_DIR}/.git" ]; then
     cd "$TONADO_DIR" && git pull
 else
@@ -50,7 +49,7 @@ python3 -m venv .venv
 # Add user to hardware groups
 usermod -aG audio,spi,i2c,gpio "$TONADO_USER" 2>/dev/null || true
 
-echo "[4/8] HifiBerry MiniAmp konfigurieren..."
+echo "[4/9] HifiBerry MiniAmp konfigurieren..."
 BOOT_CONFIG="/boot/firmware/config.txt"
 [ ! -f "$BOOT_CONFIG" ] && BOOT_CONFIG="/boot/config.txt"
 
@@ -65,7 +64,7 @@ if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
     echo "HINWEIS: HifiBerry MiniAmp Overlay hinzugefuegt. Neustart erforderlich."
 fi
 
-echo "[5/8] MPD konfigurieren..."
+echo "[5/9] MPD konfigurieren..."
 cat > /etc/mpd.conf <<MPD
 music_directory     "$MEDIA_DIR"
 playlist_directory  "$MEDIA_DIR/.playlists"
@@ -92,11 +91,11 @@ chown -R mpd:audio /var/lib/mpd
 systemctl enable mpd
 systemctl restart mpd || true
 
-echo "[6/8] Hardware-Interfaces aktivieren..."
+echo "[6/9] Hardware-Interfaces aktivieren..."
 raspi-config nonint do_spi 0 2>/dev/null || true
 raspi-config nonint do_i2c 0 2>/dev/null || true
 
-echo "[7/8] systemd-Service installieren..."
+echo "[7/9] systemd-Service installieren..."
 cat > /etc/systemd/system/tonado.service <<SERVICE
 [Unit]
 Description=Tonado Music Box
@@ -123,15 +122,19 @@ systemctl daemon-reload
 systemctl enable tonado.service
 systemctl start tonado.service || true
 
-echo "[8/9] Frontend bauen..."
-# Install Node.js if not present
-if ! command -v node &>/dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y -qq nodejs
+echo "[8/9] Frontend pruefen..."
+# Frontend is built on the dev machine and deployed via scp.
+# Node.js is NOT installed on the Pi to save disk space (~500 MB).
+# Build locally: cd web && npm run build
+# Deploy: scp -r web/build/ pi@<ip>:/opt/tonado/web/build/
+if [ -d "$TONADO_DIR/web/build" ] && [ -f "$TONADO_DIR/web/build/index.html" ]; then
+    echo "  Frontend-Build gefunden."
+else
+    echo "  HINWEIS: Kein Frontend-Build gefunden!"
+    echo "  Auf dem Entwicklungs-PC ausfuehren:"
+    echo "    cd web && npm run build"
+    echo "    scp -r web/build/ ${TONADO_USER}@$(hostname -I | awk '{print $1}'):/opt/tonado/web/build/"
 fi
-cd "$TONADO_DIR/web"
-npm install --production=false -q
-npm run build
 chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR"
 
 echo "[9/9] Nginx Reverse Proxy konfigurieren..."

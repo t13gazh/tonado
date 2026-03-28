@@ -158,7 +158,11 @@ class PlayerService:
         if not self._connected:
             return
         volume = max(0, min(100, volume))
-        await self._client.setvol(volume)
+        try:
+            await self._client.setvol(volume)
+        except Exception:
+            logger.warning("Mixer not available, volume control disabled")
+            return
         self._state.volume = volume
         await self._publish_state()
 
@@ -193,7 +197,9 @@ class PlayerService:
             return
         try:
             status = await self._client.status()
-            self._state.state = PlaybackState(status.get("state", "stop").replace("stop", "stopped"))
+            mpd_state = status.get("state", "stop")
+            state_map = {"play": "playing", "pause": "paused", "stop": "stopped"}
+            self._state.state = PlaybackState(state_map.get(mpd_state, "stopped"))
             self._state.volume = int(status.get("volume", 50))
             self._state.elapsed = float(status.get("elapsed", 0))
             self._state.duration = float(status.get("duration", 0))
@@ -223,8 +229,9 @@ class PlayerService:
         """Listen for MPD subsystem changes and sync state."""
         while self._connected:
             try:
-                await self._client.idle("player", "mixer", "playlist")
-                await self._sync_state()
+                async for _ in self._client.idle(["player", "mixer", "playlist"]):
+                    await self._sync_state()
+                    break  # Process one event, then re-enter idle
             except asyncio.CancelledError:
                 break
             except Exception as e:

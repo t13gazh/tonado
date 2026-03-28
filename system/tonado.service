@@ -5,22 +5,24 @@ Wants=mpd.service
 
 [Service]
 Type=simple
-User=tonado
-Group=tonado
+# Set to your Pi user (default: pi)
+User=pi
+Group=pi
 WorkingDirectory=/opt/tonado
 ExecStart=/opt/tonado/.venv/bin/uvicorn core.main:app --host 0.0.0.0 --port 8080
 Restart=always
 RestartSec=5
 Environment=TONADO_DB_PATH=/opt/tonado/config/tonado.db
-Environment=TONADO_MEDIA_DIR=/home/tonado/media
+Environment=TONADO_MEDIA_DIR=/home/pi/tonado/media
 Environment=TONADO_HARDWARE_MODE=auto
 
-# Security hardening
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/opt/tonado/config /home/tonado/media /tmp
-ProtectHome=true
-PrivateTmp=true
+# Security hardening (optional, may cause NAMESPACE errors on Pi Zero W)
+# Uncomment on Pi 3B+ or newer with systemd >= 245:
+# NoNewPrivileges=true
+# ProtectSystem=strict
+# ReadWritePaths=/opt/tonado/config /home/pi/tonado/media /tmp
+# ProtectHome=true
+# PrivateTmp=true
 
 # Allow hardware access
 SupplementaryGroups=spi i2c gpio audio

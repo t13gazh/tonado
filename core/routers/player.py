@@ -1,6 +1,9 @@
 """Player API routes."""
 
+import logging
 from fastapi import APIRouter, HTTPException
+
+logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 
@@ -90,6 +93,7 @@ class PlayFolderRequest(BaseModel):
 @router.post("/play-folder")
 async def play_folder(req: PlayFolderRequest) -> dict:
     """Play all tracks in a media folder."""
+    logger.info("play_folder called with path: %r", req.path)
     await _get_player().play_folder(req.path)
     return {"status": "ok"}
 

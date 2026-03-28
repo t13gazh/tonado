@@ -4,8 +4,12 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from pathlib import Path
+
 import aiosqlite
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
@@ -255,3 +259,21 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             logger.debug("WebSocket received: %s", data)
     except WebSocketDisconnect:
         await hub.disconnect(ws)
+
+
+# Serve static frontend (SvelteKit build) — must be after all API routes
+_build_dir = Path(__file__).resolve().parent.parent / "web" / "build"
+if _build_dir.is_dir():
+    _static = StaticFiles(directory=str(_build_dir), html=True)
+    _index_html = _build_dir / "index.html"
+
+    @app.middleware("http")
+    async def spa_fallback(request, call_next):
+        response = await call_next(request)
+        # SPA fallback: return index.html for non-API 404s
+        path = request.url.path
+        if response.status_code == 404 and not path.startswith(("/api/", "/ws")):
+            return FileResponse(_index_html)
+        return response
+
+    app.mount("/", _static, name="static")

@@ -83,9 +83,10 @@ async def seek(req: SeekRequest) -> dict:
 
 
 @router.post("/shuffle")
-async def shuffle() -> dict:
-    await _get_player().shuffle()
-    return {"status": "ok"}
+async def toggle_random() -> dict:
+    """Toggle random (shuffle) mode on/off."""
+    state = await _get_player().toggle_random()
+    return {"status": "ok", "shuffle": state}
 
 
 @router.post("/repeat")
@@ -146,13 +147,14 @@ async def play_urls(req: PlayUrlsRequest) -> dict:
 
 class PlayFolderRequest(BaseModel):
     path: str
+    start_index: int = 0
 
 
 @router.post("/play-folder")
 async def play_folder(req: PlayFolderRequest) -> dict:
-    """Play all tracks in a media folder."""
-    logger.info("play_folder called with path: %r", req.path)
-    await _get_player().play_folder(req.path)
+    """Play all tracks in a media folder, optionally starting at a specific track."""
+    logger.info("play_folder called with path: %r, start_index: %d", req.path, req.start_index)
+    await _get_player().play_folder(req.path, start_index=req.start_index)
     return {"status": "ok"}
 
 

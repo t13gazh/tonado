@@ -121,7 +121,7 @@
 					</div>
 
 					<!-- Actions (visible on hover / always on mobile) -->
-					<div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+					<div class="absolute top-2 right-2 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
 						<button
 							onclick={() => startEdit(card)}
 							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-text"

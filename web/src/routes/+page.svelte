@@ -21,7 +21,7 @@
 	const browserPlaying = $derived(getBrowserAudioActive());
 	const browserLoading = $derived(getBrowserAudioLoading());
 	let premuteVolume = $state(50);
-	let shuffleOn = $state(false);
+	const shuffleOn = $derived(state.shuffle);
 	let seekDragging = $state(false);
 	let seekOverride = $state(false);
 	let seekThumbVisible = $state(false);
@@ -62,8 +62,7 @@
 	}
 
 	function toggleShuffle() {
-		shuffleOn = !shuffleOn;
-		player.shuffle();
+		player.toggleRandom();
 	}
 
 	function getSeekRatio(e: PointerEvent | MouseEvent): number {

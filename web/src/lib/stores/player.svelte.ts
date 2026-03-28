@@ -19,6 +19,7 @@ let playerState = $state<PlayerState>({
 	current_uri: '',
 	is_stream: false,
 	loading: false,
+	shuffle: false,
 });
 
 let connected = $state(false);

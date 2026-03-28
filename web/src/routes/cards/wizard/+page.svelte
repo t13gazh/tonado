@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards } from '$lib/api';
+	import { cards, library, streams, type MediaFolder, type RadioStation, type PodcastInfo } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 
@@ -16,6 +16,23 @@
 	let name = $state('');
 	let contentType = $state<'folder' | 'stream' | 'podcast' | 'command'>('folder');
 	let contentPath = $state('');
+
+	// Content lists for selection
+	let folders = $state<MediaFolder[]>([]);
+	let radioStations = $state<RadioStation[]>([]);
+	let podcastList = $state<PodcastInfo[]>([]);
+	let contentListsLoaded = $state(false);
+
+	async function loadContentLists() {
+		if (contentListsLoaded) return;
+		try {
+			const [f, r, p] = await Promise.all([library.folders(), streams.listRadio(), streams.listPodcasts()]);
+			folders = f;
+			radioStations = r;
+			podcastList = p;
+		} catch {}
+		contentListsLoaded = true;
+	}
 
 	const contentTypes = [
 		{ value: 'folder' as const, label: () => t('wizard.type_folder') },
@@ -43,6 +60,7 @@
 					contentPath = result.mapping.content_path;
 				}
 				step = 'content';
+				loadContentLists();
 			} else {
 				// Timeout — not an error, just retry
 				scanning = false;
@@ -169,16 +187,58 @@
 				/>
 			</label>
 
-			<!-- Path/URL -->
-			<label class="block">
-				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_path')}</span>
+			<!-- Content selection -->
+			<div class="block">
+				<span class="text-xs text-text-muted mb-2 block">{t('wizard.content_path')}</span>
+
+				{#if contentType === 'folder' && folders.length > 0}
+					<div class="flex flex-col gap-1 max-h-48 overflow-y-auto mb-2">
+						{#each folders as f}
+							<button
+								onclick={() => { contentPath = f.path; if (!name) name = f.name; }}
+								class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors {contentPath === f.path ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+							>
+								<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+								<span class="truncate">{f.name}</span>
+								<span class="text-xs opacity-60 ml-auto flex-shrink-0">{f.track_count} Titel</span>
+							</button>
+						{/each}
+					</div>
+				{:else if contentType === 'stream' && radioStations.length > 0}
+					<div class="flex flex-col gap-1 max-h-48 overflow-y-auto mb-2">
+						{#each radioStations as s}
+							<button
+								onclick={() => { contentPath = s.url; if (!name) name = s.name; }}
+								class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors {contentPath === s.url ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+							>
+								<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+								<span class="truncate">{s.name}</span>
+							</button>
+						{/each}
+					</div>
+				{:else if contentType === 'podcast' && podcastList.length > 0}
+					<div class="flex flex-col gap-1 max-h-48 overflow-y-auto mb-2">
+						{#each podcastList as p}
+							<button
+								onclick={() => { contentPath = p.feed_url; if (!name) name = p.name; }}
+								class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors {contentPath === p.feed_url ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+							>
+								<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.69 2 6 4.69 6 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm-1.5 6.5v3h3v-3h-3z"/></svg>
+								<span class="truncate">{p.name}</span>
+								<span class="text-xs opacity-60 ml-auto flex-shrink-0">{p.episode_count} Folgen</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				<p class="text-[10px] text-text-muted mb-1">Oder manuell eingeben:</p>
 				<input
 					type="text"
 					bind:value={contentPath}
 					placeholder={contentType === 'stream' ? 'https://...' : 'Die drei Fragezeichen/Folge 1'}
 					class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50"
 				/>
-			</label>
+			</div>
 
 			{#if error}
 				<p class="text-sm text-red-400">{error}</p>

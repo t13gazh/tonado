@@ -17,6 +17,7 @@ export interface PlayerState {
 	current_uri: string;
 	is_stream: boolean;
 	loading: boolean;
+	shuffle: boolean;
 }
 
 export interface CardMapping {
@@ -38,9 +39,11 @@ export interface CardCreate {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const { headers: extraHeaders, ...rest } = options ?? {};
+	const token = getAuthToken();
 	const res = await fetch(`${BASE}${path}`, {
 		headers: {
 			'Content-Type': 'application/json',
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
 			...(extraHeaders instanceof Headers
 				? Object.fromEntries(extraHeaders.entries())
 				: (extraHeaders as Record<string, string>) ?? {}),
@@ -66,7 +69,7 @@ export const player = {
 		request<void>('/player/volume', { method: 'POST', body: JSON.stringify({ volume }) }),
 	seek: (position: number) =>
 		request<void>('/player/seek', { method: 'POST', body: JSON.stringify({ position }) }),
-	shuffle: () => request<void>('/player/shuffle', { method: 'POST' }),
+	toggleRandom: () => request<{ shuffle: boolean }>('/player/shuffle', { method: 'POST' }),
 	repeat: () => request<{ repeat_mode: string }>('/player/repeat', { method: 'POST' }),
 	outputs: () => request<{ id: number; name: string; enabled: boolean }[]>('/player/outputs'),
 	toggleOutput: (id: number, enabled: boolean) =>
@@ -237,18 +240,16 @@ export const authApi = {
 		return res;
 	},
 	logout: () => { setAuthToken(null); },
-	status: () => request<AuthStatus>('/auth/status', { headers: authHeaders() }),
+	status: () => request<AuthStatus>('/auth/status'),
 	setPin: (tier: string, pin: string) =>
 		request<void>('/auth/pin', {
 			method: 'POST',
 			body: JSON.stringify({ tier, pin }),
-			headers: authHeaders(),
 		}),
 	removePin: (tier: string) =>
 		request<void>('/auth/pin', {
 			method: 'DELETE',
 			body: JSON.stringify({ tier }),
-			headers: authHeaders(),
 		}),
 	sleepTimer: () => request<{ active: boolean; remaining_seconds: number }>('/auth/sleep-timer'),
 	startSleepTimer: (minutes: number) =>

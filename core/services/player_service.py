@@ -39,6 +39,7 @@ class PlayerState:
     playlist: list[str] = field(default_factory=list)
     playlist_position: int = -1
     repeat_mode: RepeatMode = RepeatMode.OFF
+    shuffle: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -54,6 +55,7 @@ class PlayerState:
             "playlist_length": len(self.playlist),
             "playlist_position": self.playlist_position,
             "repeat_mode": self.repeat_mode.value,
+            "shuffle": self.shuffle,
         }
 
 
@@ -100,14 +102,14 @@ class PlayerService:
             self._client.disconnect()
             self._connected = False
 
-    async def play_folder(self, folder_path: str, resume_position: float = 0) -> None:
-        """Clear queue, load folder, and start playback."""
+    async def play_folder(self, folder_path: str, resume_position: float = 0, start_index: int = 0) -> None:
+        """Clear queue, load folder, and start playback at given track index."""
         if not self._connected:
             return
         await self._client.stop()
         await self._client.clear()
         await self._client.add(folder_path)
-        await self._client.play(0)
+        await self._client.play(start_index)
         if resume_position > 0:
             await self._client.seekcur(resume_position)
         await self._sync_state()
@@ -226,12 +228,15 @@ class PlayerService:
         await self._client.seekcur(position)
         await self._sync_state()
 
-    async def shuffle(self) -> None:
-        """Shuffle the current playlist."""
+    async def toggle_random(self) -> bool:
+        """Toggle MPD random (shuffle) mode on/off."""
         if not self._connected:
-            return
-        await self._client.shuffle()
-        await self._sync_state()
+            return False
+        new_state = 0 if self._state.shuffle else 1
+        await self._client.random(new_state)
+        self._state.shuffle = new_state == 1
+        await self._publish_state()
+        return self._state.shuffle
 
     async def cycle_repeat(self) -> RepeatMode:
         """Cycle through repeat modes: off → all → single → off."""
@@ -271,6 +276,9 @@ class PlayerService:
             self._state.volume = int(status.get("volume", 50))
             self._state.elapsed = float(status.get("elapsed", 0))
             self._state.duration = float(status.get("duration", 0))
+
+            # Sync shuffle (random) mode from MPD
+            self._state.shuffle = status.get("random", "0") == "1"
 
             # Sync repeat mode from MPD
             repeat = status.get("repeat", "0")

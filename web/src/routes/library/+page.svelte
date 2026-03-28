@@ -80,14 +80,31 @@
 		} catch {}
 	}
 
+	async function playFolderFromTrack(folderPath: string, startIndex: number) {
+		try {
+			await fetch('/api/player/play-folder', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: folderPath, start_index: startIndex }),
+			});
+			goto('/');
+		} catch {}
+	}
+
 	async function createFolder() { if (!newFolderName.trim()) return; await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); }
 	async function deleteFolder(name: string) { await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
 	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; folderTracks = await library.tracks(name); } }
 	async function handleFiles(folderName: string, files: FileList) {
-		uploadFolder = folderName; uploading = true;
-		for (let i = 0; i < files.length; i++) { uploadProgress = 0; await library.upload(folderName, files[i], (pct) => { uploadProgress = pct; }); }
-		uploading = false; uploadFolder = ''; await loadFolders();
-		if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
+		uploadFolder = folderName; uploading = true; error = '';
+		try {
+			for (let i = 0; i < files.length; i++) { uploadProgress = 0; await library.upload(folderName, files[i], (pct) => { uploadProgress = pct; }); }
+			await loadFolders();
+			if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
+		} catch (e) {
+			error = 'Upload fehlgeschlagen: ' + (e instanceof Error ? e.message : String(e));
+		} finally {
+			uploading = false; uploadFolder = '';
+		}
 	}
 
 	function isValidUrl(url: string): boolean { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; } }
@@ -230,11 +247,20 @@
 								{#if folderTracks.length > 0}
 									<div class="flex flex-col">
 										{#each folderTracks as track, i}
-											<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
-												<span class="w-5 text-text-muted text-right tabular-nums">{i + 1}</span>
-												<span class="flex-1 text-text truncate">{parseTrackName(track.filename).title}</span>
+											<button
+												onclick={() => playFolderFromTrack(folder.path, i)}
+												class="flex items-center gap-2 py-1.5 text-xs w-full text-left hover:bg-surface-lighter/50 rounded transition-colors {i > 0 ? 'border-t border-surface-lighter/50' : ''}"
+											>
+												<span class="w-5 flex-shrink-0 flex items-center justify-center">
+													{#if isNowPlaying('folder', track.path) && isPlaying}
+														<svg class="w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+													{:else}
+														<svg class="w-3.5 h-3.5 text-text-muted" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+													{/if}
+												</span>
+												<span class="flex-1 truncate {isNowPlaying('folder', track.path) ? 'text-primary font-medium' : 'text-text'}">{parseTrackName(track.filename).title}</span>
 												<span class="text-text-muted tabular-nums shrink-0">{formatDuration(track.duration_seconds)}</span>
-											</div>
+											</button>
 										{/each}
 									</div>
 								{:else}

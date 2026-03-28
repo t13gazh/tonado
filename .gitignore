@@ -13,8 +13,8 @@ env/
 
 # Node / Frontend
 node_modules/
-ui/build/
-ui/.svelte-kit/
+web/build/
+web/.svelte-kit/
 .pnpm-store/
 
 # IDE

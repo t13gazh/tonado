@@ -323,12 +323,12 @@ class PlayerService:
         """Periodically update elapsed time during playback for smooth progress."""
         while self._connected:
             try:
+                await asyncio.sleep(1)
                 if self._state.state == PlaybackState.PLAYING:
                     self._state.elapsed += 1.0
                     if self._state.elapsed > self._state.duration and self._state.duration > 0:
                         self._state.elapsed = self._state.duration
                     await self._publish_state()
-                await asyncio.sleep(1)
             except asyncio.CancelledError:
                 break
             except Exception:

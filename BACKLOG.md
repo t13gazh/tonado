@@ -3,17 +3,12 @@
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
 ## Nächste Schritte
-- [ ] Ordner abspielen (Backend-Endpoint)
-- [ ] Playlisten (in Bibliothek integrieren)
-- [ ] Pi-Test mit echter Hardware
+- [ ] Pi-Test mit echter Hardware (RFID, Gyro)
 - [ ] Performance-Optimierung für Pi Zero W
 
 ## Prio 1 — Kernfunktionen
-- [ ] Hörbuch-Fortschritt: Automatisch merken wo man war, pro Figur/Album. Bei erneutem Auflegen an letzter Stelle weiterspielen
-- [ ] Startlautstärke konfigurierbar: Box startet immer mit definierter Lautstärke, nie mit "letzter". Verhindert Schreck-Momente wenn Kind vorher voll aufgedreht hatte
 - [ ] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
 - [ ] Auto-Fallback auf AP-Modus: Wenn bekanntes WLAN nicht erreichbar (z.B. Box bei Oma, im Auto), nach Timeout automatisch eigenen AP aufspannen. Handy kann sich verbinden und Box wieder steuern/neues WLAN konfigurieren. Musik spielt offline weiter, nur App-Zugriff wäre sonst verloren
-- [ ] Fortschrittsanzeige in der App: Track X von Y, Minute Z, visueller Fortschrittsbalken pro Hörbuch/Album
 
 ## Prio 2 — Differenzierung
 - [ ] Sprachaufnahme in der Web-App: Figur/Karte auflegen → App erkennt sie → direkt besprechen (MediaRecorder API). Physische Geste + Aufnahme verknüpft = einprägsamer als nachträgliches Zuordnen
@@ -55,8 +50,6 @@
 - [ ] Warteschlange / "Als nächstes": Spontan einen Titel einschieben ohne Playlist zu ändern
 - [ ] Cover-Art: ID3-Tags auslesen und Cover anzeigen. Fallback: Auto-Generierung (Farbe + Initiale) oder eigenes Bild hochladen
 - [ ] Metadaten bearbeiten: Titel/Album/Interpret in der App korrigieren
-- [ ] Wiederholen-Toggle: Track / Ordner / Playlist wiederholen, in der App schaltbar
-- [ ] Shuffle-Toggle in der App: Ergänzung zum Gyro-Schütteln, auch als Button bedienbar
 - [ ] Batch-Upload: Mehrere Dateien gleichzeitig hochladen mit Fortschrittsanzeige
 - [ ] Ordner hochladen: Ganzes Album auf einmal, Ordnerstruktur beibehalten
 

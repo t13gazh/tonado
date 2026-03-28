@@ -14,6 +14,9 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 
 _library: LibraryService | None = None
 
+# Maximum upload size per file in bytes (500 MB default)
+MAX_UPLOAD_BYTES = 500 * 1024 * 1024
+
 
 def init(library_service: LibraryService) -> None:
     global _library
@@ -26,6 +29,26 @@ def _get_service() -> LibraryService:
     return _library
 
 
+def _safe_path(folder_name: str) -> str:
+    """Validate folder_name against path traversal attacks.
+
+    Raises HTTPException 400 if the name contains '..' or resolves outside media_dir.
+    Returns the sanitized folder name.
+    """
+    # Reject any path component that is ".."
+    if ".." in Path(folder_name).parts:
+        raise HTTPException(400, "Ungültiger Ordnername")
+
+    # Resolve and verify the path stays within media_dir
+    service = _get_service()
+    resolved = (service._media_dir / folder_name).resolve()
+    media_resolved = service._media_dir.resolve()
+    if not str(resolved).startswith(str(media_resolved)):
+        raise HTTPException(400, "Ungültiger Ordnername")
+
+    return folder_name
+
+
 @router.get("/folders")
 async def list_folders() -> list[dict]:
     return [f.to_dict() for f in _get_service().list_folders()]
@@ -33,6 +56,7 @@ async def list_folders() -> list[dict]:
 
 @router.get("/folders/{folder_name}")
 async def get_folder(folder_name: str) -> dict:
+    _safe_path(folder_name)
     folder = _get_service().get_folder(folder_name)
     if folder is None:
         raise HTTPException(404, "Ordner nicht gefunden")
@@ -41,6 +65,7 @@ async def get_folder(folder_name: str) -> dict:
 
 @router.get("/folders/{folder_name}/tracks")
 async def list_tracks(folder_name: str) -> list[dict]:
+    _safe_path(folder_name)
     tracks = _get_service().list_tracks(folder_name)
     if not tracks and _get_service().get_folder(folder_name) is None:
         raise HTTPException(404, "Ordner nicht gefunden")
@@ -49,6 +74,7 @@ async def list_tracks(folder_name: str) -> list[dict]:
 
 @router.get("/{folder_name}/cover")
 async def get_cover(folder_name: str) -> FileResponse:
+    _safe_path(folder_name)
     cover_path = _get_service().get_cover_path(folder_name)
     if cover_path is None:
         raise HTTPException(404, "Kein Cover vorhanden")
@@ -67,6 +93,7 @@ async def create_folder(name: str = Form(...)) -> dict:
 
 @router.delete("/folders/{folder_name}")
 async def delete_folder(folder_name: str) -> dict:
+    _safe_path(folder_name)
     if not _get_service().delete_folder(folder_name):
         raise HTTPException(404, "Ordner nicht gefunden")
     return {"status": "ok"}
@@ -74,9 +101,11 @@ async def delete_folder(folder_name: str) -> dict:
 
 @router.put("/folders/{folder_name}/rename")
 async def rename_folder(folder_name: str, new_name: str = Form(...)) -> dict:
+    _safe_path(folder_name)
     safe_name = new_name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
         raise HTTPException(400, "Ungültiger Ordnername")
+    _safe_path(safe_name)
     if not _get_service().rename_folder(folder_name, safe_name):
         raise HTTPException(400, "Umbenennung fehlgeschlagen")
     return {"status": "ok", "new_name": safe_name}
@@ -92,6 +121,8 @@ async def upload_file(
     Supports audio files and cover images.
     For large files, the frontend should use chunked upload.
     """
+    _safe_path(folder_name)
+
     if not file.filename:
         raise HTTPException(400, "Kein Dateiname")
 
@@ -107,13 +138,25 @@ async def upload_file(
 
     target = _get_service().get_upload_path(folder_name, safe_filename)
 
-    # Stream file to disk
+    # Stream file to disk with size limit enforcement
     try:
+        bytes_written = 0
         with open(target, "wb") as f:
             while chunk := await file.read(1024 * 1024):  # 1 MB chunks
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD_BYTES:
+                    f.close()
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(
+                        413,
+                        f"Datei zu groß (max. {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
+                    )
                 f.write(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Upload failed: %s", e)
+        target.unlink(missing_ok=True)
         raise HTTPException(500, "Upload fehlgeschlagen")
 
     size = target.stat().st_size
@@ -133,6 +176,8 @@ async def upload_cover(
     file: UploadFile = File(...),
 ) -> dict:
     """Upload or replace cover art for a folder."""
+    _safe_path(folder_name)
+
     if not file.filename:
         raise HTTPException(400, "Kein Dateiname")
 
@@ -140,15 +185,30 @@ async def upload_cover(
     if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
         raise HTTPException(400, "Nur Bilder erlaubt (jpg, png, webp)")
 
+    # Cover images: 10 MB limit
+    max_cover_bytes = 10 * 1024 * 1024
+
     # Always save as cover.{ext}
     target = _get_service().get_upload_path(folder_name, f"cover{suffix}")
 
     try:
+        bytes_written = 0
         with open(target, "wb") as f:
             while chunk := await file.read(1024 * 1024):
+                bytes_written += len(chunk)
+                if bytes_written > max_cover_bytes:
+                    f.close()
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(
+                        413,
+                        f"Cover zu groß (max. {max_cover_bytes // (1024 * 1024)} MB)",
+                    )
                 f.write(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error("Cover upload failed: %s", e)
+        target.unlink(missing_ok=True)
         raise HTTPException(500, "Upload fehlgeschlagen")
 
     return {"status": "ok", "cover_path": f"/api/library/{folder_name}/cover"}

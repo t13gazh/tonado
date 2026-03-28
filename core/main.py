@@ -201,8 +201,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     streams.init(stream_service)
     playlists.init(playlist_service, player_service)
     auth.init(auth_service, timer_service)
-    system.init(system_service, backup_service)
-    setup.init(setup_wizard, wifi_service, captive_portal)
+    system.init(system_service, backup_service, auth_service)
+    setup.init(setup_wizard, wifi_service, captive_portal, auth_service)
 
     # Store hub on app state for WebSocket endpoint
     app.state.ws_hub = ws_hub

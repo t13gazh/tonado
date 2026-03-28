@@ -81,7 +81,7 @@ class GyroService:
                         action=action,
                     )
 
-                await asyncio.sleep(0.02)  # 50 Hz
+                await asyncio.sleep(0.05)  # 20 Hz — sufficient for gesture detection
             except asyncio.CancelledError:
                 break
             except Exception as e:

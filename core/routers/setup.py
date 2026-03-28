@@ -1,8 +1,9 @@
 """Setup wizard and system management API routes."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from core.services.auth_service import AuthService, AuthTier
 from core.services.captive_portal import CaptivePortalService
 from core.services.setup_wizard import SetupWizard
 from core.services.wifi_service import WifiService
@@ -12,17 +13,20 @@ router = APIRouter(prefix="/api/setup", tags=["setup"])
 _wizard: SetupWizard | None = None
 _wifi: WifiService | None = None
 _captive_portal: CaptivePortalService | None = None
+_auth: AuthService | None = None
 
 
 def init(
     wizard: SetupWizard,
     wifi: WifiService,
     captive_portal: CaptivePortalService,
+    auth_service: AuthService | None = None,
 ) -> None:
-    global _wizard, _wifi, _captive_portal
+    global _wizard, _wifi, _captive_portal, _auth
     _wizard = wizard
     _wifi = wifi
     _captive_portal = captive_portal
+    _auth = auth_service
 
 
 def _get_wizard() -> SetupWizard:
@@ -35,6 +39,23 @@ def _get_wifi() -> WifiService:
     if _wifi is None:
         raise HTTPException(503, "WiFi service not available")
     return _wifi
+
+
+def _get_token(request: Request) -> str | None:
+    """Extract JWT token from Authorization header."""
+    header = request.headers.get("Authorization", "")
+    if header.startswith("Bearer "):
+        return header[7:]
+    return None
+
+
+def _require_expert(request: Request) -> None:
+    """Raise 403 if token doesn't grant expert access."""
+    if _auth is None:
+        return  # Auth service not initialized — allow (e.g. during first setup)
+    token = _get_token(request)
+    if not _auth.check_access(token, AuthTier.EXPERT):
+        raise HTTPException(403, "Zugriff verweigert")
 
 
 # --- Setup wizard ---
@@ -97,7 +118,8 @@ async def complete_setup() -> dict:
 
 
 @router.post("/reset")
-async def reset_setup() -> dict:
+async def reset_setup(request: Request) -> dict:
+    _require_expert(request)
     await _get_wizard().reset()
     return {"status": "ok"}
 
@@ -113,7 +135,8 @@ async def portal_status() -> dict:
 
 
 @router.post("/portal/start")
-async def portal_start() -> dict:
+async def portal_start(request: Request) -> dict:
+    _require_expert(request)
     if _captive_portal is None:
         raise HTTPException(503, "Captive portal not available")
     success = await _captive_portal.start()
@@ -123,7 +146,8 @@ async def portal_start() -> dict:
 
 
 @router.post("/portal/stop")
-async def portal_stop() -> dict:
+async def portal_stop(request: Request) -> dict:
+    _require_expert(request)
     if _captive_portal is None:
         raise HTTPException(503, "Captive portal not available")
     await _captive_portal.stop()

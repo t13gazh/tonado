@@ -154,6 +154,7 @@ export interface PodcastInfo {
 	feed_url: string;
 	auto_download: boolean;
 	episode_count: number;
+	logo_url: string | null;
 }
 
 export const streams = {

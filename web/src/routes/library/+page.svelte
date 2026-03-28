@@ -92,7 +92,7 @@
 	}
 
 	async function createFolder() { if (!newFolderName.trim()) return; await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); }
-	async function deleteFolder(name: string) { await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
+	async function deleteFolder(name: string) { if (!confirm('Wirklich löschen?')) return; await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
 	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; folderTracks = await library.tracks(name); } }
 	async function handleFiles(folderName: string, files: FileList) {
 		uploadFolder = folderName; uploading = true; error = '';
@@ -109,9 +109,9 @@
 
 	function isValidUrl(url: string): boolean { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; } }
 	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); }
-	async function removeStation(id: number) { await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
+	async function removeStation(id: number) { if (!confirm('Wirklich löschen?')) return; await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
 	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
-	async function removePodcast(id: number) { await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
+	async function removePodcast(id: number) { if (!confirm('Wirklich löschen?')) return; await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
 	async function playPodcastEpisode(index: number) {
 		if (podcastEpisodes.length === 0) return;
 		const urls = podcastEpisodes.map(e => e.audio_url);
@@ -296,6 +296,8 @@
 		{/if}
 		{#if loadingRadio}
 			{@render spinner()}
+		{:else if stations.length === 0}
+			<div class="text-center py-12 text-text-muted text-sm">Noch keine Radiosender.</div>
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each stations as station (station.id)}

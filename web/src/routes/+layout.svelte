@@ -40,7 +40,7 @@
 	<!-- Bottom navigation -->
 	<nav class="flex items-center justify-around bg-surface-light border-t border-surface-lighter px-4 py-2 pb-[max(0.5rem,var(--spacing-safe-bottom))]">
 		{#each navItems as item}
-			{@const active = page.url.pathname === item.href}
+			{@const active = item.href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(item.href)}
 			<a
 				href={item.href}
 				class="flex flex-col items-center gap-1 px-6 py-1 rounded-lg transition-colors {active ? 'text-primary' : 'text-text-muted hover:text-text'}"

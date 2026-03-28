@@ -6,6 +6,7 @@
 	let authStatus = $state<AuthStatus | null>(null);
 	let allConfig = $state<Record<string, unknown>>({});
 	let error = $state('');
+	let errorTimer: ReturnType<typeof setTimeout> | null = null;
 	let showToast = $state(false);
 
 	// PIN forms
@@ -27,6 +28,13 @@
 
 	onMount(async () => {
 		await loadAll();
+	});
+
+	$effect(() => {
+		if (error) {
+			if (errorTimer) clearTimeout(errorTimer);
+			errorTimer = setTimeout(() => { error = ''; }, 5000);
+		}
 	});
 
 	async function loadAll() {

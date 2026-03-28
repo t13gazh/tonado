@@ -28,6 +28,8 @@ let lastGesture = $state<{ gesture: string; action: string } | null>(null);
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 2000;
+const RECONNECT_MAX = 30000;
 
 function getWsUrl(): string {
 	const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -69,6 +71,7 @@ export function connectWebSocket(): void {
 
 		ws.onopen = () => {
 			connected = true;
+			reconnectDelay = 2000;
 			if (reconnectTimer) {
 				clearTimeout(reconnectTimer);
 				reconnectTimer = null;
@@ -80,8 +83,9 @@ export function connectWebSocket(): void {
 		ws.onclose = () => {
 			connected = false;
 			ws = null;
-			// Auto-reconnect after 2 seconds
-			reconnectTimer = setTimeout(connectWebSocket, 2000);
+			// Auto-reconnect with exponential backoff (2s, 4s, 8s, ... max 30s)
+			reconnectTimer = setTimeout(connectWebSocket, reconnectDelay);
+			reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX);
 		};
 
 		ws.onerror = () => {

@@ -19,7 +19,7 @@ export function setBrowserAudioElement(el: HTMLAudioElement): void {
 	audioElement = el;
 	el.addEventListener('playing', () => { _loading = false; });
 	el.addEventListener('waiting', () => { if (_active) _loading = true; });
-	el.addEventListener('error', () => { _loading = false; });
+	el.addEventListener('error', () => { _loading = false; _active = false; });
 }
 
 export function startBrowserAudio(): void {

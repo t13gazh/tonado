@@ -1,12 +1,10 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards, config, type CardMapping } from '$lib/api';
+	import { cards, config, type CardMapping, type ContentType } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { isBackendOffline, isRfidAvailable } from '$lib/stores/health.svelte';
-
-	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
 	let allCards = $state<CardMapping[]>([]);
 	let loading = $state(true);

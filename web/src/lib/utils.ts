@@ -23,6 +23,11 @@ export function parseTrackName(raw: string): { folder: string; title: string } {
 	return { folder, title: name };
 }
 
+/** Capitalize the first letter of a string */
+export function capitalize(s: string): string {
+	return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /** Format seconds as human-readable duration: "3:24" or "1 Std. 12 Min." */
 export function formatDuration(seconds: number): string {
 	if (!seconds || seconds <= 0) return '';

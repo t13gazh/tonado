@@ -85,20 +85,15 @@
 				await player.toggle();
 				return;
 			}
-			const endpoint = type === 'folder' ? '/api/player/play-folder' : '/api/player/play-url';
-			const body = type === 'folder' ? { path } : { url: path };
-			await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+			if (type === 'folder') await player.playFolder(path);
+			else await player.playUrl(path);
 			goto('/');
 		} catch { error = t('general.error'); }
 	}
 
 	async function playFolderFromTrack(folderPath: string, startIndex: number) {
 		try {
-			await fetch('/api/player/play-folder', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ path: folderPath, start_index: startIndex }),
-			});
+			await player.playFolder(folderPath, startIndex);
 			goto('/');
 		} catch { error = t('general.error'); }
 	}
@@ -130,11 +125,7 @@
 		if (podcastEpisodes.length === 0) return;
 		const urls = podcastEpisodes.map(e => e.audio_url);
 		try {
-			await fetch('/api/player/play-urls', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ urls, start_index: index }),
-			});
+			await player.playUrls(urls, index);
 			goto('/');
 		} catch { error = t('general.error'); }
 	}

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { setupApi, systemApi, cards, config, player, type HardwareDetection, type WifiNetwork, type WifiStatus, type SystemInfoData } from '$lib/api';
+	import { setupApi, systemApi, cards, config, player, type HardwareDetection, type WifiNetwork, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
@@ -8,7 +8,6 @@
 	import { isBackendOffline } from '$lib/stores/health.svelte';
 
 	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'card' | 'complete';
-	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
 	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'card', 'complete'];
 	const STEP_LABELS: Record<WizardStep, () => string> = {

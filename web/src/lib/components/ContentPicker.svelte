@@ -4,10 +4,10 @@
 		library, streams, playlistsApi,
 		type MediaFolder, type MediaTrack, type RadioStation,
 		type PodcastInfo, type PlaylistSummary,
+		type ContentType,
 	} from '$lib/api';
+	import { formatDuration, capitalize } from '$lib/utils';
 	import { onMount } from 'svelte';
-
-	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
 	interface Props {
 		contentType: ContentType;
@@ -49,16 +49,6 @@
 		{ value: 'playlist', label: () => t('wizard.type_playlist'), icon: 'M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z' },
 		{ value: 'command', label: () => t('wizard.type_command'), icon: 'M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z' },
 	];
-
-	function capitalize(s: string): string {
-		return s.charAt(0).toUpperCase() + s.slice(1);
-	}
-
-	function formatDuration(s: number): string {
-		const m = Math.floor(s / 60);
-		const sec = Math.floor(s % 60);
-		return `${m}:${sec.toString().padStart(2, '0')}`;
-	}
 
 	onMount(async () => {
 		try {

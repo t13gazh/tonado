@@ -4,6 +4,8 @@
 
 const BASE = '/api';
 
+export type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
+
 export interface PlayerState {
 	state: 'playing' | 'paused' | 'stopped';
 	volume: number;
@@ -44,7 +46,7 @@ export interface HardwareAudioOutput {
 	recommended: boolean;
 }
 
-export interface HardwareStatus {
+export interface HardwareDetection {
 	pi: {
 		model: string;
 		revision: string;
@@ -61,6 +63,9 @@ export interface HardwareStatus {
 	gyro_detected: boolean;
 	gpio_available: boolean;
 	is_mock: boolean;
+}
+
+export interface HardwareStatus extends HardwareDetection {
 	wifi: {
 		connected: boolean;
 		ssid: string;
@@ -102,6 +107,12 @@ export const player = {
 		request<void>('/player/seek', { method: 'POST', body: JSON.stringify({ position }) }),
 	toggleRandom: () => request<{ shuffle: boolean }>('/player/shuffle', { method: 'POST' }),
 	repeat: () => request<{ repeat_mode: string }>('/player/repeat', { method: 'POST' }),
+	playFolder: (path: string, startIndex?: number) =>
+		request<void>('/player/play-folder', { method: 'POST', body: JSON.stringify({ path, start_index: startIndex }) }),
+	playUrl: (url: string) =>
+		request<void>('/player/play-url', { method: 'POST', body: JSON.stringify({ url }) }),
+	playUrls: (urls: string[], startIndex?: number) =>
+		request<void>('/player/play-urls', { method: 'POST', body: JSON.stringify({ urls, start_index: startIndex }) }),
 	outputs: () => request<{ id: number; name: string; enabled: boolean }[]>('/player/outputs'),
 	toggleOutput: (id: number, enabled: boolean) =>
 		request<void>(`/player/outputs/${id}`, { method: 'POST', body: JSON.stringify({ enabled }) }),
@@ -149,7 +160,12 @@ export const library = {
 	createFolder: (name: string) => {
 		const form = new FormData();
 		form.append('name', name);
-		return fetch(`${BASE}/library/folders`, { method: 'POST', body: form }).then((r) => r.json());
+		const token = getAuthToken();
+		return fetch(`${BASE}/library/folders`, {
+			method: 'POST',
+			body: form,
+			...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+		}).then((r) => r.json());
 	},
 	deleteFolder: (name: string) => request<void>(`/library/folders/${name}`, { method: 'DELETE' }),
 	upload: (folder: string, file: File, onProgress?: (pct: number) => void) => {
@@ -158,6 +174,8 @@ export const library = {
 			const form = new FormData();
 			form.append('file', file);
 			xhr.open('POST', `${BASE}/library/upload/${folder}`);
+			const token = getAuthToken();
+			if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 			if (onProgress) {
 				xhr.upload.onprogress = (e) => {
 					if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
@@ -258,11 +276,6 @@ export function getAuthToken(): string | null {
 	return _authToken;
 }
 
-function authHeaders(): Record<string, string> {
-	const token = getAuthToken();
-	return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
 export const authApi = {
 	login: async (pin: string) => {
 		const res = await request<{ token: string; tier: string }>('/auth/login', {
@@ -335,7 +348,12 @@ export const systemApi = {
 	importBackup: (file: File) => {
 		const form = new FormData();
 		form.append('file', file);
-		return fetch(`${BASE}/system/restore`, { method: 'POST', body: form }).then((r) => r.json());
+		const token = getAuthToken();
+		return fetch(`${BASE}/system/restore`, {
+			method: 'POST',
+			body: form,
+			...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+		}).then((r) => r.json());
 	},
 };
 
@@ -354,30 +372,6 @@ export interface SetupStatus {
 	is_complete: boolean;
 	hardware: HardwareDetection | null;
 	hardware_changed: boolean;
-}
-
-export interface HardwareDetection {
-	pi: {
-		model: string;
-		revision: string;
-		ram_mb: number;
-		has_wifi: boolean;
-		has_bluetooth: boolean;
-		supported: boolean;
-	};
-	rfid: {
-		reader: string;
-		device: string;
-	};
-	audio: {
-		name: string;
-		type: string;
-		device: string;
-		recommended: boolean;
-	}[];
-	gyro_detected: boolean;
-	gpio_available: boolean;
-	is_mock: boolean;
 }
 
 export interface WifiNetwork {

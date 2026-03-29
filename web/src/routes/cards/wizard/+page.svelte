@@ -1,12 +1,11 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards, config } from '$lib/api';
+	import { cards, config, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 
 	type Step = 'scan' | 'content' | 'done';
-	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
 	let step = $state<Step>('scan');
 	let scanning = $state(false);

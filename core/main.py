@@ -30,6 +30,7 @@ from core.services.system_service import SystemService
 from core.services.timer_service import TimerService
 from core.services.websocket_hub import WebSocketHub
 from core.services.wifi_service import WifiService
+from core.services.system_service import VERSION
 from core.settings import Settings
 
 logging.basicConfig(
@@ -250,7 +251,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     streams.init(stream_service)
     playlists.init(playlist_service, player_service)
     auth.init(auth_service, timer_service)
-    system.init(system_service, backup_service, auth_service)
+    system.init(
+        system_service, backup_service, auth_service,
+        player_service=player_service,
+        card_service=card_service,
+        gyro_service=gyro_service,
+        settings=settings,
+    )
     setup.init(setup_wizard, wifi_service, captive_portal, auth_service)
 
     # Store hub on app state for WebSocket endpoint
@@ -275,7 +282,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="Tonado",
     description="Open-source kids music box API",
-    version="0.1.0",
+    version=VERSION,
     lifespan=lifespan,
 )
 
@@ -293,7 +300,7 @@ app.include_router(setup.router)
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": VERSION}
 
 
 @app.websocket("/ws")

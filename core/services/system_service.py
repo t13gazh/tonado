@@ -15,6 +15,21 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+def _read_version() -> str:
+    """Read version from pyproject.toml (avoids import dependency)."""
+    pyproject = Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
+    try:
+        for line in pyproject.read_text().splitlines():
+            if line.strip().startswith("version"):
+                return line.split('"')[1]
+    except (OSError, IndexError):
+        pass
+    return "0.0.0"
+
+
+VERSION = _read_version()
+
+
 @dataclass
 class SystemInfo:
     """System information snapshot."""
@@ -23,7 +38,7 @@ class SystemInfo:
     pi_model: str = ""
     os_version: str = ""
     python_version: str = ""
-    tonado_version: str = "0.1.0"
+    tonado_version: str = VERSION
     uptime_seconds: float = 0
     cpu_temp: float = 0
     ram_total_mb: int = 0
@@ -118,56 +133,116 @@ class SystemService:
         else:
             logger.info("Reboot requested (no-op on non-Pi)")
 
+    @staticmethod
+    def get_version() -> str:
+        return VERSION
+
+    async def _git(self, *args: str) -> tuple[int, str, str]:
+        """Run a git command in the install directory."""
+        proc = await asyncio.create_subprocess_exec(
+            "git", "-C", str(self._install_dir), *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        return proc.returncode or 0, stdout.decode().strip(), stderr.decode().strip()
+
     async def check_update(self) -> dict[str, Any]:
         """Check if an update is available via git."""
         if not (self._install_dir / ".git").exists():
             return {"available": False, "error": "Kein Git-Repository"}
 
         try:
-            await self._run("git", "-C", str(self._install_dir), "fetch", "--quiet")
-            proc = await asyncio.create_subprocess_exec(
-                "git", "-C", str(self._install_dir), "log", "HEAD..origin/main", "--oneline",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            await self._git("fetch", "--quiet")
+
+            # Get current and remote version from pyproject.toml
+            _, remote_content, _ = await self._git(
+                "show", "origin/main:pyproject.toml",
             )
-            stdout, _ = await proc.communicate()
-            commits = stdout.decode().strip().splitlines()
+            remote_version = VERSION
+            for line in remote_content.splitlines():
+                if line.strip().startswith("version"):
+                    try:
+                        remote_version = line.split('"')[1]
+                    except IndexError:
+                        pass
+                    break
+
+            # Get commit log
+            _, commit_log, _ = await self._git(
+                "log", "HEAD..origin/main", "--oneline",
+            )
+            commits = commit_log.splitlines() if commit_log else []
 
             return {
                 "available": len(commits) > 0,
                 "commits": len(commits),
                 "changes": commits[:10],
+                "current_version": VERSION,
+                "remote_version": remote_version,
             }
         except Exception as e:
             return {"available": False, "error": str(e)}
 
     async def apply_update(self) -> dict[str, Any]:
-        """Pull latest changes and restart."""
+        """Pull latest changes with rollback on failure, then restart."""
         if not (self._install_dir / ".git").exists():
             return {"success": False, "error": "Kein Git-Repository"}
 
+        # Save current commit for rollback
+        rc, current_hash, _ = await self._git("rev-parse", "HEAD")
+        if rc != 0:
+            return {"success": False, "error": "Git-Status unbekannt"}
+
         try:
-            proc = await asyncio.create_subprocess_exec(
-                "git", "-C", str(self._install_dir), "pull", "--ff-only",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+            # Pull latest (fast-forward only, safe)
+            rc, stdout, stderr = await self._git("pull", "--ff-only")
+            if rc != 0:
+                return {"success": False, "error": stderr or "git pull fehlgeschlagen"}
+
+            # Reinstall Python dependencies if pyproject.toml changed
+            rc_diff, diff_out, _ = await self._git(
+                "diff", f"{current_hash}..HEAD", "--name-only",
             )
-            stdout, stderr = await proc.communicate()
+            changed_files = diff_out.splitlines() if diff_out else []
 
-            if proc.returncode != 0:
-                return {"success": False, "error": stderr.decode().strip()}
+            if "pyproject.toml" in changed_files:
+                logger.info("pyproject.toml changed — reinstalling dependencies")
+                venv_pip = self._install_dir / ".venv" / "bin" / "pip"
+                if venv_pip.exists():
+                    pip_rc = await self._run(
+                        str(venv_pip), "install", "-e", ".[pi]", "--quiet",
+                    )
+                    if pip_rc != 0:
+                        logger.error("pip install failed — rolling back")
+                        await self._git("reset", "--hard", current_hash)
+                        return {
+                            "success": False,
+                            "error": "Abhängigkeiten konnten nicht installiert werden. Rollback durchgeführt.",
+                        }
 
-            # Reinstall dependencies
-            venv_pip = self._install_dir / ".venv" / "bin" / "pip"
-            if venv_pip.exists():
-                await self._run(str(venv_pip), "install", "-e", ".[pi]", "--quiet")
+            # Get new version
+            new_version = _read_version()
+            logger.info("Update applied: %s → %s", VERSION, new_version)
 
             # Restart service
             await self.restart()
 
-            return {"success": True, "output": stdout.decode().strip()}
+            return {
+                "success": True,
+                "output": stdout,
+                "old_version": VERSION,
+                "new_version": new_version,
+                "files_changed": len(changed_files),
+            }
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            # Rollback on any unexpected error
+            logger.error("Update failed: %s — rolling back", e)
+            await self._git("reset", "--hard", current_hash)
+            return {
+                "success": False,
+                "error": f"Update fehlgeschlagen: {e}. Rollback durchgeführt.",
+            }
 
     async def enable_overlay(self) -> bool:
         """Enable read-only root filesystem with OverlayFS."""

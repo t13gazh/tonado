@@ -1,23 +1,28 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { systemApi, type SystemInfoData, type HardwareStatus } from '$lib/api';
+	import { systemApi, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
 	import { onMount } from 'svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
 
 	let info = $state<SystemInfoData | null>(null);
 	let hardware = $state<HardwareStatus | null>(null);
-	let updateStatus = $state<{ available: boolean; commits: number } | null>(null);
+	let healthData = $state<SystemHealth | null>(null);
+	let updateStatus = $state<{ available: boolean; commits: number; changes?: string[]; current_version?: string; remote_version?: string } | null>(null);
+	let updating = $state(false);
 	let loading = $state(true);
 	let message = $state('');
 	let confirmShutdown = $state(false);
 
 	onMount(async () => {
 		try {
-			const [infoData, hwData] = await Promise.all([
+			const [infoData, hwData, hData] = await Promise.all([
 				systemApi.info(),
 				systemApi.hardware().catch(() => null),
+				systemApi.health().catch(() => null),
 			]);
 			info = infoData;
 			hardware = hwData;
+			healthData = hData;
 		} catch {}
 		loading = false;
 	});
@@ -42,9 +47,24 @@
 	}
 
 	async function applyUpdate() {
-		message = 'Update wird installiert...';
-		const result = await systemApi.applyUpdate();
-		message = result.success ? t('system.update_done') : t('system.update_error', { error: result.error ?? '' });
+		updating = true;
+		message = t('system.update_installing');
+		try {
+			const result = await systemApi.applyUpdate();
+			if (result.success) {
+				message = t('system.update_success', {
+					old: result.old_version ?? '?',
+					new: result.new_version ?? '?',
+					files: result.files_changed ?? 0,
+				});
+				updateStatus = null;
+			} else {
+				message = t('system.update_error', { error: result.error ?? '' });
+			}
+		} catch {
+			message = t('system.update_error', { error: 'Verbindung verloren' });
+		}
+		updating = false;
 	}
 
 	async function handleBackupImport(e: Event) {
@@ -102,6 +122,25 @@
 					<span>{info.disk_total_gb ? `${info.disk_used_gb} / ${info.disk_total_gb} GB` : '—'}</span>
 				</div>
 			</div>
+
+			<!-- Health warnings -->
+			{#if healthData}
+				{@const warnings = [
+					...(healthData.mpd.status !== 'connected' ? [{ type: 'error' as const, msg: t('health.mpd_disconnected') }] : []),
+					...(healthData.audio.status === 'no_output' ? [{ type: 'warning' as const, msg: t('health.audio_no_output') }] : []),
+					...(healthData.rfid.status !== 'connected' ? [{ type: 'info' as const, msg: t('health.rfid_unavailable') }] : []),
+					...(healthData.gyro.status !== 'connected' ? [{ type: 'info' as const, msg: t('health.gyro_unavailable') }] : []),
+					...(healthData.storage.status === 'critical' ? [{ type: 'error' as const, msg: t('health.storage_critical') }] : []),
+					...(healthData.storage.status === 'low' ? [{ type: 'warning' as const, msg: t('health.storage_low', { free_mb: healthData.storage.free_mb ?? 0 }) }] : []),
+				]}
+				{#if warnings.length > 0}
+					<div class="flex flex-col gap-2">
+						{#each warnings as w}
+							<HealthBanner type={w.type} message={w.msg} />
+						{/each}
+					</div>
+				{/if}
+			{/if}
 
 			<!-- Hardware -->
 			{#if hardware}
@@ -180,8 +219,32 @@
 				<h2 class="text-sm font-semibold mb-3">{t('system.update')}</h2>
 				{#if updateStatus}
 					{#if updateStatus.available}
-						<p class="text-sm text-accent mb-2">{t('system.update_available', { count: updateStatus.commits })}</p>
-						<button onclick={applyUpdate} class="px-4 py-2 bg-accent text-white rounded-lg text-sm">{t('system.update_apply')}</button>
+						<div class="space-y-3">
+							<p class="text-sm text-accent">{t('system.update_available', { count: updateStatus.commits })}</p>
+							{#if updateStatus.current_version && updateStatus.remote_version}
+								<p class="text-xs text-text-muted">
+									{updateStatus.current_version} → {updateStatus.remote_version}
+								</p>
+							{/if}
+							{#if updateStatus.changes && updateStatus.changes.length > 0}
+								<div class="text-xs text-text-muted bg-surface rounded-lg p-3 max-h-32 overflow-y-auto space-y-1 font-mono">
+									{#each updateStatus.changes as change}
+										<div class="truncate">{change}</div>
+									{/each}
+								</div>
+							{/if}
+							<button
+								onclick={applyUpdate}
+								disabled={updating}
+								class="px-4 py-2 bg-accent text-white rounded-lg text-sm disabled:opacity-50"
+							>
+								{#if updating}
+									<span class="animate-pulse">{t('system.update_installing')}</span>
+								{:else}
+									{t('system.update_apply')}
+								{/if}
+							</button>
+						</div>
 					{:else}
 						<p class="text-sm text-text-muted">{t('system.update_none')}</p>
 					{/if}

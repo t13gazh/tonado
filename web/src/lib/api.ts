@@ -305,14 +305,30 @@ export interface SystemInfoData {
 	ip_address: string;
 }
 
+export interface ComponentHealth {
+	status: string;
+	detail: string;
+	free_mb?: number;
+}
+
+export interface SystemHealth {
+	mpd: ComponentHealth;
+	rfid: ComponentHealth;
+	gyro: ComponentHealth;
+	audio: ComponentHealth;
+	storage: ComponentHealth;
+	network: ComponentHealth;
+}
+
 export const systemApi = {
+	health: () => request<SystemHealth>('/system/health'),
 	info: () => request<SystemInfoData>('/system/info'),
 	hardware: () => request<HardwareStatus>('/system/hardware'),
 	restart: () => request<void>('/system/restart', { method: 'POST' }),
 	shutdown: () => request<void>('/system/shutdown', { method: 'POST' }),
 	reboot: () => request<void>('/system/reboot', { method: 'POST' }),
-	checkUpdate: () => request<{ available: boolean; commits: number; changes?: string[] }>('/system/update/check'),
-	applyUpdate: () => request<{ success: boolean; output?: string; error?: string }>('/system/update/apply', { method: 'POST' }),
+	checkUpdate: () => request<{ available: boolean; commits: number; changes?: string[]; current_version?: string; remote_version?: string }>('/system/update/check'),
+	applyUpdate: () => request<{ success: boolean; output?: string; error?: string; old_version?: string; new_version?: string; files_changed?: number }>('/system/update/apply', { method: 'POST' }),
 	enableOverlay: () => request<void>('/system/overlay/enable', { method: 'POST' }),
 	disableOverlay: () => request<void>('/system/overlay/disable', { method: 'POST' }),
 	exportBackup: () => `${BASE}/system/backup`,

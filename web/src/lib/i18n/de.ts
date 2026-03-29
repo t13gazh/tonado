@@ -227,7 +227,17 @@ export default {
 	'system.uptime_hours': '{h} Std. {m} Min.',
 	'system.uptime_minutes': '{m} Min.',
 	'system.update_done': 'Update installiert. Neustart...',
+	'system.update_installing': 'Update wird installiert...',
+	'system.update_success': 'Update von {old} auf {new} installiert ({files} Dateien). Neustart...',
 	'system.update_error': 'Fehler: {error}',
+
+	// Health / degraded state
+	'health.mpd_disconnected': 'Musikserver nicht verbunden — Wiedergabe nicht möglich.',
+	'health.rfid_unavailable': 'Kein Figuren-Leser erkannt. Figuren können nicht gelesen werden.',
+	'health.gyro_unavailable': 'Kein Bewegungssensor erkannt.',
+	'health.storage_critical': 'Speicher fast voll! Bitte Dateien löschen.',
+	'health.storage_low': 'Wenig Speicherplatz verfügbar ({free_mb} MB frei).',
+	'health.audio_no_output': 'Kein Audio-Ausgang verfügbar.',
 
 	// General
 	'general.loading': 'Laden...',

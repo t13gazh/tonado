@@ -6,7 +6,7 @@ node_modules
 .netlify
 .wrangler
 /.svelte-kit
-/build
+# /build is committed — pre-built for Pi deployment (no Node on Pi)
 
 # OS
 .DS_Store

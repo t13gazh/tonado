@@ -204,7 +204,7 @@
 					onkeydown={(e) => e.key === 'Enter' && login()}
 				/>
 				<button onclick={login} disabled={loginLoading} class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-60 flex items-center gap-2">
-						{#if loginLoading}<Spinner size="sm" />{/if}
+						{#if loginLoading}<Spinner size="sm" variant="light" />{/if}
 						{t('settings.login')}
 					</button>
 			</div>
@@ -339,7 +339,7 @@
 						disabled={parentPinValue.length < 4 || parentPinLoading}
 						class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
 					>
-						{#if parentPinLoading}<Spinner size="sm" />{/if}
+						{#if parentPinLoading}<Spinner size="sm" variant="light" />{/if}
 						{t('settings.pin_set')}
 					</button>
 					{#if authStatus?.parent_pin_set}
@@ -370,7 +370,7 @@
 					disabled={expertPinValue.length < 4 || expertPinLoading}
 					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
 				>
-					{#if expertPinLoading}<Spinner size="sm" />{/if}
+					{#if expertPinLoading}<Spinner size="sm" variant="light" />{/if}
 					{t('settings.pin_set')}
 				</button>
 				{#if authStatus?.expert_pin_set}

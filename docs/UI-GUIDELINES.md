@@ -1,8 +1,8 @@
 # Tonado UI Guidelines
 
-Verbindliche Design-Guideline fuer die Tonado Web-App.
+Verbindliche Design-Guideline für die Tonado Web-App.
 Referenz-Seiten: **Player** (`+page.svelte`) und **Einstellungen** (`settings/+page.svelte`).
-Alle anderen Seiten muessen sich an diese Patterns anpassen.
+Alle anderen Seiten müssen sich an diese Patterns anpassen.
 
 ---
 
@@ -14,14 +14,14 @@ Definiert in `web/src/app.css` unter `@theme`.
 
 | Token | Hex | Verwendung |
 |-------|-----|------------|
-| `primary` | `#6366f1` | Primaere Aktionen, aktive Zustaende, Akzent |
+| `primary` | `#6366f1` | Primäre Aktionen, aktive Zustände, Akzent |
 | `primary-light` | `#818cf8` | Hover-Zustand von Primary |
 | `primary-dark` | `#4f46e5` | Pressed-Zustand (selten) |
 | `surface` | `#1e1e2e` | Body-Hintergrund, Input-Hintergrund |
 | `surface-light` | `#2a2a3e` | Karten/Sektionen, Nav-Bar |
 | `surface-lighter` | `#363650` | Borders, Divider, deaktivierte Elemente |
-| `text` | `#e2e2f0` | Primaerer Text |
-| `text-muted` | `#9393a8` | Sekundaerer Text, Labels, Platzhalter |
+| `text` | `#e2e2f0` | Primärer Text |
+| `text-muted` | `#9393a8` | Sekundärer Text, Labels, Platzhalter |
 | `accent` | `#f59e0b` | Warnhinweise, Update-Badges, Amber-Akzent |
 
 ### Semantische Farben (Tailwind-Defaults)
@@ -29,14 +29,14 @@ Definiert in `web/src/app.css` unter `@theme`.
 | Zweck | Klasse | Verwendung |
 |-------|--------|------------|
 | Erfolg | `green-500` | Checkmarks, Status-Dots (verbunden) |
-| Fehler | `red-400` / `red-500` / `red-600` | Fehlermeldungen, Loeschen, Shutdown |
+| Fehler | `red-400` / `red-500` / `red-600` | Fehlermeldungen, Löschen, Shutdown |
 | Warnung | `amber-400` / `amber-500` | Warnbanner, Timer-Anzeige |
 | Info | `blue-400` / `blue-500` | Info-Banner |
 
 ### Schrift
 
 - **Familie:** `Inter, system-ui, -apple-system, sans-serif`
-- **Groessen:** `text-xs` (10px), `text-sm` (14px), `text-lg` (18px), `text-xl` (20px)
+- **Größen:** `text-xs` (10px), `text-sm` (14px), `text-lg` (18px), `text-xl` (20px)
 - **Gewichte:** `font-medium` (500), `font-semibold` (600), `font-bold` (700)
 
 ### Radien
@@ -51,7 +51,7 @@ Definiert in `web/src/app.css` unter `@theme`.
 | Progress bars | `rounded-full` |
 | Thumbnails | `rounded-lg` (8px) |
 
-### Abstande
+### Abstände
 
 | Kontext | Wert |
 |---------|------|
@@ -59,7 +59,7 @@ Definiert in `web/src/app.css` unter `@theme`.
 | Abstand zwischen Sektionen | `gap-4` (16px) |
 | Padding innerhalb Karten | `p-4` (16px) |
 | Abstand zwischen Buttons in einer Reihe | `gap-2` (8px) oder `gap-3` (12px) |
-| Label ueber Input/Section | `mb-3` (12px) |
+| Label über Input/Section | `mb-3` (12px) |
 
 ---
 
@@ -67,7 +67,7 @@ Definiert in `web/src/app.css` unter `@theme`.
 
 ### Primary Action (Hauptaktion)
 
-Fuer die wichtigste Aktion pro Bildschirm: Speichern, Weiter, Login, Figur anlegen.
+Für die wichtigste Aktion pro Bildschirm: Speichern, Weiter, Login, Figur anlegen.
 
 ```
 class="px-4 py-2.5 bg-primary hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-colors"
@@ -85,7 +85,7 @@ class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-
 
 ### Secondary Action (Nebenaktionen)
 
-Fuer zurueck, Abbrechen, alternative Aktionen. Visuell zurueckgenommen.
+Für zurück, Abbrechen, alternative Aktionen. Visuell zurückgenommen.
 
 ```
 class="px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors"
@@ -96,24 +96,16 @@ class="px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-tex
 class="px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
 ```
 
-### Outlined/Soft Action
+### Danger Action (Löschen, Herunterfahren)
 
-Fuer mittlere Wichtigkeit: Update pruefen, Backup. Nicht fuer Primaer-Aktionen, nicht fuer Navigation.
-
-```
-class="px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm font-medium hover:bg-primary/25 transition-colors"
-```
-
-### Danger Action (Loeschen, Herunterfahren)
-
-**Destructive Primary (Bestaetigung im Modal):**
+**Destructive Primary (Bestätigung im Modal):**
 ```
 class="px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors"
 ```
 
-**Destructive Secondary (erste Stufe, vor Bestaetigung):**
+**Destructive Secondary (erste Stufe, vor Bestätigung):**
 ```
-class="px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors"
+class="px-4 py-2.5 bg-red-500/20 rounded-lg text-red-400 text-sm font-medium hover:bg-red-500/30 transition-colors"
 ```
 
 **Inline Danger (z.B. PIN entfernen):**
@@ -123,13 +115,13 @@ class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/
 
 ### Ghost/Link Action (Navigation, Abbrechen, Retry)
 
-Fuer minimale visuelle Praesenz: textbasierte Links, Abbruch-Links, Retry.
+Für minimale visuelle Präsenz: textbasierte Links, Abbruch-Links, Retry.
 
 ```
 class="text-sm text-primary font-medium"
 ```
 
-**Muted Ghost (Logout, sekundaere Text-Actions):**
+**Muted Ghost (Logout, sekundäre Text-Actions):**
 ```
 class="text-xs text-text-muted hover:text-text"
 ```
@@ -291,7 +283,7 @@ class="w-full h-2 bg-surface-lighter rounded-full appearance-none cursor-pointer
 <h1 class="text-xl font-bold mb-4">Seitentitel</h1>
 ```
 
-### Seiten-Titel mit Zurueck-Button (Unterseiten)
+### Seiten-Titel mit Zurück-Button (Unterseiten)
 
 ```html
 <div class="flex items-center gap-3 mb-4">
@@ -304,7 +296,7 @@ class="w-full h-2 bg-surface-lighter rounded-full appearance-none cursor-pointer
 </div>
 ```
 
-### Seiten-Titel mit Action-Button (Figuren: + Hinzufuegen)
+### Seiten-Titel mit Action-Button (Figuren: + Hinzufügen)
 
 ```html
 <div class="flex items-center justify-between mb-4">
@@ -360,7 +352,7 @@ class="mb-3 px-3 py-2 bg-primary/10 border border-primary/20 rounded-lg text-pri
 
 ### HealthBanner (Komponente)
 
-Fuer systemweite Warnungen. Bereits als Shared Component vorhanden:
+Für systemweite Warnungen. Bereits als Shared Component vorhanden:
 
 ```html
 <HealthBanner type="warning" message="..." />
@@ -407,7 +399,7 @@ Fuer systemweite Warnungen. Bereits als Shared Component vorhanden:
 
 ## 8. Listen-Zeilen (Bibliothek-Pattern)
 
-Einheitliches Zeilen-Layout fuer alle Listen:
+Einheitliches Zeilen-Layout für alle Listen:
 
 ```
 [ Play-Kreis ] [ Thumbnail ] Titel + Subtitle + Dauer [ Chevron ]
@@ -435,7 +427,7 @@ class="w-10 h-10 rounded-lg bg-surface-lighter flex-shrink-0 overflow-hidden fle
 // Normal:
 class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors bg-surface-light text-text hover:bg-surface-lighter"
 
-// Ausgewaehlt:
+// Ausgewählt:
 class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors bg-primary text-white"
 ```
 
@@ -496,8 +488,8 @@ class="w-2 h-2 rounded-full bg-red-500"
 ```html
 <div class="text-center py-20 text-text-muted">
   <svg class="w-16 h-16 mx-auto mb-4 opacity-30" ...><!-- Fallback-Icon --></svg>
-  <p class="text-sm font-medium">Primaer-Text</p>
-  <p class="text-xs mt-1">Sekundaer-Text</p>
+  <p class="text-sm font-medium">Primär-Text</p>
+  <p class="text-xs mt-1">Sekundär-Text</p>
 </div>
 ```
 
@@ -534,20 +526,13 @@ class="w-2 h-2 rounded-full bg-red-500"
 
 ## 13. Bekannte Inkonsistenzen (zu beheben)
 
-### System-Seite (`settings/system/+page.svelte`)
-
-| Problem | Soll |
-|---------|------|
-| Restart/Reboot: `bg-surface-lighter/50 text-left font-medium` sieht aus wie Input | Secondary Button: `bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium` |
-| Shutdown-Bestaetigung: `bg-red-600 text-left` ohne Hover | Danger Primary: `bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium` |
-| Check-Update-Button: hat Border-Style, alle anderen System-Buttons nicht | Einheitlich: entweder alle Outlined oder alle Solid |
-| Power-Buttons sind `text-left` | Buttons sollen `text-center` sein (Default) |
+Keine bekannten Inkonsistenzen. Stand: 2026-03-29.
 
 ### Allgemeine Regeln
 
 1. **Buttons sehen NICHT wie Inputs aus.** Buttons haben keinen `border border-surface-lighter` auf `bg-surface` Hintergrund. Das ist Input-Styling.
 2. **Full-width Buttons sind zentriert** (`text-center` ist Default, kein `text-left`).
 3. **Jeder Button hat einen Hover-State.** Mindestens `hover:bg-*` oder `hover:text-*`.
-4. **Disabled-State:** `disabled:opacity-50 disabled:cursor-not-allowed` (oder `disabled:opacity-40` fuer primaere Buttons).
-5. **Touch-Feedback:** `active:scale-95` fuer Player-Controls. Fuer andere Buttons reicht `transition-colors`.
-6. **Konsistente Padding-Hoehe:** `py-2` bis `py-2.5` fuer inline Buttons, `py-3` fuer full-width Wizard/Setup Buttons.
+4. **Disabled-State:** `disabled:opacity-50 disabled:cursor-not-allowed` (oder `disabled:opacity-40` für primäre Buttons).
+5. **Touch-Feedback:** `active:scale-95` für Player-Controls. Für andere Buttons reicht `transition-colors`.
+6. **Konsistente Padding-Höhe:** `py-2` bis `py-2.5` für inline Buttons, `py-3` für full-width Wizard/Setup Buttons.

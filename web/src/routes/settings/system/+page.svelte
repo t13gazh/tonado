@@ -294,10 +294,10 @@
 			<!-- Power -->
 			<div class="bg-surface-light rounded-xl p-4">
 				<div class="flex flex-col gap-2">
-					<button onclick={async () => { try { await systemApi.restart(); message = t('system.restart_ok'); } catch { message = t('system.restart_error'); } }} class="w-full px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-sm text-text-muted hover:text-text text-left">
+					<button onclick={async () => { try { await systemApi.restart(); message = t('system.restart_ok'); } catch { message = t('system.restart_error'); } }} class="w-full px-4 py-2.5 bg-surface-lighter/50 rounded-lg text-sm text-text hover:bg-surface-lighter transition-colors text-left font-medium">
 						{t('system.restart')}
 					</button>
-					<button onclick={async () => { try { await systemApi.reboot(); message = t('system.reboot_ok'); } catch { message = t('system.reboot_error'); } }} class="w-full px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-sm text-text-muted hover:text-text text-left">
+					<button onclick={async () => { try { await systemApi.reboot(); message = t('system.reboot_ok'); } catch { message = t('system.reboot_error'); } }} class="w-full px-4 py-2.5 bg-surface-lighter/50 rounded-lg text-sm text-text hover:bg-surface-lighter transition-colors text-left font-medium">
 						{t('system.reboot')}
 					</button>
 					{#if confirmShutdown}
@@ -305,7 +305,7 @@
 							{t('system.confirm_shutdown')}
 						</button>
 					{:else}
-						<button onclick={() => (confirmShutdown = true)} class="w-full px-4 py-2.5 bg-surface border border-red-600/30 rounded-lg text-sm text-red-400 hover:text-red-300 text-left">
+						<button onclick={() => (confirmShutdown = true)} class="w-full px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors text-left font-medium">
 							{t('system.shutdown')}
 						</button>
 					{/if}

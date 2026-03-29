@@ -122,7 +122,7 @@ class PlaybackDispatcher:
             case "volume_down":
                 await self._player.adjust_volume(-5)
             case "shuffle":
-                await self._player.shuffle()
+                await self._player.toggle_random()
 
     async def _on_resume_save(self, card_id: str, position: float, **_) -> None:
         await self._card_service.update_resume_position(card_id, position)

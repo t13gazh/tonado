@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 import aiosqlite
 
 from core.hardware.rfid import RfidReader
+from core.schemas.common import ContentType
 from core.services.base import BaseService
 from core.services.event_bus import EventBus
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 class CardMapping:
     card_id: str
     name: str
-    content_type: str  # see ContentType enum in core.schemas.common
+    content_type: ContentType
     content_path: str
     cover_path: str | None = None
     resume_position: float = 0.0

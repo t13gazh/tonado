@@ -122,12 +122,15 @@ async def audio_stream():
             # MPD returns 200 with data when playing, but may also return
             # 200 with an immediate close when idle.  Read the first chunk
             # to verify we're actually getting audio data.
-            first_chunk = await resp.aiter_bytes(chunk_size=4096).__anext__()
+            # IMPORTANT: aiter_bytes() must only be called once per response —
+            # httpx marks the stream as consumed on first iteration.
+            byte_iter = resp.aiter_bytes(chunk_size=4096)
+            first_chunk = await byte_iter.__anext__()
 
             async def generate():
                 try:
                     yield first_chunk
-                    async for chunk in resp.aiter_bytes(chunk_size=4096):
+                    async for chunk in byte_iter:
                         yield chunk
                 finally:
                     await resp.aclose()

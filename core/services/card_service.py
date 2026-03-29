@@ -74,6 +74,9 @@ class CardService:
         self._last_card_id: str | None = None
         self._last_scan_time: float = 0.0
         self._card_on_reader: bool = False
+        self._active_card_id: str | None = None  # Card currently "playing" — don't re-trigger
+        self._no_card_count: int = 0
+        self._remove_threshold: int = 15  # ~3s at 5 Hz poll rate
         self._scan_waiters: list[asyncio.Future[str]] = []
 
     async def start(self) -> None:
@@ -95,25 +98,35 @@ class CardService:
         await self._reader.stop()
 
     async def _scan_loop(self) -> None:
-        """Continuously poll the RFID reader."""
+        """Continuously poll the RFID reader.
+
+        RC522 returns None intermittently even with a card present.
+        Debounce logic:
+        - Card read: if different from active card → trigger event
+        - No card: after _remove_threshold consecutive misses → card removed
+        - Same card continuously present → only triggers once
+        """
         while True:
             try:
                 card_id = await self._reader.read_card()
                 now = time.monotonic()
 
                 if card_id is not None:
-                    if not self._card_on_reader:
-                        # Card just placed
-                        self._card_on_reader = True
-                        await self._handle_card_placed(card_id, now)
-                    elif card_id != self._last_card_id:
-                        # Different card swapped
+                    self._no_card_count = 0
+                    self._card_on_reader = True
+
+                    if card_id != self._active_card_id:
+                        # New card or different card swapped in
+                        self._active_card_id = card_id
                         await self._handle_card_placed(card_id, now)
                 else:
                     if self._card_on_reader:
-                        # Card just removed
-                        self._card_on_reader = False
-                        await self._handle_card_removed()
+                        self._no_card_count += 1
+                        if self._no_card_count >= self._remove_threshold:
+                            self._card_on_reader = False
+                            self._no_card_count = 0
+                            self._active_card_id = None
+                            await self._handle_card_removed()
 
                 await asyncio.sleep(0.2)  # Poll at 5 Hz
             except asyncio.CancelledError:

@@ -2,6 +2,62 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
+## Security-Audit (2026-03-29) — VOR Beta fixen
+
+### KRITISCH
+- [ ] XXE in RSS-Parsing: `defusedxml.ElementTree.fromstring()` statt `xml.etree` (`stream_service.py:290`)
+- [ ] Rate-Limiting auf Login: 5 Fehlversuche → 60s Lockout (`auth.py:21`)
+- [ ] Backup-Export filtert keine Secrets + keine Auth nötig (`backup_service.py:32`, `system.py:239`)
+
+### HOCH — Fehlende Auth auf schreibenden Endpoints
+- [ ] Library PUT/POST/DELETE: `require_tier(PARENT)` (`library.py:72-103`)
+- [ ] Cards POST/PUT/DELETE: `require_tier(PARENT)` (`cards.py:28-65`)
+- [ ] Streams POST/DELETE: `require_tier(PARENT)` (`streams.py:32-67`)
+- [ ] Playlists POST/PUT/DELETE: `require_tier(PARENT)` (`playlists.py:32-69`)
+- [ ] Setup-Endpoints nach Completion sperren (`setup.py:27-88`)
+- [ ] SSRF: URL-Whitelist http/https, Blacklist interne IPs (`stream_service.py`, `player_service.py`)
+
+### MITTEL
+- [ ] Security-Header Middleware (nosniff, X-Frame-Options, Referrer-Policy)
+- [ ] JWT iss/aud Claims (`auth_service.py:148`)
+- [ ] Backup-Import Schema-Validierung
+- [ ] Error-Details nicht an Client zurückgeben
+- [ ] WebSocket Origin-Prüfung
+- [ ] Auth-Failure Logging
+
+## E2E Flow-Audit (2026-03-29) — HOCH-Prio Fixes
+
+- [ ] API-Client: Backend-Fehlermeldungen aus JSON-Body lesen statt generisch (`api.ts:89`)
+- [ ] Card-Scan-Loop: AbortController bei Navigation (`card-scan.svelte.ts:39`)
+- [ ] Podcast-Play Race Condition: await togglePodcast() vor playEpisode (`PodcastTab.svelte:101`)
+- [ ] Settings saveSetting/sleepTimer ohne try/catch (`settings/+page.svelte:87, 166`)
+- [ ] Playlist-Löschung ohne Bestätigung (`PlaylistTab.svelte:37`)
+- [ ] Seek-Promise Error-Handling (seekOverride friert ein) (`+page.svelte:97`)
+- [ ] Audio-Setup sendet falsche Device-Kennung (`AudioStep.svelte:21`)
+
+## Accessibility-Audit (2026-03-29)
+
+### KRITISCH
+- [ ] Modal Focus-Trapping + `role="dialog"` + Escape-Handler (`cards/+page.svelte:210, 265`)
+- [ ] Seek-Bar als Slider mit Keyboard-Support (`+page.svelte:228`)
+
+### HOCH
+- [ ] Globaler Focus-visible Style in `app.css`
+- [ ] Toast `aria-live="polite"` (`settings/+page.svelte:179`)
+- [ ] Kontrast text-muted aufhellen (#9393a8 → #a0a0b8)
+- [ ] Touch-Targets vergrößern (Edit/Delete Buttons min 44px)
+- [ ] SVGs in Navigation `aria-hidden="true"`
+
+## i18n-Audit (2026-03-29) — Minimal
+- [ ] Placeholder "Die drei ???, Folge 1" als i18n-Key (`wizard:145`, `CardStep:139`)
+- [ ] 27 unbenutzte Keys aufräumen
+
+## Test-Coverage (2026-03-29)
+- [ ] MockMPDClient erstellen (Blocker für PlayerService/PlaybackDispatcher/TimerService Tests)
+- [ ] PlayerService Tests (370 LOC, 0 Tests — KRITISCH)
+- [ ] PlaybackDispatcher Tests (128 LOC, reine Logik — einfach testbar)
+- [ ] Router-Integrationstests (Path Traversal, Auth-Middleware, Upload-Limits)
+
 ## v0.2.0-beta — Nächste Schritte
 - [ ] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch
 - [ ] Figuren-UI + Einstellungen + System-Seite testen und fixen

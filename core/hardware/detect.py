@@ -6,7 +6,7 @@ Returns a structured hardware profile used by the setup wizard.
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -49,27 +49,12 @@ class HardwareProfile:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "pi": {
-                "model": self.pi.model,
-                "revision": self.pi.revision,
-                "ram_mb": self.pi.ram_mb,
-                "has_wifi": self.pi.has_wifi,
-                "has_bluetooth": self.pi.has_bluetooth,
-                "supported": self.pi.supported,
-            },
+            "pi": asdict(self.pi),
             "rfid": {
                 "reader": self.rfid_reader,
                 "device": self.rfid_device,
             },
-            "audio": [
-                {
-                    "name": a.name,
-                    "type": a.type,
-                    "device": a.device,
-                    "recommended": a.recommended,
-                }
-                for a in self.audio_outputs
-            ],
+            "audio": [asdict(a) for a in self.audio_outputs],
             "gyro_detected": self.gyro_detected,
             "gpio_available": self.gpio_available,
             "is_mock": self.is_mock,

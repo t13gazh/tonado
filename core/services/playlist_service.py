@@ -5,7 +5,7 @@ Stored in SQLite alongside other config.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,14 +29,9 @@ class PlaylistItem:
     duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "position": self.position,
-            "content_type": self.content_type,
-            "content_path": self.content_path,
-            "title": self.title,
-            "duration_seconds": round(self.duration_seconds),
-        }
+        d = asdict(self)
+        d["duration_seconds"] = round(self.duration_seconds)
+        return d
 
 
 @dataclass

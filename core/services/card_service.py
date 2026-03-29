@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import aiosqlite
@@ -25,14 +25,7 @@ class CardMapping:
     resume_position: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "card_id": self.card_id,
-            "name": self.name,
-            "content_type": self.content_type,
-            "content_path": self.content_path,
-            "cover_path": self.cover_path,
-            "resume_position": self.resume_position,
-        }
+        return asdict(self)
 
 
 class CardService(BaseService):

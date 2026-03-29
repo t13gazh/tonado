@@ -16,7 +16,7 @@ Duration is read from audio headers via mutagen.
 
 import logging
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -72,13 +72,9 @@ class MediaFolder:
     duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "path": self.path,
-            "track_count": self.track_count,
-            "cover_path": self.cover_path,
-            "duration_seconds": round(self.duration_seconds),
-        }
+        d = asdict(self)
+        d["duration_seconds"] = round(self.duration_seconds)
+        return d
 
 
 @dataclass
@@ -90,11 +86,9 @@ class MediaTrack:
     duration_seconds: float = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "filename": self.filename,
-            "path": self.path,
-            "duration_seconds": round(self.duration_seconds),
-        }
+        d = asdict(self)
+        d["duration_seconds"] = round(self.duration_seconds)
+        return d
 
 
 class LibraryService(BaseService):

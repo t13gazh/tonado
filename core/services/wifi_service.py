@@ -7,7 +7,7 @@ Falls back to wpa_supplicant if NetworkManager is unavailable.
 import asyncio
 import logging
 import shutil
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from core.services.base import BaseService
@@ -25,12 +25,7 @@ class WifiNetwork:
     connected: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "ssid": self.ssid,
-            "signal": self.signal,
-            "security": self.security,
-            "connected": self.connected,
-        }
+        return asdict(self)
 
 
 @dataclass
@@ -43,12 +38,7 @@ class WifiStatus:
     signal: int = 0
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "connected": self.connected,
-            "ssid": self.ssid,
-            "ip_address": self.ip_address,
-            "signal": self.signal,
-        }
+        return asdict(self)
 
 
 class WifiService(BaseService):

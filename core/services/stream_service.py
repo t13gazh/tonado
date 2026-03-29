@@ -7,7 +7,7 @@ a pre-configured catalog of German children's radio stations.
 import asyncio
 import logging
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -54,13 +54,7 @@ class RadioStation:
     logo_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "name": self.name,
-            "url": self.url,
-            "category": self.category,
-            "logo_url": self.logo_url,
-        }
+        return asdict(self)
 
 
 @dataclass
@@ -96,16 +90,7 @@ class PodcastEpisode:
     local_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "podcast_id": self.podcast_id,
-            "title": self.title,
-            "audio_url": self.audio_url,
-            "published": self.published,
-            "duration": self.duration,
-            "downloaded": self.downloaded,
-            "local_path": self.local_path,
-        }
+        return asdict(self)
 
 
 class StreamService(BaseService):

@@ -8,7 +8,7 @@ import asyncio
 import logging
 import platform
 import shutil
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -52,21 +52,10 @@ class SystemInfo:
     ip_address: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "hostname": self.hostname,
-            "pi_model": self.pi_model,
-            "os_version": self.os_version,
-            "python_version": self.python_version,
-            "tonado_version": self.tonado_version,
-            "uptime_seconds": self.uptime_seconds,
-            "cpu_temp": self.cpu_temp,
-            "ram_total_mb": self.ram_total_mb,
-            "ram_used_mb": self.ram_used_mb,
-            "disk_total_gb": round(self.disk_total_gb, 1),
-            "disk_used_gb": round(self.disk_used_gb, 1),
-            "overlay_active": self.overlay_active,
-            "ip_address": self.ip_address,
-        }
+        d = asdict(self)
+        d["disk_total_gb"] = round(self.disk_total_gb, 1)
+        d["disk_used_gb"] = round(self.disk_used_gb, 1)
+        return d
 
 
 class SystemService(BaseService):

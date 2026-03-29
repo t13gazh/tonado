@@ -253,14 +253,13 @@ class CardService:
         )
         await self._db.commit()
 
-    async def wait_for_scan(self, timeout: float = 30.0) -> str | None:
+    async def wait_for_scan(self, timeout: float = 30.0, new_only: bool = False) -> str | None:
         """Wait for a card to be scanned. Used by the card wizard.
 
-        If a card is already on the reader, returns it immediately.
-        Otherwise waits for the next card placement or timeout.
+        If new_only=False and a card is already on the reader, returns immediately.
+        If new_only=True, always waits for a new card placement event.
         """
-        # Return immediately if a card is currently present
-        if self._card_on_reader and self._active_card_id:
+        if not new_only and self._card_on_reader and self._active_card_id:
             return self._active_card_id
 
         loop = asyncio.get_running_loop()

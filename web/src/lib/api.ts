@@ -92,7 +92,8 @@ export const cards = {
 	update: (id: string, data: Partial<CardCreate>) =>
 		request<CardMapping>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 	delete: (id: string) => request<void>(`/cards/${id}`, { method: 'DELETE' }),
-	waitForScan: (timeout = 30) => request<ScanResult>(`/cards/scan/wait?timeout=${timeout}`),
+	waitForScan: (timeout = 30, newOnly = false) =>
+		request<ScanResult>(`/cards/scan/wait?timeout=${timeout}${newOnly ? '&new_only=true' : ''}`),
 };
 
 // Library API

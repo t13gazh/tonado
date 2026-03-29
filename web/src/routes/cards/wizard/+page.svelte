@@ -27,11 +27,13 @@
 		startScan();
 	});
 
+	let waitForNewCard = $state(false);
+
 	async function startScan() {
 		scanning = true;
 		error = '';
 		try {
-			const result = await cards.waitForScan(30);
+			const result = await cards.waitForScan(30, waitForNewCard);
 			if (result.scanned && result.card_id) {
 				scannedCardId = result.card_id;
 				hasExisting = result.has_mapping ?? false;
@@ -62,7 +64,7 @@
 
 	function handleSelect(path: string, autoName: string) {
 		contentPath = path;
-		if (!name) name = autoName;
+		name = autoName;
 	}
 
 	async function saveCard() {
@@ -87,6 +89,7 @@
 	}
 
 	function resetAndScanNext() {
+		waitForNewCard = true;
 		step = 'scan';
 		scannedCardId = '';
 		name = '';
@@ -173,7 +176,7 @@
 
 			<div class="flex gap-3 pt-2">
 				<button
-					onclick={() => { step = 'scan'; startScan(); }}
+					onclick={() => { waitForNewCard = true; step = 'scan'; startScan(); }}
 					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
 				>
 					{t('general.back')}

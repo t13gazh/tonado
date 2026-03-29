@@ -63,7 +63,7 @@
 
 	function handleEditSelect(path: string, autoName: string) {
 		editContentPath = path;
-		if (!editName) editName = autoName;
+		editName = autoName;
 	}
 
 	async function saveEdit() {

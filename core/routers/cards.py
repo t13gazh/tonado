@@ -84,9 +84,9 @@ async def wait_for_scan(timeout: float = 30.0, ignore: str = "") -> dict:
     """
     timeout = min(timeout, 60.0)  # Cap at 60s
     card_id = await _get_service().wait_for_scan(timeout=timeout)
-    # Skip ignored card (user wants a different one)
+    # Ignored card still on reader — tell frontend to retry
     if card_id and ignore and card_id == ignore:
-        card_id = await _get_service().wait_for_scan(timeout=timeout)
+        return {"scanned": False, "card_id": None}
     if card_id is None:
         return {"scanned": False, "card_id": None}
 

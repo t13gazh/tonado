@@ -194,9 +194,9 @@
 				<div>
 					<div class="flex items-center gap-1">
 						<button
-							onclick={() => select(p.feed_url, p.name)}
+							onclick={() => select(`podcast:${p.id}`, p.name)}
 							class="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
-								{contentPath === p.feed_url ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+								{contentPath === `podcast:${p.id}` ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
 						>
 							<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h2v-8H5v-2a7 7 0 0 1 14 0v2h-3v8h2a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>
 							<span class="truncate">{p.name}</span>

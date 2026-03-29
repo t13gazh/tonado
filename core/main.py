@@ -141,8 +141,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         if content_type == "folder":
             await player_service.play_folder(content_path, resume_position=resume)
-        elif content_type in ("stream", "podcast"):
+        elif content_type == "stream":
             await player_service.play_url(content_path)
+        elif content_type == "podcast":
+            if content_path.startswith("podcast:"):
+                # Full podcast — load episodes and play as queue
+                try:
+                    podcast_id = int(content_path.split(":")[1])
+                    episodes = await stream_service.list_episodes(podcast_id)
+                    if episodes:
+                        urls = [ep.audio_url for ep in episodes]
+                        await player_service.play_urls(urls)
+                except (ValueError, IndexError):
+                    logger.warning("Invalid podcast path: %s", content_path)
+            else:
+                # Single episode URL (direct MP3)
+                await player_service.play_url(content_path)
         elif content_type == "playlist":
             # playlist:ID format
             try:

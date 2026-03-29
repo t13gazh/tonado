@@ -60,6 +60,7 @@
 	function handleTypeChange(type: ContentType) {
 		contentType = type;
 		contentPath = '';
+		name = '';
 	}
 
 	function handleSelect(path: string, autoName: string) {

@@ -58,6 +58,7 @@
 	function handleEditTypeChange(type: ContentType) {
 		editContentType = type;
 		editContentPath = '';
+		editName = '';
 	}
 
 	function handleEditSelect(path: string, autoName: string) {

@@ -171,7 +171,7 @@ class PlaylistService(BaseService):
 
     def _resolve_duration(self, item: PlaylistItem) -> float:
         """Calculate duration for a playlist item based on its content."""
-        from core.services.library_service import _get_duration, _AUDIO_EXTENSIONS
+        from core.utils.audio import AUDIO_EXTENSIONS, get_duration
 
         content_path = self._media_dir / item.content_path
 
@@ -179,10 +179,10 @@ class PlaylistService(BaseService):
             # Sum duration of all audio files in folder
             total = 0.0
             for f in content_path.iterdir():
-                if f.suffix.lower() in _AUDIO_EXTENSIONS:
-                    total += _get_duration(f)
+                if f.suffix.lower() in AUDIO_EXTENSIONS:
+                    total += get_duration(f)
             return total
-        elif content_path.is_file() and content_path.suffix.lower() in _AUDIO_EXTENSIONS:
-            return _get_duration(content_path)
+        elif content_path.is_file() and content_path.suffix.lower() in AUDIO_EXTENSIONS:
+            return get_duration(content_path)
 
         return 0

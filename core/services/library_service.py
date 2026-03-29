@@ -21,44 +21,9 @@ from pathlib import Path
 from typing import Any
 
 from core.services.base import BaseService
+from core.utils.audio import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, get_duration
 
 logger = logging.getLogger(__name__)
-
-_AUDIO_EXTENSIONS = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus", ".wma"}
-_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-
-
-def _get_duration(file_path: Path) -> float:
-    """Get audio file duration in seconds using mutagen. Returns 0 on failure."""
-    try:
-        suffix = file_path.suffix.lower()
-        # Use format-specific classes for reliable parsing
-        if suffix == ".mp3":
-            from mutagen.mp3 import MP3
-            return MP3(str(file_path)).info.length
-        elif suffix == ".ogg":
-            from mutagen.oggvorbis import OggVorbis
-            return OggVorbis(str(file_path)).info.length
-        elif suffix == ".flac":
-            from mutagen.flac import FLAC
-            return FLAC(str(file_path)).info.length
-        elif suffix == ".m4a" or suffix == ".aac":
-            from mutagen.mp4 import MP4
-            return MP4(str(file_path)).info.length
-        elif suffix == ".opus":
-            from mutagen.oggopus import OggOpus
-            return OggOpus(str(file_path)).info.length
-        elif suffix == ".wav":
-            from mutagen.wave import WAVE
-            return WAVE(str(file_path)).info.length
-        else:
-            from mutagen import File as MutagenFile
-            audio = MutagenFile(str(file_path))
-            if audio and audio.info:
-                return audio.info.length
-    except Exception:
-        pass
-    return 0
 
 
 @dataclass
@@ -112,9 +77,9 @@ class LibraryService(BaseService):
             if not entry.is_dir() or entry.name.startswith("."):
                 continue
 
-            tracks = [f for f in entry.iterdir() if f.suffix.lower() in _AUDIO_EXTENSIONS]
+            tracks = [f for f in entry.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
             cover = self._find_cover(entry)
-            total_duration = sum(_get_duration(f) for f in tracks)
+            total_duration = sum(get_duration(f) for f in tracks)
 
             folders.append(MediaFolder(
                 name=entry.name,
@@ -132,9 +97,9 @@ class LibraryService(BaseService):
         if not folder_path.is_dir():
             return None
 
-        tracks = [f for f in folder_path.iterdir() if f.suffix.lower() in _AUDIO_EXTENSIONS]
+        tracks = [f for f in folder_path.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
         cover = self._find_cover(folder_path)
-        total_duration = sum(_get_duration(f) for f in tracks)
+        total_duration = sum(get_duration(f) for f in tracks)
 
         return MediaFolder(
             name=folder_name,
@@ -152,11 +117,11 @@ class LibraryService(BaseService):
 
         tracks = []
         for f in sorted(folder_path.iterdir()):
-            if f.suffix.lower() in _AUDIO_EXTENSIONS:
+            if f.suffix.lower() in AUDIO_EXTENSIONS:
                 tracks.append(MediaTrack(
                     filename=f.name,
                     path=f"{folder_name}/{f.name}",
-                    duration_seconds=_get_duration(f),
+                    duration_seconds=get_duration(f),
                 ))
         return tracks
 
@@ -222,11 +187,11 @@ class LibraryService(BaseService):
         """Find cover art in a folder. Prioritizes 'cover.*' then any image."""
         if not folder_path.is_dir():
             return None
-        for ext in _IMAGE_EXTENSIONS:
+        for ext in IMAGE_EXTENSIONS:
             cover = folder_path / f"cover{ext}"
             if cover.exists():
                 return cover
         for f in folder_path.iterdir():
-            if f.suffix.lower() in _IMAGE_EXTENSIONS:
+            if f.suffix.lower() in IMAGE_EXTENSIONS:
                 return f
         return None

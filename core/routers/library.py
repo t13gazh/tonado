@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 
 from core.dependencies import get_library_service
 from core.services.library_service import LibraryService
+from core.utils.upload import stream_to_disk
 
 logger = logging.getLogger(__name__)
 
@@ -120,38 +121,12 @@ async def upload_file(
 
     # Basic filename sanitization
     safe_filename = file.filename.replace("/", "_").replace("\\", "_")
-    suffix = Path(safe_filename).suffix.lower()
-
-    # Validate file type
-    allowed = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus",
-               ".jpg", ".jpeg", ".png", ".webp"}
-    if suffix not in allowed:
-        raise HTTPException(400, f"File type not allowed: {suffix}")
-
     target = svc.get_upload_path(folder_name, safe_filename)
 
-    # Stream file to disk with size limit enforcement
-    try:
-        bytes_written = 0
-        with open(target, "wb") as f:
-            while chunk := await file.read(1024 * 1024):  # 1 MB chunks
-                bytes_written += len(chunk)
-                if bytes_written > MAX_UPLOAD_BYTES:
-                    f.close()
-                    target.unlink(missing_ok=True)
-                    raise HTTPException(
-                        413,
-                        f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
-                    )
-                f.write(chunk)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Upload failed: %s", e)
-        target.unlink(missing_ok=True)
-        raise HTTPException(500, "Upload failed")
+    allowed = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus",
+               ".jpg", ".jpeg", ".png", ".webp"}
+    size = await stream_to_disk(file, target, MAX_UPLOAD_BYTES, allowed)
 
-    size = target.stat().st_size
     logger.info("Uploaded %s to %s (%d bytes)", safe_filename, folder_name, size)
 
     return {
@@ -175,34 +150,12 @@ async def upload_cover(
         raise HTTPException(400, "No filename provided")
 
     suffix = Path(file.filename).suffix.lower()
-    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(400, "Only images allowed (jpg, png, webp)")
-
-    # Cover images: 10 MB limit
+    image_extensions = {".jpg", ".jpeg", ".png", ".webp"}
     max_cover_bytes = 10 * 1024 * 1024
 
     # Always save as cover.{ext}
     target = svc.get_upload_path(folder_name, f"cover{suffix}")
-
-    try:
-        bytes_written = 0
-        with open(target, "wb") as f:
-            while chunk := await file.read(1024 * 1024):
-                bytes_written += len(chunk)
-                if bytes_written > max_cover_bytes:
-                    f.close()
-                    target.unlink(missing_ok=True)
-                    raise HTTPException(
-                        413,
-                        f"Cover too large (max {max_cover_bytes // (1024 * 1024)} MB)",
-                    )
-                f.write(chunk)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Cover upload failed: %s", e)
-        target.unlink(missing_ok=True)
-        raise HTTPException(500, "Upload failed")
+    await stream_to_disk(file, target, max_cover_bytes, image_extensions)
 
     return {"status": "ok", "cover_path": f"/api/library/{folder_name}/cover"}
 

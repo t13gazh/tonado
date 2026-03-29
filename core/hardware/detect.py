@@ -252,7 +252,7 @@ def detect_audio() -> list[AudioOutput]:
     return outputs
 
 
-def detect_gyro() -> bool:
+def is_gyro_present() -> bool:
     """Check if MPU6050 gyro sensor is connected on I2C."""
     i2c_bus = Path("/dev/i2c-1")
     if not i2c_bus.exists():
@@ -290,7 +290,7 @@ def detect_all() -> HardwareProfile:
 
     rfid_type, rfid_device = detect_rfid()
     audio = detect_audio()
-    gyro = detect_gyro()
+    gyro = is_gyro_present()
     gpio = detect_gpio()
 
     profile = HardwareProfile(

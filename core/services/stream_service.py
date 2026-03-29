@@ -10,8 +10,6 @@ import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
-
 import aiosqlite
 
 from core.services.base import BaseService

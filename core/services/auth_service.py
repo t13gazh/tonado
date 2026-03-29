@@ -6,13 +6,13 @@ Three access tiers:
 - expert: Hardware, system, WiFi, debug — separate PIN
 """
 
-import logging
-import secrets
-from enum import StrEnum
-from typing import Any
-
 import hashlib
 import hmac
+import logging
+import secrets
+import time
+from enum import StrEnum
+from typing import Any
 
 import jwt
 
@@ -147,7 +147,6 @@ class AuthService(BaseService):
 
     def _create_token(self, tier: AuthTier) -> str:
         """Create a JWT token for a tier."""
-        import time
         payload = {
             "tier": tier.value,
             "iat": int(time.time()),

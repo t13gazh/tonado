@@ -340,6 +340,22 @@
 			{/if}
 		</div>
 
+		<!-- Expert mode toggle -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<div class="flex items-center justify-between">
+				<div>
+					<h2 class="text-sm font-semibold">{t('settings.expert_mode')}</h2>
+					<p class="text-xs text-text-muted mt-0.5">{t('settings.expert_mode_desc')}</p>
+				</div>
+				<button
+					onclick={() => { const v = !(allConfig['wizard.expert_mode'] ?? false); allConfig['wizard.expert_mode'] = v; saveSetting('wizard.expert_mode', v); }}
+					class="px-3 py-1 rounded-full text-xs font-medium transition-colors {allConfig['wizard.expert_mode'] ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+				>
+					{allConfig['wizard.expert_mode'] ? 'An' : 'Aus'}
+				</button>
+			</div>
+		</div>
+
 		<!-- System link -->
 		<a
 			href="/settings/system"

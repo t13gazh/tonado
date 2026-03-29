@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { cards, config, type CardMapping, type ContentType } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
@@ -134,7 +135,7 @@
 
 	{#if loading}
 		<div class="flex items-center justify-center py-20">
-			<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+			<Spinner />
 		</div>
 	{:else if error}
 		<div class="text-center py-20">

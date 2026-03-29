@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { setupApi, systemApi, cards, config, player, type HardwareDetection, type WifiNetwork, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
@@ -370,7 +371,7 @@
 				<h2 class="text-lg font-semibold text-text text-center">{t('setup.wifi')}</h2>
 				{#if wifiLoading}
 					<div class="flex justify-center py-8">
-						<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+						<Spinner />
 					</div>
 				{:else if wifiStatus?.connected && !showWifiList}
 					<div class="bg-surface-light rounded-xl p-4 space-y-2">

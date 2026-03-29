@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { systemApi, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
 	import { onMount } from 'svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 
 	let info = $state<SystemInfoData | null>(null);
@@ -96,7 +97,7 @@
 
 	{#if loading}
 		<div class="flex justify-center py-12">
-			<div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+			<Spinner />
 		</div>
 	{:else if info}
 		<div class="flex flex-col gap-4">

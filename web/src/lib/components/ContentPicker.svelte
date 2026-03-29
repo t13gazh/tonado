@@ -7,6 +7,7 @@
 		type ContentType,
 	} from '$lib/api';
 	import { formatDuration, capitalize } from '$lib/utils';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -116,7 +117,7 @@
 
 	{#if !loaded}
 		<div class="flex justify-center py-8">
-			<div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+			<Spinner size="sm" />
 		</div>
 	{:else if contentType === 'folder'}
 		<div class="flex flex-col gap-1">

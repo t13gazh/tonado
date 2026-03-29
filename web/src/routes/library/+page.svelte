@@ -6,6 +6,7 @@
 	import { isBackendOffline, isStorageCritical, isStorageLow, getHealth } from '$lib/stores/health.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { player } from '$lib/api';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -182,7 +183,7 @@
 {/snippet}
 
 {#snippet spinner()}
-	<div class="flex justify-center py-12"><div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+	<div class="flex justify-center py-12"><Spinner /></div>
 {/snippet}
 
 {#snippet addForm(show: boolean, onClose: () => void)}
@@ -386,7 +387,7 @@
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
 								{#if loadingEpisodes}
-									<div class="flex justify-center py-4"><div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div></div>
+									<div class="flex justify-center py-4"><Spinner size="sm" /></div>
 								{:else if podcastEpisodes.length > 0}
 									<div class="flex flex-col">
 										{#each podcastEpisodes as ep, i}

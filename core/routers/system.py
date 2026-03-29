@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 
+from core.dependencies import require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.system_service import SystemService
@@ -64,22 +65,6 @@ def _get_backup() -> BackupService:
         raise HTTPException(503, "Backup service not available")
     return _backup
 
-
-def _get_token(request: Request) -> str | None:
-    """Extract JWT token from Authorization header."""
-    header = request.headers.get("Authorization", "")
-    if header.startswith("Bearer "):
-        return header[7:]
-    return None
-
-
-def _require_tier(request: Request, tier: AuthTier) -> None:
-    """Raise 403 if token doesn't grant access to the required tier."""
-    if _auth is None:
-        return  # Auth service not initialized — allow (e.g. during setup)
-    token = _get_token(request)
-    if not _auth.check_access(token, tier):
-        raise HTTPException(403, "Access denied")
 
 
 def _detect_wifi() -> dict:
@@ -245,21 +230,21 @@ async def hardware_status() -> dict:
 
 @router.post("/restart")
 async def restart_service(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     await _get_system().restart()
     return {"status": "ok"}
 
 
 @router.post("/shutdown")
 async def shutdown(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     await _get_system().shutdown()
     return {"status": "ok"}
 
 
 @router.post("/reboot")
 async def reboot(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     await _get_system().reboot()
     return {"status": "ok"}
 
@@ -273,7 +258,7 @@ async def check_update() -> dict:
 
 @router.post("/update/apply")
 async def apply_update(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     return await _get_system().apply_update()
 
 
@@ -281,14 +266,14 @@ async def apply_update(request: Request) -> dict:
 
 @router.post("/overlay/enable")
 async def enable_overlay(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     success = await _get_system().enable_overlay()
     return {"status": "ok" if success else "error"}
 
 
 @router.post("/overlay/disable")
 async def disable_overlay(request: Request) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     success = await _get_system().disable_overlay()
     return {"status": "ok" if success else "error"}
 
@@ -308,7 +293,7 @@ async def export_backup() -> JSONResponse:
 
 @router.post("/restore")
 async def import_backup(request: Request, file: UploadFile = File(...)) -> dict:
-    _require_tier(request, AuthTier.EXPERT)
+    require_tier(request, AuthTier.EXPERT, _auth)
     if not file.filename or not file.filename.endswith(".json"):
         raise HTTPException(400, "Only JSON files allowed")
 

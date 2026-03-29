@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from core.dependencies import get_token, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.timer_service import TimerService
 
@@ -30,22 +31,6 @@ def _get_timer() -> TimerService:
     return _timer
 
 
-def _get_token(request: Request) -> str | None:
-    """Extract JWT token from Authorization header."""
-    header = request.headers.get("Authorization", "")
-    if header.startswith("Bearer "):
-        return header[7:]
-    return None
-
-
-def _require_tier(request: Request, tier: AuthTier) -> None:
-    """Raise 401/403 if token doesn't grant access to the required tier."""
-    auth = _get_auth()
-    token = _get_token(request)
-    if not auth.check_access(token, tier):
-        raise HTTPException(403, "Access denied")
-
-
 # --- Login ---
 
 
@@ -64,7 +49,7 @@ async def login(req: LoginRequest) -> dict:
 @router.get("/status")
 async def auth_status(request: Request) -> dict:
     auth = _get_auth()
-    token = _get_token(request)
+    token = get_token(request)
     claims = auth.verify_token(token) if token else None
 
     return {
@@ -91,11 +76,11 @@ async def set_pin(req: SetPinRequest, request: Request) -> dict:
     # Setting expert PIN requires expert access (or no expert PIN set yet)
     if target_tier == AuthTier.EXPERT:
         if await auth.is_pin_set(AuthTier.EXPERT):
-            _require_tier(request, AuthTier.EXPERT)
+            require_tier(request, AuthTier.EXPERT, _auth)
     # Setting parent PIN requires at least parent access
     elif target_tier == AuthTier.PARENT:
         if await auth.is_pin_set(AuthTier.PARENT):
-            _require_tier(request, AuthTier.PARENT)
+            require_tier(request, AuthTier.PARENT, _auth)
 
     await auth.set_pin(target_tier, req.pin)
     return {"status": "ok"}
@@ -108,7 +93,7 @@ class RemovePinRequest(BaseModel):
 @router.delete("/pin")
 async def remove_pin(req: RemovePinRequest, request: Request) -> dict:
     target_tier = AuthTier(req.tier)
-    _require_tier(request, target_tier)
+    require_tier(request, target_tier, _auth)
     await _get_auth().remove_pin(target_tier)
     return {"status": "ok"}
 

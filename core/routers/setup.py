@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from core.dependencies import require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.captive_portal import CaptivePortalService
 from core.services.setup_wizard import SetupWizard
@@ -40,22 +41,6 @@ def _get_wifi() -> WifiService:
         raise HTTPException(503, "WiFi service not available")
     return _wifi
 
-
-def _get_token(request: Request) -> str | None:
-    """Extract JWT token from Authorization header."""
-    header = request.headers.get("Authorization", "")
-    if header.startswith("Bearer "):
-        return header[7:]
-    return None
-
-
-def _require_expert(request: Request) -> None:
-    """Raise 403 if token doesn't grant expert access."""
-    if _auth is None:
-        return  # Auth service not initialized — allow (e.g. during first setup)
-    token = _get_token(request)
-    if not _auth.check_access(token, AuthTier.EXPERT):
-        raise HTTPException(403, "Access denied")
 
 
 # --- Setup wizard ---
@@ -119,7 +104,7 @@ async def complete_setup() -> dict:
 
 @router.post("/reset")
 async def reset_setup(request: Request) -> dict:
-    _require_expert(request)
+    require_tier(request, AuthTier.EXPERT, _auth)
     await _get_wizard().reset()
     return {"status": "ok"}
 
@@ -136,7 +121,7 @@ async def portal_status() -> dict:
 
 @router.post("/portal/start")
 async def portal_start(request: Request) -> dict:
-    _require_expert(request)
+    require_tier(request, AuthTier.EXPERT, _auth)
     if _captive_portal is None:
         raise HTTPException(503, "Captive portal not available")
     success = await _captive_portal.start()
@@ -147,7 +132,7 @@ async def portal_start(request: Request) -> dict:
 
 @router.post("/portal/stop")
 async def portal_stop(request: Request) -> dict:
-    _require_expert(request)
+    require_tier(request, AuthTier.EXPERT, _auth)
     if _captive_portal is None:
         raise HTTPException(503, "Captive portal not available")
     await _captive_portal.stop()

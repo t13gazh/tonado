@@ -11,6 +11,7 @@ Tracks setup state so the wizard can resume if interrupted.
 
 import hashlib
 import logging
+from dataclasses import asdict
 from enum import StrEnum
 from typing import Any
 
@@ -160,7 +161,7 @@ class SetupWizard(BaseService):
             status = await self._wifi.status()
             if status.ip_address:
                 await self._config.set("wifi.ip_address", status.ip_address)
-            return {"success": True, "status": status.to_dict()}
+            return {"success": True, "status": asdict(status)}
         return {"success": False, "error": "Verbindung fehlgeschlagen"}
 
     async def setup_audio(self, device: str) -> dict[str, Any]:

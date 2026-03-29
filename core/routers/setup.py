@@ -1,5 +1,7 @@
 """Setup wizard and system management API routes."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
@@ -48,13 +50,13 @@ async def wifi_connect(
 @router.get("/wifi/scan")
 async def wifi_scan(wifi: WifiService = Depends(get_wifi_service)) -> list[dict]:
     networks = await wifi.scan()
-    return [n.to_dict() for n in networks]
+    return [asdict(n) for n in networks]
 
 
 @router.get("/wifi/status")
 async def wifi_status(wifi: WifiService = Depends(get_wifi_service)) -> dict:
     status = await wifi.status()
-    return status.to_dict()
+    return asdict(status)
 
 
 class AudioSelectRequest(BaseModel):

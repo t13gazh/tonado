@@ -4,7 +4,6 @@ import asyncio
 import logging
 import time
 from dataclasses import asdict, dataclass
-from typing import Any
 
 import aiosqlite
 
@@ -24,8 +23,6 @@ class CardMapping:
     cover_path: str | None = None
     resume_position: float = 0.0
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 class CardService(BaseService):
@@ -154,7 +151,7 @@ class CardService(BaseService):
         await self._event_bus.publish(
             "card_scanned",
             card_id=card_id,
-            mapping=mapping.to_dict(),
+            mapping=asdict(mapping),
         )
 
     async def _handle_card_removed(self) -> None:

@@ -1,5 +1,7 @@
 """Stream and podcast API routes."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -18,7 +20,7 @@ async def list_stations(
     svc: StreamService = Depends(get_stream_service),
 ) -> list[dict]:
     stations = await svc.list_stations(category)
-    return [s.to_dict() for s in stations]
+    return [asdict(s) for s in stations]
 
 
 class AddStationRequest(BaseModel):
@@ -30,7 +32,7 @@ class AddStationRequest(BaseModel):
 @router.post("/radio", status_code=201)
 async def add_station(req: AddStationRequest, svc: StreamService = Depends(get_stream_service)) -> dict:
     station = await svc.add_station(req.name, req.url, req.category)
-    return station.to_dict()
+    return asdict(station)
 
 
 @router.delete("/radio/{station_id}")
@@ -71,7 +73,7 @@ async def delete_podcast(podcast_id: int, svc: StreamService = Depends(get_strea
 @router.get("/podcasts/{podcast_id}/episodes")
 async def list_episodes(podcast_id: int, svc: StreamService = Depends(get_stream_service)) -> list[dict]:
     episodes = await svc.list_episodes(podcast_id)
-    return [e.to_dict() for e in episodes]
+    return [asdict(e) for e in episodes]
 
 
 @router.post("/podcasts/{podcast_id}/refresh")

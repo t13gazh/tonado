@@ -1,5 +1,7 @@
 """Card management API routes."""
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.dependencies import get_card_service
@@ -12,7 +14,7 @@ router = APIRouter(prefix="/api/cards", tags=["cards"])
 @router.get("/", response_model=list[CardMappingResponse])
 async def list_cards(svc: CardService = Depends(get_card_service)) -> list[dict]:
     mappings = await svc.list_mappings()
-    return [m.to_dict() for m in mappings]
+    return [asdict(m) for m in mappings]
 
 
 @router.get("/{card_id}", response_model=CardMappingResponse)
@@ -20,7 +22,7 @@ async def get_card(card_id: str, svc: CardService = Depends(get_card_service)) -
     mapping = await svc.get_mapping(card_id)
     if mapping is None:
         raise HTTPException(404, "Card not found")
-    return mapping.to_dict()
+    return asdict(mapping)
 
 
 @router.post("/", response_model=CardMappingResponse, status_code=201)
@@ -33,7 +35,7 @@ async def create_card(req: CardMappingCreate, svc: CardService = Depends(get_car
         cover_path=req.cover_path,
     )
     await svc.set_mapping(mapping)
-    return mapping.to_dict()
+    return asdict(mapping)
 
 
 @router.put("/{card_id}", response_model=CardMappingResponse)
@@ -52,7 +54,7 @@ async def update_card(card_id: str, req: CardMappingUpdate, svc: CardService = D
         existing.cover_path = req.cover_path
 
     await svc.set_mapping(existing)
-    return existing.to_dict()
+    return asdict(existing)
 
 
 @router.delete("/{card_id}")
@@ -87,5 +89,5 @@ async def wait_for_scan(
         "scanned": True,
         "card_id": card_id,
         "has_mapping": existing is not None,
-        "mapping": existing.to_dict() if existing else None,
+        "mapping": asdict(existing) if existing else None,
     }

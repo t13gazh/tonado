@@ -7,7 +7,7 @@ a pre-configured catalog of German children's radio stations.
 import asyncio
 import logging
 import xml.etree.ElementTree as ET
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 import aiosqlite
@@ -51,9 +51,6 @@ class RadioStation:
     category: str = "custom"
     logo_url: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
 
 @dataclass
 class Podcast:
@@ -86,9 +83,6 @@ class PodcastEpisode:
     duration: str | None = None
     downloaded: bool = False
     local_path: str | None = None
-
-    def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
 
 
 class StreamService(BaseService):

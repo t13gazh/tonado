@@ -1,55 +1,55 @@
 # Hardware
 
-Uebersicht aller unterstuetzten Hardware-Komponenten, Verkabelung und Konfiguration.
+Übersicht aller unterstützten Hardware-Komponenten, Verkabelung und Konfiguration.
 
 ## Raspberry Pi
 
-Tonado laeuft auf allen Raspberry Pi Modellen mit WLAN:
+Tonado läuft auf allen Raspberry Pi Modellen mit WLAN:
 
 | Modell | RAM | Bewertung | Hinweis |
 |---|---|---|---|
 | **Pi Zero W** | 512 MB | Minimum | Funktioniert, aber langsamer Start (~15s). 32-bit OS verwenden. |
 | **Pi Zero 2 W** | 512 MB | Gut | Quad-Core, deutlich schneller als Zero W |
-| **Pi 3B+** | 1 GB | Empfohlen | Gutes Preis-Leistungs-Verhaeltnis |
-| **Pi 4** | 1–8 GB | Optimal | Ueberdimensioniert, aber zukunftssicher |
+| **Pi 3B+** | 1 GB | Empfohlen | Gutes Preis-Leistungs-Verhältnis |
+| **Pi 4** | 1–8 GB | Optimal | Überdimensioniert, aber zukunftssicher |
 | **Pi 5** | 4–8 GB | Optimal | Neuestes Modell, volle Leistung |
 
-**Nicht unterstuetzt:** Pi 1, Pi B+ v1.2 und aeltere Modelle ohne eingebautes WLAN.
+**Nicht unterstützt:** Pi 1, Pi B+ v1.2 und ältere Modelle ohne eingebautes WLAN.
 
-> **Empfehlung fuer Einsteiger:** Pi 3B+ — guenstig, genug Leistung, einfach zu bekommen.
+> **Empfehlung für Einsteiger:** Pi 3B+ — günstig, genug Leistung, einfach zu bekommen.
 
 ## Audio
 
 ### Option 1: HifiBerry MiniAmp (empfohlen)
 
-Der HifiBerry MiniAmp ist ein kleiner Verstaerker, der direkt auf die GPIO-Leiste des Pi gesteckt wird. Kein Loeten noetig.
+Der HifiBerry MiniAmp ist ein kleiner Verstärker, der direkt auf die GPIO-Leiste des Pi gesteckt wird. Kein Löten nötig.
 
 **Vorteile:**
-- Gute Klangqualitaet (I2S, digital)
-- Verstaerker eingebaut — Lautsprecher direkt anschliessbar
-- Kein Klinkenanschluss noetig
+- Gute Klangqualität (I2S, digital)
+- Verstärker eingebaut — Lautsprecher direkt anschließbar
+- Kein Klinkenanschluss nötig
 
 **Anschluss:**
 1. MiniAmp auf die GPIO-Leiste des Pi aufstecken (passt nur in eine Richtung)
-2. Lautsprecher (4–8 Ohm, 3W) an die Schraubklemmen anschliessen
+2. Lautsprecher (4–8 Ohm, 3W) an die Schraubklemmen anschließen
 3. Tonado erkennt den HifiBerry automatisch bei der Installation
 
-**Kompatible Lautsprecher:** Jeder kleine Lautsprecher mit 4–8 Ohm und 3–5 Watt. Gibt es ab 3 € bei den ueblichen Shops.
+**Kompatible Lautsprecher:** Jeder kleine Lautsprecher mit 4–8 Ohm und 3–5 Watt. Gibt es ab 3 € bei den üblichen Shops.
 
 > **Hinweis:** Der HifiBerry MiniAmp belegt GPIO 18, 19 und 25. GPIO 25 wird als Amp-Enable verwendet — das funktioniert auch zusammen mit dem RC522 RFID-Reader (getestet).
 
 ### Option 2: 3.5mm Klinkenausgang
 
-Der eingebaute Klinkenausgang des Pi. Einfach, aber schlechtere Klangqualitaet.
+Der eingebaute Klinkenausgang des Pi. Einfach, aber schlechtere Klangqualität.
 
 **Vorteile:**
-- Kein zusaetzliches Board noetig
-- Standard-Kopfhoerer oder Aktivlautsprecher anschliessbar
+- Kein zusätzliches Board nötig
+- Standard-Kopfhörer oder Aktivlautsprecher anschließbar
 
-**Einschraenkungen:**
-- Nur Pi 3B+ und groesser (Pi Zero W hat keinen Klinkenausgang)
-- Analog-Ausgang — hoerbares Rauschen bei geringer Laustaerke
-- Externer Verstaerker oder Aktivlautsprecher noetig
+**Einschränkungen:**
+- Nur Pi 3B+ und größer (Pi Zero W hat keinen Klinkenausgang)
+- Analog-Ausgang — hörbares Rauschen bei geringer Lautstärke
+- Externer Verstärker oder Aktivlautsprecher nötig
 
 **Konfiguration:** Tonado erkennt automatisch ob ein HifiBerry vorhanden ist. Ohne HifiBerry wird der Onboard-Audio-Ausgang verwendet.
 
@@ -67,15 +67,15 @@ audio_output {
 }
 ```
 
-Die Geraete-Nummer (`hw:1,0`) mit `aplay -l` herausfinden.
+Die Geräte-Nummer (`hw:1,0`) mit `aplay -l` herausfinden.
 
 ## RFID-Reader
 
-Tonado erkennt RFID-Reader automatisch. Es werden drei Typen unterstuetzt:
+Tonado erkennt RFID-Reader automatisch. Es werden drei Typen unterstützt:
 
 ### Option 1: RC522 (SPI) — getestet und empfohlen
 
-Guenstiger, weit verbreiteter Reader. Wird ueber SPI an die GPIO-Leiste angeschlossen.
+Günstiger, weit verbreiteter Reader. Wird über SPI an die GPIO-Leiste angeschlossen.
 
 **Verkabelung:**
 
@@ -89,7 +89,7 @@ Guenstiger, weit verbreiteter Reader. Wird ueber SPI an die GPIO-Leiste angeschl
 | RST | Pin 22 | GPIO 25 | Reset |
 | 3.3V | Pin 17 | 3.3V | Strom |
 
-> **Wichtig:** Der RC522 arbeitet mit 3.3V. Niemals an 5V anschliessen — das zerstoert den Chip.
+> **Wichtig:** Der RC522 arbeitet mit 3.3V. Niemals an 5V anschließen — das zerstört den Chip.
 
 **Voraussetzung:** SPI muss aktiviert sein. Das Install-Script macht das automatisch. Manuell: In `/boot/firmware/config.txt` die Zeile `dtparam=spi=on` sicherstellen.
 
@@ -100,11 +100,11 @@ USB-Reader, die sich als HID-Tastatur anmelden. Einfach per USB anstecken — ke
 **Vorteile:**
 - Plug & Play, keine Verkabelung
 - Funktioniert mit allen Pi-Modellen
-- Keine SPI/I2C-Konfiguration noetig
+- Keine SPI/I2C-Konfiguration nötig
 
-**Einschraenkung:** Belegt einen USB-Port (Pi Zero W hat nur einen).
+**Einschränkung:** Belegt einen USB-Port (Pi Zero W hat nur einen).
 
-**Kompatible Reader:** Die meisten 13.56 MHz USB-Reader, die MIFARE-Karten lesen und sich als HID-Keyboard anmelden. Haeufig als "RFID USB Reader 13.56MHz" zu finden.
+**Kompatible Reader:** Die meisten 13.56 MHz USB-Reader, die MIFARE-Karten lesen und sich als HID-Keyboard anmelden. Häufig als "RFID USB Reader 13.56MHz" zu finden.
 
 ### Option 3: PN532 (I2C)
 
@@ -123,11 +123,11 @@ Vielseitiger Reader mit I2C-Anschluss. Kann auch NFC-Tags lesen.
 
 **Voraussetzung:** I2C muss aktiviert sein. Das Install-Script macht das automatisch.
 
-> **Status:** Noch nicht getestet. Wenn du einen PN532 hast und testen moechtest, melde dich gerne per [Issue](https://github.com/t13gazh/tonado/issues).
+> **Status:** Noch nicht getestet. Wenn du einen PN532 hast und testen möchtest, melde dich gerne per [Issue](https://github.com/t13gazh/tonado/issues).
 
 ### Kompatible RFID-Chips
 
-Tonado liest die **UID** (eindeutige Seriennummer) des Chips — kein Beschreiben noetig.
+Tonado liest die **UID** (eindeutige Seriennummer) des Chips — kein Beschreiben nötig.
 
 | Chip-Typ | Frequenz | Kompatibel |
 |---|---|---|
@@ -137,17 +137,17 @@ Tonado liest die **UID** (eindeutige Seriennummer) des Chips — kein Beschreibe
 | NTAG213/215/216 | 13.56 MHz | Ja |
 | 125 kHz Chips | 125 kHz | Nein — falsche Frequenz |
 
-Die Chips gibt es als Karten, Aufkleber, Schluesselanhaenger oder zum Einbauen in Figuren. Alle Formate funktionieren, solange sie 13.56 MHz verwenden.
+Die Chips gibt es als Karten, Aufkleber, Schlüsselanhänger oder zum Einbauen in Figuren. Alle Formate funktionieren, solange sie 13.56 MHz verwenden.
 
 ## Gyro-Sensor (optional)
 
-Der MPU6050 Gyro-Sensor ermoeglicht Gesten-Steuerung:
+Der MPU6050 Gyro-Sensor ermöglicht Gesten-Steuerung:
 
 | Geste | Aktion |
 |---|---|
-| Kippen links/rechts | Naechster/Vorheriger Titel |
-| Kippen vor/zurueck | Laustaerke aendern |
-| Schuetteln | Shuffle |
+| Kippen links/rechts | Nächster/Vorheriger Titel |
+| Kippen vor/zurück | Lautstärke ändern |
+| Schütteln | Shuffle |
 
 ### Verkabelung
 
@@ -158,17 +158,17 @@ Der MPU6050 Gyro-Sensor ermoeglicht Gesten-Steuerung:
 | SDA | Pin 3 | GPIO 2 (SDA) | I2C Data |
 | SCL | Pin 5 | GPIO 3 (SCL) | I2C Clock |
 
-> **Hinweis:** Der MPU6050 und der PN532 teilen sich den I2C-Bus. Beide koennen gleichzeitig angeschlossen werden — sie haben unterschiedliche I2C-Adressen (MPU6050: 0x68, PN532: 0x24).
+> **Hinweis:** Der MPU6050 und der PN532 teilen sich den I2C-Bus. Beide können gleichzeitig angeschlossen werden — sie haben unterschiedliche I2C-Adressen (MPU6050: 0x68, PN532: 0x24).
 
 ### Empfindlichkeit
 
-Drei Profile, einstellbar ueber die App unter **Einstellungen > Gesten**:
+Drei Profile, einstellbar über die App unter **Einstellungen > Gesten**:
 
 | Profil | Beschreibung |
 |---|---|
-| Sanft | Kleine Bewegungen genuegen — fuer vorsichtige Kinder |
-| Normal | Standard — fuer die meisten Kinder |
-| Wild | Kraeftiges Kippen/Schuetteln noetig — fuer wilde Kinder |
+| Sanft | Kleine Bewegungen genügen — für vorsichtige Kinder |
+| Normal | Standard — für die meisten Kinder |
+| Wild | Kräftiges Kippen/Schütteln nötig — für wilde Kinder |
 
 > **Status:** Bisher nur im Mock-Modus getestet. Hardware-Test steht noch aus.
 
@@ -178,7 +178,7 @@ Drei Profile, einstellbar ueber die App unter **Einstellungen > Gesten**:
 
 - Pi Zero W
 - USB-RFID-Reader
-- USB-Lautsprecher oder 3.5mm Aktivlautsprecher (Pi 3B+ noetig)
+- USB-Lautsprecher oder 3.5mm Aktivlautsprecher (Pi 3B+ nötig)
 - Kein Gyro
 
 ### Standard (ca. 80 €)
@@ -195,9 +195,9 @@ Drei Profile, einstellbar ueber die App unter **Einstellungen > Gesten**:
 - HifiBerry MiniAmp + kleiner Lautsprecher
 - MPU6050 Gyro-Sensor
 - 10+ RFID-Figuren
-- Gehaeuse (3D-Druck / Holzbox)
+- Gehäuse (3D-Druck / Holzbox)
 
-## GPIO-Belegung (Gesamtuebersicht)
+## GPIO-Belegung (Gesamtübersicht)
 
 Wenn alle Komponenten angeschlossen sind:
 
@@ -214,7 +214,7 @@ Pin 22 (GPIO25) ← RC522 RST (+ HifiBerry Amp-Enable, Doppelnutzung OK)
 Pin 23 (SCLK)  ← RC522 SCK
 Pin 24 (CE0)   ← RC522 SDA
 
-HifiBerry MiniAmp belegt zusaetzlich: GPIO 18, 19 (I2S)
+HifiBerry MiniAmp belegt zusätzlich: GPIO 18, 19 (I2S)
 ```
 
 ## Troubleshooting
@@ -233,14 +233,14 @@ ls /dev/i2c*
 # USB-Reader angeschlossen?
 ls /dev/hidraw*
 
-# Hardware-Erkennung manuell ausfuehren
+# Hardware-Erkennung manuell ausführen
 cd /opt/tonado && .venv/bin/python -c "from core.hardware.detect import detect_all; print(detect_all())"
 ```
 
 ### Kein Audio / HifiBerry nicht erkannt
 
 ```bash
-# Audio-Geraete anzeigen
+# Audio-Geräte anzeigen
 aplay -l
 
 # HifiBerry in config.txt?
@@ -255,7 +255,7 @@ mpc play
 ### Gyro reagiert nicht
 
 ```bash
-# I2C-Geraete scannen
+# I2C-Geräte scannen
 i2cdetect -y 1
 # MPU6050 sollte auf Adresse 0x68 erscheinen
 ```

@@ -13,8 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from core.database import DatabaseManager
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
+from core.playback_dispatcher import PlaybackDispatcher
 from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
-from core.schemas.common import ContentType
 from core.services.auth_service import AuthService
 from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
@@ -41,15 +41,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Start and stop all services with the FastAPI app lifecycle."""
-    settings = Settings()
-    logger.info("Starting Tonado (hardware_mode=%s)", settings.hardware_mode)
-
-    # Core infrastructure
-    event_bus = EventBus()
-
+async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
+    """Create and start all services, returning them as a dict."""
     # Database — single connection for all services
     db_manager = DatabaseManager(settings.db_path)
     await db_manager.start()
@@ -132,104 +125,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     ws_hub = WebSocketHub(event_bus)
     await ws_hub.start()
 
-    # Wire event bus: card → player
-    async def on_card_scanned(card_id: str, mapping: dict, **_) -> None:
-        nonlocal _current_card_id
-        # Save resume position of previous card
-        if _current_card_id and _current_card_id != card_id:
-            await timer_service.save_resume_position(_current_card_id)
-        _current_card_id = card_id
-
-        content_type = mapping["content_type"]
-        content_path = mapping["content_path"]
-        resume = mapping.get("resume_position", 0)
-
-        if content_type == ContentType.FOLDER:
-            await player_service.play_folder(content_path, resume_position=resume)
-        elif content_type == ContentType.STREAM:
-            await player_service.play_url(content_path)
-        elif content_type == ContentType.PODCAST:
-            if content_path.startswith("podcast:"):
-                try:
-                    podcast_id = int(content_path.split(":")[1])
-                    episodes = await stream_service.list_episodes(podcast_id)
-                    if episodes:
-                        urls = [ep.audio_url for ep in episodes]
-                        await player_service.play_urls(urls, resume_position=resume)
-                except (ValueError, IndexError):
-                    logger.warning("Invalid podcast path: %s", content_path)
-            else:
-                await player_service.play_url(content_path)
-        elif content_type == ContentType.PLAYLIST:
-            try:
-                pl_id = int(content_path.split(":")[-1])
-                playlist = await playlist_service.get_playlist(pl_id)
-                if playlist and playlist.items:
-                    urls = [item.content_path for item in playlist.items]
-                    await player_service.play_urls(urls, resume_position=resume)
-            except (ValueError, IndexError):
-                logger.warning("Invalid playlist path: %s", content_path)
-        elif content_type == ContentType.COMMAND:
-            await _execute_command(content_path)
-
-    async def _execute_command(cmd: str) -> None:
-        """Execute a box-control command triggered by a card."""
-        if cmd == "sleep_timer":
-            await timer_service.start_sleep_timer(30)
-        elif cmd.startswith("volume:"):
-            try:
-                vol = int(cmd.split(":")[1])
-                await player_service.set_volume(vol)
-            except (ValueError, IndexError):
-                pass
-        elif cmd == "shuffle":
-            await player_service.toggle_random()
-        elif cmd == "next":
-            await player_service.next_track()
-        elif cmd == "previous":
-            await player_service.previous_track()
-        elif cmd == "pause":
-            await player_service.pause()
-        elif cmd == "play":
-            await player_service.play()
-        else:
-            logger.warning("Unknown command: %s", cmd)
-
-    # Track current card for resume position
-    _current_card_id: str | None = None
-
-    async def on_card_removed(card_id: str | None = None, should_pause: bool = False, **_) -> None:
-        nonlocal _current_card_id
-        # Save resume position directly (not via event bus — avoids race condition)
-        if _current_card_id:
-            elapsed = await player_service.get_elapsed()
-            if elapsed > 0:
-                await card_service.update_resume_position(_current_card_id, elapsed)
-        if should_pause:
-            await player_service.pause()
-        _current_card_id = None
-
-    async def on_gesture(action: str, **_) -> None:
-        match action:
-            case "next_track":
-                await player_service.next_track()
-            case "previous_track":
-                await player_service.previous_track()
-            case "volume_up":
-                await player_service.adjust_volume(5)
-            case "volume_down":
-                await player_service.adjust_volume(-5)
-            case "shuffle":
-                await player_service.shuffle()
-
-    async def on_resume_save(card_id: str, position: float, **_) -> None:
-        await card_service.update_resume_position(card_id, position)
-
-    event_bus.subscribe("card_scanned", on_card_scanned)
-    event_bus.subscribe("card_removed", on_card_removed)
-    event_bus.subscribe("gesture_detected", on_gesture)
-    event_bus.subscribe("resume_position_save", on_resume_save)
-
     # WiFi + Setup wizard + Captive portal
     wifi_service = WifiService()
     await wifi_service.start()
@@ -243,41 +138,67 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await setup_wizard.start()
 
     # If setup not complete and on Pi, start captive portal
-    if not setup_wizard.is_complete and not settings.hardware_mode == "mock":
+    if not setup_wizard.is_complete and settings.hardware_mode != "mock":
         logger.info("Setup not complete — starting captive portal")
         await captive_portal.start()
 
+    return {
+        "db_manager": db_manager,
+        "player_service": player_service,
+        "card_service": card_service,
+        "config_service": config_service,
+        "library_service": library_service,
+        "stream_service": stream_service,
+        "playlist_service": playlist_service,
+        "auth_service": auth_service,
+        "timer_service": timer_service,
+        "system_service": system_service,
+        "backup_service": backup_service,
+        "setup_wizard": setup_wizard,
+        "wifi_service": wifi_service,
+        "captive_portal": captive_portal,
+        "gyro_service": gyro_service,
+        "ws_hub": ws_hub,
+        "settings": settings,
+    }
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Start and stop all services with the FastAPI app lifecycle."""
+    settings = Settings()
+    logger.info("Starting Tonado (hardware_mode=%s)", settings.hardware_mode)
+
+    event_bus = EventBus()
+    services = await _create_services(settings, event_bus)
+
+    # Wire event bus → player actions
+    _dispatcher = PlaybackDispatcher(  # noqa: F841 — prevent GC
+        event_bus=event_bus,
+        player=services["player_service"],
+        card_service=services["card_service"],
+        stream_service=services["stream_service"],
+        playlist_service=services["playlist_service"],
+        timer_service=services["timer_service"],
+    )
+
     # Store all services on app.state for FastAPI dependency injection
-    app.state.player_service = player_service
-    app.state.card_service = card_service
-    app.state.config_service = config_service
-    app.state.library_service = library_service
-    app.state.stream_service = stream_service
-    app.state.playlist_service = playlist_service
-    app.state.auth_service = auth_service
-    app.state.timer_service = timer_service
-    app.state.system_service = system_service
-    app.state.backup_service = backup_service
-    app.state.setup_wizard = setup_wizard
-    app.state.wifi_service = wifi_service
-    app.state.captive_portal = captive_portal
-    app.state.gyro_service = gyro_service
-    app.state.settings = settings
-    app.state.ws_hub = ws_hub
+    for key, value in services.items():
+        setattr(app.state, key, value)
 
     logger.info("Tonado ready — listening on %s:%d", settings.host, settings.port)
     yield
 
     # Shutdown
     logger.info("Shutting down Tonado...")
-    if captive_portal.active:
-        await captive_portal.stop()
-    await timer_service.stop()
-    await gyro_service.stop()
-    await card_service.stop()
-    await player_service.stop()
-    await config_service.stop()
-    await db_manager.stop()
+    if services["captive_portal"].active:
+        await services["captive_portal"].stop()
+    await services["timer_service"].stop()
+    await services["gyro_service"].stop()
+    await services["card_service"].stop()
+    await services["player_service"].stop()
+    await services["config_service"].stop()
+    await services["db_manager"].stop()
     logger.info("Tonado stopped")
 
 

@@ -2,10 +2,15 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
+## Offene Bugs
+
+- [ ] **Browser-Audio bricht bei Stream-Wechsel ab.** Wenn Browser-Audio aktiv ist und man den Radio-Stream oder die Musik wechselt, kommt kein Audio mehr im Browser. Erst nach manuellem Deaktivieren/Aktivieren wieder Ton. Bisherige Fix-Versuche (Retry-Chain, Reload-Delay 2.5s, alten Stream sofort stoppen, same-URI Detection) haben nicht geholfen. Root Cause ist tiefer — vermutlich muss der gesamte Ansatz (HTML Audio Element auf Streaming-Proxy) überdacht werden. Mögliche Alternative: WebAudio API oder Server-Sent Events für Stream-Status.
+
 ## Security-Audit (2026-03-29) — VOR Beta fixen
 
 ### KRITISCH
-- [ ] XXE in RSS-Parsing: `defusedxml.ElementTree.fromstring()` statt `xml.etree` (`stream_service.py:290`)
+- [x] XXE in RSS-Parsing: `defusedxml.ElementTree.fromstring()` statt `xml.etree` (`stream_service.py:290`)
+- [x] SSRF-Schutz: `validate_url()` Utility blockt interne IPs + prüft DNS (`core/utils/url.py`)
 - [ ] Rate-Limiting auf Login: 5 Fehlversuche → 60s Lockout (`auth.py:21`)
 - [ ] Backup-Export filtert keine Secrets + keine Auth nötig (`backup_service.py:32`, `system.py:239`)
 

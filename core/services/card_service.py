@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS cards (
 class CardMapping:
     card_id: str
     name: str
-    content_type: str  # "folder", "stream", "podcast", "command"
+    content_type: str  # "folder", "stream", "podcast", "playlist", "command"
     content_path: str
     cover_path: str | None = None
     resume_position: float = 0.0

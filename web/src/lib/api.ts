@@ -23,7 +23,7 @@ export interface PlayerState {
 export interface CardMapping {
 	card_id: string;
 	name: string;
-	content_type: 'folder' | 'stream' | 'podcast' | 'command';
+	content_type: 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 	content_path: string;
 	cover_path: string | null;
 	resume_position: number;

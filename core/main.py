@@ -142,6 +142,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await player_service.play_folder(content_path, resume_position=resume)
         elif content_type in ("stream", "podcast"):
             await player_service.play_url(content_path)
+        elif content_type == "playlist":
+            # playlist:ID format
+            try:
+                pl_id = int(content_path.split(":")[-1])
+                playlist = await playlist_service.get_playlist(pl_id)
+                if playlist and playlist.items:
+                    urls = [item.content_path for item in playlist.items]
+                    await player_service.play_urls(urls)
+            except (ValueError, IndexError):
+                logger.warning("Invalid playlist path: %s", content_path)
+        elif content_type == "command":
+            await _execute_command(content_path)
+
+    async def _execute_command(cmd: str) -> None:
+        """Execute a box-control command triggered by a card."""
+        if cmd == "sleep_timer":
+            await timer_service.start_sleep_timer(30)
+        elif cmd.startswith("volume:"):
+            try:
+                vol = int(cmd.split(":")[1])
+                await player_service.set_volume(vol)
+            except (ValueError, IndexError):
+                pass
+        elif cmd == "shuffle":
+            await player_service.toggle_random()
+        elif cmd == "next":
+            await player_service.next_track()
+        elif cmd == "previous":
+            await player_service.previous_track()
+        elif cmd == "pause":
+            await player_service.pause()
+        elif cmd == "play":
+            await player_service.play()
+        else:
+            logger.warning("Unknown command: %s", cmd)
 
     # Track current card for resume position
     _current_card_id: str | None = None

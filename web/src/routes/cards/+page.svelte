@@ -1,20 +1,40 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards, type CardMapping } from '$lib/api';
+	import { cards, config, type CardMapping } from '$lib/api';
 	import { onMount } from 'svelte';
+	import ContentPicker from '$lib/components/ContentPicker.svelte';
+
+	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
 	let allCards = $state<CardMapping[]>([]);
 	let loading = $state(true);
 	let error = $state('');
-	let editingCard = $state<CardMapping | null>(null);
-	let deletingCard = $state<CardMapping | null>(null);
+	let expertMode = $state(false);
 
-	// Edit form state
+	// Edit state
+	let editingCard = $state<CardMapping | null>(null);
 	let editName = $state('');
-	let editContentType = $state('');
+	let editContentType = $state<ContentType>('folder');
 	let editContentPath = $state('');
 
-	onMount(loadCards);
+	// Delete state
+	let deletingCard = $state<CardMapping | null>(null);
+
+	const typeLabels: Record<string, () => string> = {
+		folder: () => t('wizard.type_folder'),
+		stream: () => t('wizard.type_radio'),
+		podcast: () => t('wizard.type_podcast'),
+		playlist: () => t('wizard.type_playlist'),
+		command: () => t('wizard.type_command'),
+	};
+
+	onMount(async () => {
+		await loadCards();
+		try {
+			const cfg = await config.getAll();
+			expertMode = cfg['wizard.expert_mode'] === true;
+		} catch {}
+	});
 
 	async function loadCards() {
 		loading = true;
@@ -31,17 +51,27 @@
 	function startEdit(card: CardMapping) {
 		editingCard = card;
 		editName = card.name;
-		editContentType = card.content_type;
+		editContentType = card.content_type as ContentType;
 		editContentPath = card.content_path;
 	}
 
+	function handleEditTypeChange(type: ContentType) {
+		editContentType = type;
+		editContentPath = '';
+	}
+
+	function handleEditSelect(path: string, autoName: string) {
+		editContentPath = path;
+		if (!editName) editName = autoName;
+	}
+
 	async function saveEdit() {
-		if (!editingCard) return;
+		if (!editingCard || !editName.trim() || !editContentPath.trim()) return;
 		try {
 			await cards.update(editingCard.card_id, {
-				name: editName,
+				name: editName.trim(),
 				content_type: editContentType,
-				content_path: editContentPath,
+				content_path: editContentPath.trim(),
 			});
 			editingCard = null;
 			await loadCards();
@@ -116,15 +146,15 @@
 					<!-- Info -->
 					<div class="p-2.5">
 						<p class="text-sm font-medium text-text truncate">{card.name}</p>
-						<p class="text-xs text-text-muted mt-0.5 capitalize">{card.content_type}</p>
-						<p class="text-[10px] text-text-muted mt-0.5 font-mono truncate">{card.card_id}</p>
+						<p class="text-xs text-text-muted mt-0.5">{typeLabels[card.content_type]?.() ?? card.content_type}</p>
 					</div>
 
-					<!-- Actions (visible on hover / always on mobile) -->
+					<!-- Actions -->
 					<div class="absolute top-2 right-2 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
 						<button
 							onclick={() => startEdit(card)}
 							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-text"
+							aria-label={t('card.edit')}
 						>
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -134,6 +164,7 @@
 						<button
 							onclick={() => (deletingCard = card)}
 							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-red-400"
+							aria-label={t('general.delete')}
 						>
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
@@ -146,48 +177,42 @@
 	{/if}
 </div>
 
-<!-- Edit Modal -->
+<!-- Edit Modal (full-screen on mobile) -->
 {#if editingCard}
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" onclick={() => (editingCard = null)}>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="bg-surface-light w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="bg-surface-light w-full sm:w-[28rem] max-h-[85vh] rounded-t-2xl sm:rounded-2xl p-5 flex flex-col overflow-hidden"
+			onclick={(e) => e.stopPropagation()}
+		>
 			<h2 class="text-lg font-bold mb-4">{t('card.edit')}</h2>
 
-			<label class="block mb-3">
-				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
-				<input
-					type="text"
-					bind:value={editName}
-					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+			<div class="flex-1 overflow-y-auto flex flex-col gap-4 min-h-0">
+				<!-- Name -->
+				<label class="block">
+					<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
+					<input
+						type="text"
+						bind:value={editName}
+						class="w-full px-3 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+					/>
+				</label>
+
+				<!-- Content Picker (same as wizard) -->
+				<ContentPicker
+					contentType={editContentType}
+					contentPath={editContentPath}
+					name={editName}
+					{expertMode}
+					onTypeChange={handleEditTypeChange}
+					onSelect={handleEditSelect}
 				/>
-			</label>
+			</div>
 
-			<label class="block mb-3">
-				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_type')}</span>
-				<select
-					bind:value={editContentType}
-					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
-				>
-					<option value="folder">{t('wizard.type_folder')}</option>
-					<option value="stream">{t('wizard.type_stream')}</option>
-					<option value="podcast">{t('wizard.type_podcast')}</option>
-					<option value="command">{t('wizard.type_command')}</option>
-				</select>
-			</label>
-
-			<label class="block mb-4">
-				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_path')}</span>
-				<input
-					type="text"
-					bind:value={editContentPath}
-					class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
-				/>
-			</label>
-
-			<div class="flex gap-3">
+			<div class="flex gap-3 pt-4">
 				<button
 					onclick={() => (editingCard = null)}
 					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
@@ -196,7 +221,8 @@
 				</button>
 				<button
 					onclick={saveEdit}
-					class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light rounded-lg text-white text-sm font-medium transition-colors"
+					disabled={!editName.trim() || !editContentPath.trim()}
+					class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light disabled:opacity-50 rounded-lg text-white text-sm font-medium transition-colors"
 				>
 					{t('general.save')}
 				</button>

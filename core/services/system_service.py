@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.services.base import BaseService
 from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
@@ -68,10 +69,11 @@ class SystemInfo:
         }
 
 
-class SystemService:
+class SystemService(BaseService):
     """System management operations."""
 
     def __init__(self, install_dir: Path = Path("/opt/tonado")) -> None:
+        super().__init__()
         self._install_dir = install_dir
         self._is_pi = Path("/proc/cpuinfo").exists()
 

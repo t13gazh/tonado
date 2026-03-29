@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.services.base import BaseService
+
 logger = logging.getLogger(__name__)
 
 _AUDIO_EXTENSIONS = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus", ".wma"}
@@ -95,10 +97,11 @@ class MediaTrack:
         }
 
 
-class LibraryService:
+class LibraryService(BaseService):
     """Manages the audio media library on the filesystem."""
 
     def __init__(self, media_dir: Path) -> None:
+        super().__init__()
         self._media_dir = media_dir
 
     async def start(self) -> None:

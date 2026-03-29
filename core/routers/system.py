@@ -110,54 +110,26 @@ async def system_health() -> dict:
     """Return health status of all hardware components for UI degraded-state banners."""
     health: dict = {}
 
-    # MPD
+    # MPD / Player
     if _player is not None:
-        health["mpd"] = {
-            "status": "connected" if _player._connected else "disconnected",
-            "detail": f"{_player._host}:{_player._port}" if _player._connected else "MPD nicht erreichbar",
-        }
+        health["mpd"] = _player.health()
     else:
         health["mpd"] = {"status": "disconnected", "detail": "Player-Service nicht initialisiert"}
 
     # RFID reader
     if _card is not None:
-        from core.hardware.rfid import MockRfidReader
-        reader = _card._reader
-        if isinstance(reader, MockRfidReader):
-            # Mock means no real hardware detected
-            is_mock = _settings is not None and _settings.hardware_mode == "mock"
-            if is_mock:
-                health["rfid"] = {"status": "not_configured", "detail": "Entwicklungsmodus (Mock)"}
-            else:
-                health["rfid"] = {"status": "not_configured", "detail": "Kein Figuren-Leser erkannt"}
-        else:
-            reader_type = type(reader).__name__
-            health["rfid"] = {"status": "connected", "detail": reader_type}
+        health["rfid"] = _card.health()
     else:
         health["rfid"] = {"status": "not_configured", "detail": "Kein Figuren-Leser erkannt"}
 
     # Gyro sensor
     if _gyro is not None:
-        from core.hardware.gyro import MockGyroSensor
-        sensor = _gyro._sensor
-        if isinstance(sensor, MockGyroSensor):
-            is_mock = _settings is not None and _settings.hardware_mode == "mock"
-            if is_mock:
-                health["gyro"] = {"status": "not_configured", "detail": "Entwicklungsmodus (Mock)"}
-            elif not _gyro._enabled:
-                health["gyro"] = {"status": "not_configured", "detail": "Deaktiviert"}
-            else:
-                health["gyro"] = {"status": "not_configured", "detail": "Kein Bewegungssensor erkannt"}
-        else:
-            health["gyro"] = {
-                "status": "connected" if _gyro._enabled else "disconnected",
-                "detail": "MPU6050" if _gyro._enabled else "Deaktiviert",
-            }
+        health["gyro"] = _gyro.health()
     else:
         health["gyro"] = {"status": "not_configured", "detail": "Kein Bewegungssensor erkannt"}
 
     # Audio output — delegate to MPD outputs if available
-    if _player is not None and _player._connected:
+    if _player is not None and _player.health()["status"] == "connected":
         try:
             outputs = await _player.list_outputs()
             if outputs:

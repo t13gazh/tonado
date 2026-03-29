@@ -9,6 +9,7 @@ from typing import Any
 import aiosqlite
 
 from core.hardware.rfid import RfidReader
+from core.services.base import BaseService
 from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class CardMapping:
         }
 
 
-class CardService:
+class CardService(BaseService):
     """Manages RFID card scanning and card-to-content mappings.
 
     Behavior:
@@ -54,6 +55,7 @@ class CardService:
         rescan_cooldown: float = 2.0,
         remove_pauses: bool = False,
     ) -> None:
+        super().__init__()
         self._reader = reader
         self._event_bus = event_bus
         self._db = db
@@ -84,6 +86,14 @@ class CardService:
             except asyncio.CancelledError:
                 pass
         await self._reader.stop()
+
+    def health(self) -> dict:
+        """Return RFID reader health status."""
+        from core.hardware.rfid import MockRfidReader
+        reader_type = type(self._reader).__name__
+        if isinstance(self._reader, MockRfidReader):
+            return {"status": "not_configured", "detail": "Mock-Reader"}
+        return {"status": "connected", "detail": reader_type}
 
     async def _scan_loop(self) -> None:
         """Continuously poll the RFID reader.

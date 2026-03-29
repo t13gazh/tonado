@@ -8,6 +8,7 @@ from typing import Any
 
 from mpd.asyncio import MPDClient
 
+from core.services.base import BaseService
 from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -59,10 +60,11 @@ class PlayerState:
         }
 
 
-class PlayerService:
+class PlayerService(BaseService):
     """Controls MPD for audio playback. Publishes state changes to event bus."""
 
     def __init__(self, event_bus: EventBus, host: str = "localhost", port: int = 6600) -> None:
+        super().__init__()
         self._event_bus = event_bus
         self._host = host
         self._port = port
@@ -101,6 +103,12 @@ class PlayerService:
         if self._connected:
             self._client.disconnect()
             self._connected = False
+
+    def health(self) -> dict:
+        """Return MPD connection health."""
+        if self._connected:
+            return {"status": "connected", "detail": f"{self._host}:{self._port}"}
+        return {"status": "disconnected", "detail": "MPD nicht erreichbar"}
 
     async def play_folder(self, folder_path: str, resume_position: float = 0, start_index: int = 0) -> None:
         """Clear queue, load folder, and start playback at given track index."""

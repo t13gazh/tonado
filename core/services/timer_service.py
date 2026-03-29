@@ -10,6 +10,7 @@ import asyncio
 import logging
 import time
 
+from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.player_service import PlaybackState, PlayerService
@@ -17,7 +18,7 @@ from core.services.player_service import PlaybackState, PlayerService
 logger = logging.getLogger(__name__)
 
 
-class TimerService:
+class TimerService(BaseService):
     """Manages sleep timer, idle shutdown, volume enforcement, and resume tracking."""
 
     def __init__(
@@ -26,6 +27,7 @@ class TimerService:
         player: PlayerService,
         config: ConfigService,
     ) -> None:
+        super().__init__()
         self._event_bus = event_bus
         self._player = player
         self._config = config

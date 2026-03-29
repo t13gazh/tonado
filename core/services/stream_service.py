@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 
 import aiosqlite
 
+from core.services.base import BaseService
+
 logger = logging.getLogger(__name__)
 
 
@@ -106,10 +108,11 @@ class PodcastEpisode:
         }
 
 
-class StreamService:
+class StreamService(BaseService):
     """Manages internet radio stations and podcast feeds."""
 
     def __init__(self, db: aiosqlite.Connection, podcast_dir: Path | None = None) -> None:
+        super().__init__()
         self._db = db
         self._podcast_dir = podcast_dir or Path.home() / "tonado" / "podcasts"
 

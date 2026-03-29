@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 from core.hardware.gyro import Gesture, GestureDetector, GyroSensor
+from core.services.base import BaseService
 from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ GESTURE_ACTIONS = {
 }
 
 
-class GyroService:
+class GyroService(BaseService):
     """Reads gyro sensor data, detects gestures, publishes events."""
 
     def __init__(
@@ -28,6 +29,7 @@ class GyroService:
         sensitivity: str = "normal",
         enabled: bool = True,
     ) -> None:
+        super().__init__()
         self._sensor = sensor
         self._event_bus = event_bus
         self._detector = GestureDetector(sensitivity=sensitivity)
@@ -60,6 +62,15 @@ class GyroService:
             except asyncio.CancelledError:
                 pass
         await self._sensor.stop()
+
+    def health(self) -> dict:
+        """Return gyro sensor health status."""
+        from core.hardware.gyro import MockGyroSensor
+        if isinstance(self._sensor, MockGyroSensor):
+            return {"status": "not_configured", "detail": "Mock-Sensor"}
+        if not self._enabled:
+            return {"status": "disconnected", "detail": "Deaktiviert"}
+        return {"status": "connected", "detail": "MPU6050"}
 
     async def _poll_loop(self) -> None:
         """Poll sensor at ~50 Hz and detect gestures."""

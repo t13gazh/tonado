@@ -12,15 +12,17 @@ from typing import Any
 
 import aiosqlite
 
+from core.services.base import BaseService
 from core.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
 
 
-class BackupService:
+class BackupService(BaseService):
     """Manages backup and restore of Tonado configuration."""
 
     def __init__(self, db: aiosqlite.Connection, config: ConfigService) -> None:
+        super().__init__()
         self._db = db
         self._config = config
 

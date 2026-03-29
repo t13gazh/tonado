@@ -15,6 +15,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.hardware.detect import HardwareProfile, detect_all
+from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.services.wifi_service import WifiService
 
@@ -34,7 +35,7 @@ class SetupStep(StrEnum):
 _STEPS = list(SetupStep)
 
 
-class SetupWizard:
+class SetupWizard(BaseService):
     """Manages the first-boot setup flow."""
 
     def __init__(
@@ -42,6 +43,7 @@ class SetupWizard:
         config_service: ConfigService,
         wifi_service: WifiService,
     ) -> None:
+        super().__init__()
         self._config = config_service
         self._wifi = wifi_service
         self._hardware: HardwareProfile | None = None

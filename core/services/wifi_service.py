@@ -10,6 +10,8 @@ import shutil
 from dataclasses import dataclass
 from typing import Any
 
+from core.services.base import BaseService
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,10 +51,11 @@ class WifiStatus:
         }
 
 
-class WifiService:
+class WifiService(BaseService):
     """Manages WiFi connections on the Raspberry Pi."""
 
     def __init__(self) -> None:
+        super().__init__()
         self._use_nmcli = shutil.which("nmcli") is not None
         self._mock = not self._use_nmcli and shutil.which("wpa_cli") is None
 

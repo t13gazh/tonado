@@ -13,6 +13,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from core.services.base import BaseService
 from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
@@ -40,10 +41,11 @@ address=/#/192.168.4.1
 AP_SSID_PREFIX = "Tonado-Setup"
 
 
-class CaptivePortalService:
+class CaptivePortalService(BaseService):
     """Manages the captive portal AP for first-boot WiFi configuration."""
 
     def __init__(self, ssid: str | None = None) -> None:
+        super().__init__()
         self._ssid = ssid or f"{AP_SSID_PREFIX}"
         self._hostapd_conf = Path("/tmp/tonado-hostapd.conf")
         self._dnsmasq_conf = Path("/tmp/tonado-dnsmasq.conf")

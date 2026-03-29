@@ -11,6 +11,8 @@ from typing import Any
 
 import aiosqlite
 
+from core.services.base import BaseService
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,10 +67,11 @@ class Playlist:
         }
 
 
-class PlaylistService:
+class PlaylistService(BaseService):
     """Manages user-created playlists."""
 
     def __init__(self, db: aiosqlite.Connection, media_dir: Path | None = None) -> None:
+        super().__init__()
         self._db = db
         self._media_dir = media_dir or Path.home() / "tonado" / "media"
 

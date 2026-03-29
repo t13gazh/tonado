@@ -16,6 +16,7 @@ import hmac
 
 import jwt
 
+from core.services.base import BaseService
 from core.services.config_service import ConfigService
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,11 @@ class AuthTier(StrEnum):
 _TIER_LEVELS = {AuthTier.OPEN: 0, AuthTier.PARENT: 1, AuthTier.EXPERT: 2}
 
 
-class AuthService:
+class AuthService(BaseService):
     """Manages PIN-based authentication with JWT tokens."""
 
     def __init__(self, config: ConfigService) -> None:
+        super().__init__()
         self._config = config
         self._jwt_secret: str = ""
         self._pin_cache: dict[str, bool] = {}

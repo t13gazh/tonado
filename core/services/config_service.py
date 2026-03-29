@@ -6,6 +6,8 @@ from typing import Any
 
 import aiosqlite
 
+from core.services.base import BaseService
+
 logger = logging.getLogger(__name__)
 
 # Default configuration values
@@ -23,10 +25,11 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
 }
 
 
-class ConfigService:
+class ConfigService(BaseService):
     """Key-value config store with typed values and defaults."""
 
     def __init__(self, db: aiosqlite.Connection) -> None:
+        super().__init__()
         self._db: aiosqlite.Connection = db
 
     async def start(self) -> None:

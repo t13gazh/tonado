@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
 from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
+from core.schemas.common import ContentType
 from core.services.auth_service import AuthService
 from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
@@ -140,11 +141,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         content_path = mapping["content_path"]
         resume = mapping.get("resume_position", 0)
 
-        if content_type == "folder":
+        if content_type == ContentType.FOLDER:
             await player_service.play_folder(content_path, resume_position=resume)
-        elif content_type == "stream":
+        elif content_type == ContentType.STREAM:
             await player_service.play_url(content_path)
-        elif content_type == "podcast":
+        elif content_type == ContentType.PODCAST:
             if content_path.startswith("podcast:"):
                 try:
                     podcast_id = int(content_path.split(":")[1])
@@ -156,7 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     logger.warning("Invalid podcast path: %s", content_path)
             else:
                 await player_service.play_url(content_path)
-        elif content_type == "playlist":
+        elif content_type == ContentType.PLAYLIST:
             try:
                 pl_id = int(content_path.split(":")[-1])
                 playlist = await playlist_service.get_playlist(pl_id)
@@ -165,7 +166,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                     await player_service.play_urls(urls, resume_position=resume)
             except (ValueError, IndexError):
                 logger.warning("Invalid playlist path: %s", content_path)
-        elif content_type == "command":
+        elif content_type == ContentType.COMMAND:
             await _execute_command(content_path)
 
     async def _execute_command(cmd: str) -> None:

@@ -106,7 +106,9 @@ class SystemService(BaseService):
         """Restart Tonado service."""
         if self._is_pi:
             logger.info("Restarting Tonado service...")
-            await self._run("systemctl", "restart", "tonado.service")
+            rc = await self._run("sudo", "systemctl", "restart", "tonado.service")
+            if rc != 0:
+                raise RuntimeError("Failed to restart service (exit code %d)" % rc)
         else:
             logger.info("Restart requested (no-op on non-Pi)")
 
@@ -114,7 +116,9 @@ class SystemService(BaseService):
         """Shutdown the system."""
         if self._is_pi:
             logger.info("System shutdown initiated...")
-            await self._run("shutdown", "-h", "now")
+            rc = await self._run("sudo", "shutdown", "-h", "now")
+            if rc != 0:
+                raise RuntimeError("Failed to shutdown (exit code %d)" % rc)
         else:
             logger.info("Shutdown requested (no-op on non-Pi)")
 
@@ -122,7 +126,9 @@ class SystemService(BaseService):
         """Reboot the system."""
         if self._is_pi:
             logger.info("System reboot initiated...")
-            await self._run("reboot")
+            rc = await self._run("sudo", "reboot")
+            if rc != 0:
+                raise RuntimeError("Failed to reboot (exit code %d)" % rc)
         else:
             logger.info("Reboot requested (no-op on non-Pi)")
 
@@ -270,7 +276,7 @@ class SystemService(BaseService):
     @staticmethod
     def _read_file(path: str) -> str | None:
         try:
-            return Path(path).read_text().strip()
+            return Path(path).read_text().strip("\x00").strip()
         except (OSError, UnicodeDecodeError):
             return None
 

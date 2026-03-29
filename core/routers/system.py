@@ -14,48 +14,34 @@ from core.dependencies import (
     get_gyro_service,
     get_player,
     get_system_service,
+    get_wifi_service,
     require_tier,
 )
-from core.utils.subprocess import async_run
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.card_service import CardService
 from core.services.gyro_service import GyroService
 from core.services.player_service import PlayerService
 from core.services.system_service import SystemService
+from core.services.wifi_service import WifiService
 from core.hardware.detect import detect_all
+from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
-async def _detect_wifi() -> dict:
-    """Detect current WiFi connection status."""
-    result: dict = {"connected": False, "ssid": "", "ip": ""}
-
-    rc, stdout, _ = await async_run(
-        ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
-        timeout=5,
-    )
-    if rc == 0:
-        for line in stdout.strip().splitlines():
-            parts = line.split(":")
-            if len(parts) >= 2 and parts[0] == "yes":
-                result["connected"] = True
-                result["ssid"] = parts[1]
-                break
-    else:
-        rc2, stdout2, _ = await async_run(["iwgetid", "-r"], timeout=5)
-        if rc2 == 0 and stdout2.strip():
-            result["connected"] = True
-            result["ssid"] = stdout2.strip()
-
-    rc3, stdout3, _ = await async_run(["hostname", "-I"], timeout=5)
-    if rc3 == 0 and stdout3.strip():
-        result["ip"] = stdout3.strip().split()[0]
-
-    return result
+async def _wifi_status_dict(wifi: WifiService) -> dict:
+    """Get WiFi status via WifiService (handles nmcli/wpa_cli/mock fallback)."""
+    status = await wifi.status()
+    ip = status.ip_address
+    if not ip:
+        # Fallback: hostname -I works on all Pi setups
+        rc, stdout, _ = await async_run(["hostname", "-I"], timeout=5)
+        if rc == 0 and stdout.strip():
+            ip = stdout.strip().split()[0]
+    return {"connected": status.connected, "ssid": status.ssid, "ip": ip}
 
 
 # --- System info ---
@@ -73,6 +59,7 @@ async def system_health(
     player: PlayerService = Depends(get_player),
     card: CardService = Depends(get_card_service),
     gyro: GyroService = Depends(get_gyro_service),
+    wifi: WifiService = Depends(get_wifi_service),
 ) -> dict:
     """Return health status of all hardware components for UI degraded-state banners."""
     health: dict = {}
@@ -119,11 +106,11 @@ async def system_health(
         health["storage"] = {"status": "ok", "free_mb": 0, "detail": "Nicht verfügbar"}
 
     # Network
-    wifi = await _detect_wifi()
-    if wifi["connected"]:
+    wifi_info = await _wifi_status_dict(wifi)
+    if wifi_info["connected"]:
         health["network"] = {
             "status": "connected",
-            "detail": f"{wifi['ssid']} ({wifi['ip']})" if wifi["ip"] else wifi["ssid"],
+            "detail": f"{wifi_info['ssid']} ({wifi_info['ip']})" if wifi_info["ip"] else wifi_info["ssid"],
         }
     else:
         health["network"] = {"status": "disconnected", "detail": "Nicht verbunden"}
@@ -134,12 +121,12 @@ async def system_health(
 # --- Hardware status ---
 
 @router.get("/hardware")
-async def hardware_status() -> dict:
+async def hardware_status(wifi: WifiService = Depends(get_wifi_service)) -> dict:
     """Return detected hardware profile including WiFi status."""
     try:
         profile = detect_all()
         data = profile.to_dict()
-        data["wifi"] = await _detect_wifi()
+        data["wifi"] = await _wifi_status_dict(wifi)
         return data
     except Exception as e:
         logger.error("Hardware detection failed: %s", e)
@@ -155,7 +142,10 @@ async def restart_service(
     svc: SystemService = Depends(get_system_service),
 ) -> dict:
     require_tier(request, AuthTier.EXPERT, auth)
-    await svc.restart()
+    try:
+        await svc.restart()
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
     return {"status": "ok"}
 
 
@@ -166,7 +156,10 @@ async def shutdown(
     svc: SystemService = Depends(get_system_service),
 ) -> dict:
     require_tier(request, AuthTier.EXPERT, auth)
-    await svc.shutdown()
+    try:
+        await svc.shutdown()
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
     return {"status": "ok"}
 
 
@@ -177,7 +170,10 @@ async def reboot(
     svc: SystemService = Depends(get_system_service),
 ) -> dict:
     require_tier(request, AuthTier.EXPERT, auth)
-    await svc.reboot()
+    try:
+        await svc.reboot()
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
     return {"status": "ok"}
 
 

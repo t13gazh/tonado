@@ -6,6 +6,8 @@
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 	import { createCardScan } from '$lib/card-scan.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import { isRfidAvailable } from '$lib/stores/health.svelte';
 
 	type Step = 'scan' | 'content' | 'done';
 
@@ -42,7 +44,9 @@
 			const cfg = await config.getAll();
 			expertMode = cfg['wizard.expert_mode'] === true;
 		} catch {}
-		scan.startScan(false);
+		if (isRfidAvailable()) {
+			scan.startScan(false);
+		}
 	});
 
 	function handleTypeChange(type: ContentType) {
@@ -69,6 +73,12 @@
 		</a>
 		<h1 class="text-lg font-bold">{t('wizard.title')}</h1>
 	</div>
+
+	{#if !isRfidAvailable()}
+		<div class="mb-4">
+			<HealthBanner type="warning" message={t('health.rfid_unavailable')} />
+		</div>
+	{/if}
 
 	<!-- Step indicators -->
 	<div class="flex items-center gap-2 mb-6 px-4">

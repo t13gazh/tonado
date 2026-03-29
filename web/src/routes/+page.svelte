@@ -4,7 +4,7 @@
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
-	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio } from '$lib/stores/browser-audio.svelte';
+	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio, reloadBrowserAudio } from '$lib/stores/browser-audio.svelte';
 	import { isMpdConnected } from '$lib/stores/health.svelte';
 	import { tick, onMount } from 'svelte';
 
@@ -142,21 +142,33 @@
 		return { update: () => { tick().then(setup); } };
 	}
 
+	let lastTrackUri = $state('');
+
 	onMount(async () => {
 		try { outputs = await player.outputs(); } catch {}
 	});
 
+	// Reload browser audio stream when the current track changes
+	$effect(() => {
+		const uri = state.current_uri;
+		if (lastTrackUri && uri !== lastTrackUri && uri !== '') {
+			reloadBrowserAudio();
+		}
+		lastTrackUri = uri;
+	});
+
 	async function toggleBrowserAudio() {
-		const browserOut = outputs.find(o => o.name === 'Browser');
-		if (!browserOut) return;
 		if (browserPlaying) {
-			await player.toggleOutput(browserOut.id, false);
 			stopBrowserAudio();
 		} else {
-			await player.toggleOutput(browserOut.id, true);
+			// Ensure MPD httpd output is enabled before starting
+			const browserOut = outputs.find(o => o.name === 'Browser');
+			if (browserOut && !browserOut.enabled) {
+				await player.toggleOutput(browserOut.id, true);
+				outputs = await player.outputs();
+			}
 			startBrowserAudio();
 		}
-		outputs = await player.outputs();
 	}
 
 	function handleToggle() {

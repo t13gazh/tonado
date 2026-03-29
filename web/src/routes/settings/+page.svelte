@@ -3,6 +3,7 @@
 	import { config, authApi, type AuthStatus } from '$lib/api';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
 	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
 
 	let authStatus = $state<AuthStatus | null>(null);
@@ -16,6 +17,9 @@
 	let expertPinValue = $state('');
 	let loginPin = $state('');
 	let loginError = $state('');
+	let loginLoading = $state(false);
+	let parentPinLoading = $state(false);
+	let expertPinLoading = $state(false);
 
 	// Settings values
 	let maxVolume = $state(80);
@@ -62,12 +66,15 @@
 
 	async function login() {
 		loginError = '';
+		loginLoading = true;
 		try {
 			await authApi.login(loginPin);
 			loginPin = '';
 			await loadAll();
 		} catch {
 			loginError = t('settings.login_error');
+		} finally {
+			loginLoading = false;
 		}
 	}
 
@@ -108,6 +115,7 @@
 
 	async function setParentPin() {
 		if (parentPinValue.length < 4) return;
+		parentPinLoading = true;
 		try {
 			await authApi.setPin('parent', parentPinValue);
 			parentPinValue = '';
@@ -115,11 +123,14 @@
 			flashToast();
 		} catch (e) {
 			error = t('settings.login_required_change');
+		} finally {
+			parentPinLoading = false;
 		}
 	}
 
 	async function setExpertPin() {
 		if (expertPinValue.length < 4) return;
+		expertPinLoading = true;
 		try {
 			await authApi.setPin('expert', expertPinValue);
 			expertPinValue = '';
@@ -127,6 +138,8 @@
 			flashToast();
 		} catch {
 			error = t('settings.login_required_change');
+		} finally {
+			expertPinLoading = false;
 		}
 	}
 
@@ -190,7 +203,10 @@
 					class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
 					onkeydown={(e) => e.key === 'Enter' && login()}
 				/>
-				<button onclick={login} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('settings.login')}</button>
+				<button onclick={login} disabled={loginLoading} class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-60 flex items-center gap-2">
+						{#if loginLoading}<Spinner size="sm" />{/if}
+						{t('settings.login')}
+					</button>
 			</div>
 			{#if loginError}
 				<p class="text-xs text-red-400 mt-2">{loginError}</p>
@@ -320,9 +336,10 @@
 					/>
 					<button
 						onclick={setParentPin}
-						disabled={parentPinValue.length < 4}
-						class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+						disabled={parentPinValue.length < 4 || parentPinLoading}
+						class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
 					>
+						{#if parentPinLoading}<Spinner size="sm" />{/if}
 						{t('settings.pin_set')}
 					</button>
 					{#if authStatus?.parent_pin_set}
@@ -350,9 +367,10 @@
 				/>
 				<button
 					onclick={setExpertPin}
-					disabled={expertPinValue.length < 4}
-					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed"
+					disabled={expertPinValue.length < 4 || expertPinLoading}
+					class="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
 				>
+					{#if expertPinLoading}<Spinner size="sm" />{/if}
 					{t('settings.pin_set')}
 				</button>
 				{#if authStatus?.expert_pin_set}

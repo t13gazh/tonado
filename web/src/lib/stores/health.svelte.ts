@@ -60,20 +60,27 @@ export function isBackendOffline(): boolean {
 	return !backendReachable;
 }
 
-// Convenience checks — return true (assume OK) when health data is not yet available
+// Convenience checks
+// MPD/Gyro: assume OK until proven otherwise (graceful degradation)
+// RFID: assume unavailable until confirmed (gate UI access)
 export function isMpdConnected(): boolean {
 	if (!health) return true;
 	return health.mpd.status === 'connected';
 }
 
 export function isRfidAvailable(): boolean {
-	if (!health) return true;
+	if (!health) return false;
 	return health.rfid.status === 'connected';
 }
 
 export function isGyroAvailable(): boolean {
 	if (!health) return true;
 	return health.gyro.status === 'connected';
+}
+
+/** True when health data has been loaded at least once. */
+export function isHealthLoaded(): boolean {
+	return health !== null;
 }
 
 export function isStorageCritical(): boolean {

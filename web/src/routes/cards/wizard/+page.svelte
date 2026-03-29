@@ -5,6 +5,7 @@
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 	import { createCardScan } from '$lib/card-scan.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	type Step = 'scan' | 'content' | 'done';
 
@@ -64,9 +65,7 @@
 	<!-- Header -->
 	<div class="flex items-center gap-3 mb-6">
 		<a href="/cards" class="p-2 text-text-muted hover:text-text" aria-label={t('general.back')}>
-			<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M19 12H5M12 19l-7-7 7-7"/>
-			</svg>
+			<Icon name="arrow-left" size={20} />
 		</a>
 		<h1 class="text-lg font-bold">{t('wizard.title')}</h1>
 	</div>
@@ -164,9 +163,7 @@
 	{#if step === 'done'}
 		<div class="flex-1 flex flex-col items-center justify-center text-center gap-6">
 			<div class="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
-				<svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-					<path d="M20 6L9 17l-5-5"/>
-				</svg>
+				<Icon name="check" size={40} class="text-green-500" strokeWidth={2.5} />
 			</div>
 			<div>
 				<h2 class="text-lg font-semibold mb-1">{t('wizard.step_done')}</h2>

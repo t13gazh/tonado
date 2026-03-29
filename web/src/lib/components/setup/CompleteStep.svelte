@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import type { HardwareDetection, SystemInfoData, WifiStatus } from '$lib/api';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		hardware: HardwareDetection | null;
@@ -14,9 +15,7 @@
 
 <div class="flex flex-col items-center gap-6 text-center">
 	<div class="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
-		<svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-			<path d="M20 6L9 17l-5-5"/>
-		</svg>
+		<Icon name="check" size={40} class="text-green-500" strokeWidth={2.5} />
 	</div>
 	<div>
 		<h2 class="text-xl font-bold text-text mb-2">{t('setup.complete_title')}</h2>

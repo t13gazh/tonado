@@ -9,6 +9,7 @@
 	import RadioTab from '$lib/components/library/RadioTab.svelte';
 	import PodcastTab from '$lib/components/library/PodcastTab.svelte';
 	import PlaylistTab from '$lib/components/library/PlaylistTab.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import { onMount } from 'svelte';
 
 	const playerState = $derived(getPlayerState());
@@ -104,7 +105,7 @@
 		<div class="text-sm text-red-400 mb-3 p-3 bg-red-400/10 rounded-lg flex items-center justify-between">
 			<span>{error}</span>
 			<button onclick={() => (error = '')} class="text-red-400 hover:text-red-300 ml-2">
-				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+				<Icon name="x" size={16} />
 			</button>
 		</div>
 	{/if}

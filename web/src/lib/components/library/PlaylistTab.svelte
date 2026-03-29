@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
+	import Icon from '$lib/components/Icon.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
 
@@ -129,7 +130,7 @@
 										<span class="flex-1 text-text truncate">{item.title || parseTrackName(item.content_path).title}</span>
 										{#if item.duration_seconds}<span class="text-text-muted tabular-nums shrink-0">{formatDuration(item.duration_seconds)}</span>{/if}
 										<button onclick={() => removePlaylistItem(item.id)} class="p-0.5 text-text-muted/40 hover:text-red-400">
-											<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+											<Icon name="x" size={14} />
 										</button>
 									</div>
 								{/each}

@@ -7,6 +7,7 @@
 	import { type ContentType } from '$lib/api';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import { createCardScan } from '$lib/card-scan.svelte';
 
 	interface Props {
@@ -146,9 +147,7 @@
 {#if cardStep === 'done'}
 	<div class="flex flex-col items-center gap-6 text-center">
 		<div class="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
-			<svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-				<path d="M20 6L9 17l-5-5"/>
-			</svg>
+			<Icon name="check" size={40} class="text-green-500" strokeWidth={2.5} />
 		</div>
 		<div>
 			<h2 class="text-lg font-semibold mb-1">{t('wizard.step_done')}</h2>

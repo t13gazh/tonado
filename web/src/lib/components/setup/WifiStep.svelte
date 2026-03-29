@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { setupApi, type WifiNetwork, type WifiStatus } from '$lib/api';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		wifiStatus: WifiStatus | null;
@@ -48,7 +49,7 @@
 	{:else if wifiStatus?.connected && !showWifiList}
 		<div class="bg-surface-light rounded-xl p-4 space-y-2">
 			<div class="flex items-center gap-2">
-				<svg class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+				<Icon name="check" size={20} class="text-green-500" strokeWidth={2.5} />
 				<span class="text-sm font-medium text-text">{t('setup.wifi_connected', { ssid: wifiStatus.ssid })}</span>
 			</div>
 			{#if wifiStatus.ip_address}

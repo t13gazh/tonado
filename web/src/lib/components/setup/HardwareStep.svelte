@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { setupApi, systemApi, type HardwareDetection, type SystemInfoData } from '$lib/api';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 
 	interface Props {
 		hardware: HardwareDetection | null;
@@ -42,7 +43,7 @@
 				<span class="text-sm text-text">
 					{#if hardware.pi.model !== 'unknown'}
 						<span class="inline-flex items-center gap-1">
-							<svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+							<Icon name="check" size={16} class="text-green-500" strokeWidth={2.5} />
 							{hardware.pi.model}
 							{#if hardware.pi.ram_mb > 0}<span class="text-text-muted">({hardware.pi.ram_mb} MB)</span>{/if}
 						</span>
@@ -56,7 +57,7 @@
 				<span class="text-sm text-text">
 					{#if hardware.audio.length > 0}
 						<span class="inline-flex items-center gap-1">
-							<svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+							<Icon name="check" size={16} class="text-green-500" strokeWidth={2.5} />
 							{hardware.audio.map(a => a.name).join(', ')}
 						</span>
 					{:else}<span class="text-text-muted">--</span>{/if}
@@ -69,7 +70,7 @@
 				<span class="text-sm">
 					{#if hardware.rfid.reader !== 'none'}
 						<span class="inline-flex items-center gap-1 text-text">
-							<svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+							<Icon name="check" size={16} class="text-green-500" strokeWidth={2.5} />
 							{hardware.rfid.reader.toUpperCase()}
 						</span>
 					{:else}
@@ -84,7 +85,7 @@
 				<span class="text-sm">
 					{#if hardware.gyro_detected}
 						<span class="inline-flex items-center gap-1 text-text">
-							<svg class="w-4 h-4 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+							<Icon name="check" size={16} class="text-green-500" strokeWidth={2.5} />
 							{t('setup.detected')}
 						</span>
 					{:else}

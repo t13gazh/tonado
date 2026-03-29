@@ -20,6 +20,19 @@ from core.services.wifi_service import WifiService
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
 
+# --- Setup guard ---
+
+
+def _require_setup_incomplete(wizard: SetupWizard) -> None:
+    """Block setup endpoints after setup has been completed.
+
+    Returns 403 so the frontend knows the setup is done and cannot be re-run
+    (use /api/setup/reset with expert auth to re-enable).
+    """
+    if wizard.is_complete:
+        raise HTTPException(403, "Setup already completed. Use reset endpoint to re-run.")
+
+
 # --- Setup wizard ---
 
 
@@ -30,6 +43,7 @@ async def setup_status(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
 
 @router.post("/detect-hardware")
 async def detect_hardware(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
+    _require_setup_incomplete(wizard)
     hw = await wizard.detect_hardware()
     return hw.to_dict()
 
@@ -44,6 +58,7 @@ async def wifi_connect(
     req: WifiConnectRequest,
     wizard: SetupWizard = Depends(get_setup_wizard),
 ) -> dict:
+    _require_setup_incomplete(wizard)
     return await wizard.setup_wifi(req.ssid, req.password)
 
 
@@ -68,11 +83,13 @@ async def setup_audio(
     req: AudioSelectRequest,
     wizard: SetupWizard = Depends(get_setup_wizard),
 ) -> dict:
+    _require_setup_incomplete(wizard)
     return await wizard.setup_audio(req.device)
 
 
 @router.post("/first-card-done")
 async def first_card_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
+    _require_setup_incomplete(wizard)
     return await wizard.complete_first_card()
 
 
@@ -81,6 +98,7 @@ async def complete_setup(
     wizard: SetupWizard = Depends(get_setup_wizard),
     portal: CaptivePortalService = Depends(get_captive_portal),
 ) -> dict:
+    _require_setup_incomplete(wizard)
     result = await wizard.complete_setup()
     # Stop captive portal if active
     if portal.active:

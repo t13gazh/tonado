@@ -2,11 +2,13 @@
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from core.dependencies import get_stream_service
+from core.dependencies import get_auth_service, get_stream_service, require_tier
+from core.services.auth_service import AuthService, AuthTier
 from core.services.stream_service import StreamService
+from core.utils.url import SSRFError
 
 router = APIRouter(prefix="/api/streams", tags=["streams"])
 
@@ -30,13 +32,28 @@ class AddStationRequest(BaseModel):
 
 
 @router.post("/radio", status_code=201)
-async def add_station(req: AddStationRequest, svc: StreamService = Depends(get_stream_service)) -> dict:
-    station = await svc.add_station(req.name, req.url, req.category)
+async def add_station(
+    req: AddStationRequest,
+    request: Request,
+    svc: StreamService = Depends(get_stream_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        station = await svc.add_station(req.name, req.url, req.category)
+    except SSRFError as e:
+        raise HTTPException(400, str(e))
     return asdict(station)
 
 
 @router.delete("/radio/{station_id}")
-async def delete_station(station_id: int, svc: StreamService = Depends(get_stream_service)) -> dict:
+async def delete_station(
+    station_id: int,
+    request: Request,
+    svc: StreamService = Depends(get_stream_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if not await svc.delete_station(station_id):
         raise HTTPException(404, "Station not found")
     return {"status": "ok"}
@@ -58,13 +75,28 @@ class AddPodcastRequest(BaseModel):
 
 
 @router.post("/podcasts", status_code=201)
-async def add_podcast(req: AddPodcastRequest, svc: StreamService = Depends(get_stream_service)) -> dict:
-    podcast = await svc.add_podcast(req.name, req.feed_url, req.auto_download)
+async def add_podcast(
+    req: AddPodcastRequest,
+    request: Request,
+    svc: StreamService = Depends(get_stream_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        podcast = await svc.add_podcast(req.name, req.feed_url, req.auto_download)
+    except SSRFError as e:
+        raise HTTPException(400, str(e))
     return podcast.to_dict()
 
 
 @router.delete("/podcasts/{podcast_id}")
-async def delete_podcast(podcast_id: int, svc: StreamService = Depends(get_stream_service)) -> dict:
+async def delete_podcast(
+    podcast_id: int,
+    request: Request,
+    svc: StreamService = Depends(get_stream_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if not await svc.delete_podcast(podcast_id):
         raise HTTPException(404, "Podcast not found")
     return {"status": "ok"}

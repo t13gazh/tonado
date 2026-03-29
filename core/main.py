@@ -8,8 +8,10 @@ from typing import AsyncGenerator
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request
+from starlette.responses import Response
 
 from core.database import DatabaseManager
 from core.hardware.gyro import detect_gyro
@@ -242,6 +244,33 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# --- Security header middleware ---
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    """Add security headers to every HTTP response."""
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-XSS-Protection"] = "0"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
+# --- Global exception handler ---
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Return a generic error for unhandled exceptions, log the details."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Interner Serverfehler"},
+    )
+
+
 # Include routers
 app.include_router(player.router)
 app.include_router(cards.router)
@@ -259,8 +288,51 @@ async def health() -> dict:
     return {"status": "ok", "version": VERSION}
 
 
+def _is_allowed_origin(origin: str | None) -> bool:
+    """Check if WebSocket origin is from localhost or private LAN.
+
+    Allows connections with no Origin header (non-browser clients).
+    """
+    if origin is None:
+        return True
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        host = parsed.hostname or ""
+    except Exception:
+        return False
+
+    # Localhost
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return True
+    # Private LAN ranges
+    if host.endswith(".local"):
+        return True
+    # 10.x.x.x, 192.168.x.x, 172.16-31.x.x
+    parts = host.split(".")
+    if len(parts) == 4:
+        try:
+            a, b = int(parts[0]), int(parts[1])
+            if a == 10:
+                return True
+            if a == 192 and b == 168:
+                return True
+            if a == 172 and 16 <= b <= 31:
+                return True
+        except ValueError:
+            pass
+    return False
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket) -> None:
+    # Validate origin — reject non-LAN browser connections
+    origin = ws.headers.get("origin")
+    if not _is_allowed_origin(origin):
+        logger.warning("WebSocket rejected: origin=%s", origin)
+        await ws.close(code=1008, reason="Origin not allowed")
+        return
+
     hub: WebSocketHub = ws.app.state.ws_hub
     await hub.connect(ws)
     try:

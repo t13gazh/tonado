@@ -6,7 +6,7 @@ a pre-configured catalog of German children's radio stations.
 
 import asyncio
 import logging
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -15,6 +15,7 @@ import aiosqlite
 import httpx
 
 from core.services.base import BaseService
+from core.utils.url import SSRFError, validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +174,7 @@ class StreamService(BaseService):
         return [RadioStation(*row) for row in await cursor.fetchall()]
 
     async def add_station(self, name: str, url: str, category: str = "custom") -> RadioStation:
+        validate_url(url, resolve_dns=False)  # Validate scheme + IP; MPD fetches the stream
         cursor = await self._db.execute(
             "INSERT INTO radio_stations (name, url, category) VALUES (?, ?, ?)",
             (name, url, category),
@@ -204,6 +206,7 @@ class StreamService(BaseService):
         return podcasts
 
     async def add_podcast(self, name: str, feed_url: str, auto_download: bool = True) -> Podcast:
+        validate_url(feed_url)  # Full validation with DNS check before fetching
         cursor = await self._db.execute(
             "INSERT INTO podcasts (name, feed_url, auto_download) VALUES (?, ?, ?)",
             (name, feed_url, int(auto_download)),
@@ -274,6 +277,7 @@ class StreamService(BaseService):
     @staticmethod
     async def _parse_rss(feed_url: str) -> list[dict]:
         """Parse an RSS feed and extract audio episodes."""
+        validate_url(feed_url)  # SSRF check before fetching
         max_size = 5 * 1024 * 1024  # 5 MB limit to prevent XML bombs
 
         async with httpx.AsyncClient(

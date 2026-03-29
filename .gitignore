@@ -58,22 +58,8 @@ CLAUDE.md
 .claude/
 .swarm/
 .mcp.json
+agents/
+.planning/
 
-# Junk files from MPD/Python responses
-0
-dict
-vite
-Path
-e.key
-None
-0.20
-1.47
-2.10
-0)
-str
-RepeatMode
-dict[str
-request
-e.audio_url)
-player.previous()},-
-16
+# Junk file fragments (accidental shell/editor artifacts)
+# Cleaned by junk-file-detector hook at session start

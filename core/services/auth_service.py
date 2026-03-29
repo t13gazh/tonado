@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 # JWT settings
 _JWT_ALGORITHM = "HS256"
 _JWT_EXPIRE_HOURS = 24
+_JWT_ISSUER = "tonado"
+_JWT_AUDIENCE = "tonado-api"
 
 
 class AuthTier(StrEnum):
@@ -110,9 +112,15 @@ class AuthService(BaseService):
         return None
 
     def verify_token(self, token: str) -> dict[str, Any] | None:
-        """Verify a JWT token and return its claims."""
+        """Verify a JWT token and return its claims (including iss/aud)."""
         try:
-            payload = jwt.decode(token, self._jwt_secret, algorithms=[_JWT_ALGORITHM])
+            payload = jwt.decode(
+                token,
+                self._jwt_secret,
+                algorithms=[_JWT_ALGORITHM],
+                issuer=_JWT_ISSUER,
+                audience=_JWT_AUDIENCE,
+            )
             return payload
         except jwt.InvalidTokenError:
             return None
@@ -146,10 +154,12 @@ class AuthService(BaseService):
         return token_level >= required_level
 
     def _create_token(self, tier: AuthTier) -> str:
-        """Create a JWT token for a tier."""
+        """Create a JWT token for a tier with iss/aud claims."""
         payload = {
             "tier": tier.value,
             "iat": int(time.time()),
             "exp": int(time.time()) + _JWT_EXPIRE_HOURS * 3600,
+            "iss": _JWT_ISSUER,
+            "aud": _JWT_AUDIENCE,
         }
         return jwt.encode(payload, self._jwt_secret, algorithm=_JWT_ALGORITHM)

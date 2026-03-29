@@ -18,6 +18,10 @@ from core.services.config_service import ConfigService
 logger = logging.getLogger(__name__)
 
 
+_SENSITIVE_KEY_PREFIXES = ("auth.", "jwt_secret")
+_SENSITIVE_KEY_EXACT = {"auth.jwt_secret", "auth.pin_hash.parent", "auth.pin_hash.expert"}
+
+
 class BackupService(BaseService):
     """Manages backup and restore of Tonado configuration."""
 
@@ -26,10 +30,25 @@ class BackupService(BaseService):
         self._db = db
         self._config = config
 
+    @staticmethod
+    def _is_sensitive(key: str) -> bool:
+        """Check if a config key contains sensitive data."""
+        if key in _SENSITIVE_KEY_EXACT:
+            return True
+        k = key.lower()
+        return any(
+            word in k
+            for word in ("secret", "pin_hash", "password", "token", "private_key")
+        )
+
     async def export_backup(self) -> dict[str, Any]:
-        """Export all config and card mappings as a JSON-serializable dict."""
-        # Config
-        all_config = await self._config.get_all()
+        """Export all config and card mappings as a JSON-serializable dict.
+
+        Sensitive keys (JWT secrets, PIN hashes, etc.) are excluded.
+        """
+        # Config — filter out secrets
+        raw_config = await self._config.get_all()
+        all_config = {k: v for k, v in raw_config.items() if not self._is_sensitive(k)}
 
         # Cards
         cursor = await self._db.execute(

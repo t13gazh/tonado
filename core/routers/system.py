@@ -236,7 +236,12 @@ async def disable_overlay(
 # --- Backup/Restore ---
 
 @router.get("/backup")
-async def export_backup(svc: BackupService = Depends(get_backup_service)) -> JSONResponse:
+async def export_backup(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: BackupService = Depends(get_backup_service),
+) -> JSONResponse:
+    require_tier(request, AuthTier.PARENT, auth)
     data = await svc.export_backup()
     return JSONResponse(
         content=data,

@@ -2,9 +2,10 @@
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from core.dependencies import get_card_service
+from core.dependencies import get_auth_service, get_card_service, require_tier
+from core.services.auth_service import AuthService, AuthTier
 from core.schemas.card import CardMappingCreate, CardMappingResponse, CardMappingUpdate
 from core.services.card_service import CardMapping, CardService
 
@@ -26,7 +27,13 @@ async def get_card(card_id: str, svc: CardService = Depends(get_card_service)) -
 
 
 @router.post("/", response_model=CardMappingResponse, status_code=201)
-async def create_card(req: CardMappingCreate, svc: CardService = Depends(get_card_service)) -> dict:
+async def create_card(
+    req: CardMappingCreate,
+    request: Request,
+    svc: CardService = Depends(get_card_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     mapping = CardMapping(
         card_id=req.card_id,
         name=req.name,
@@ -39,7 +46,14 @@ async def create_card(req: CardMappingCreate, svc: CardService = Depends(get_car
 
 
 @router.put("/{card_id}", response_model=CardMappingResponse)
-async def update_card(card_id: str, req: CardMappingUpdate, svc: CardService = Depends(get_card_service)) -> dict:
+async def update_card(
+    card_id: str,
+    req: CardMappingUpdate,
+    request: Request,
+    svc: CardService = Depends(get_card_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     existing = await svc.get_mapping(card_id)
     if existing is None:
         raise HTTPException(404, "Card not found")
@@ -58,7 +72,13 @@ async def update_card(card_id: str, req: CardMappingUpdate, svc: CardService = D
 
 
 @router.delete("/{card_id}")
-async def delete_card(card_id: str, svc: CardService = Depends(get_card_service)) -> dict:
+async def delete_card(
+    card_id: str,
+    request: Request,
+    svc: CardService = Depends(get_card_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     deleted = await svc.delete_mapping(card_id)
     if not deleted:
         raise HTTPException(404, "Card not found")

@@ -3,10 +3,11 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse
 
-from core.dependencies import get_library_service
+from core.dependencies import get_auth_service, get_library_service, require_tier
+from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import LibraryService
 from core.utils.upload import stream_to_disk
 
@@ -70,7 +71,13 @@ async def get_cover(folder_name: str, svc: LibraryService = Depends(get_library_
 
 
 @router.post("/folders")
-async def create_folder(name: str = Form(...), svc: LibraryService = Depends(get_library_service)) -> dict:
+async def create_folder(
+    request: Request,
+    name: str = Form(...),
+    svc: LibraryService = Depends(get_library_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     # Sanitize folder name
     safe_name = name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
@@ -80,7 +87,13 @@ async def create_folder(name: str = Form(...), svc: LibraryService = Depends(get
 
 
 @router.delete("/folders/{folder_name}")
-async def delete_folder(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> dict:
+async def delete_folder(
+    folder_name: str,
+    request: Request,
+    svc: LibraryService = Depends(get_library_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     _safe_path(folder_name, svc)
     if not svc.delete_folder(folder_name):
         raise HTTPException(404, "Folder not found")
@@ -90,9 +103,12 @@ async def delete_folder(folder_name: str, svc: LibraryService = Depends(get_libr
 @router.put("/folders/{folder_name}/rename")
 async def rename_folder(
     folder_name: str,
+    request: Request,
     new_name: str = Form(...),
     svc: LibraryService = Depends(get_library_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     _safe_path(folder_name, svc)
     safe_name = new_name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
@@ -106,14 +122,17 @@ async def rename_folder(
 @router.post("/upload/{folder_name}")
 async def upload_file(
     folder_name: str,
+    request: Request,
     file: UploadFile = File(...),
     svc: LibraryService = Depends(get_library_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Upload a file to a media folder.
 
     Supports audio files and cover images.
     For large files, the frontend should use chunked upload.
     """
+    require_tier(request, AuthTier.PARENT, auth)
     _safe_path(folder_name, svc)
 
     if not file.filename:
@@ -140,10 +159,13 @@ async def upload_file(
 @router.post("/upload/{folder_name}/cover")
 async def upload_cover(
     folder_name: str,
+    request: Request,
     file: UploadFile = File(...),
     svc: LibraryService = Depends(get_library_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Upload or replace cover art for a folder."""
+    require_tier(request, AuthTier.PARENT, auth)
     _safe_path(folder_name, svc)
 
     if not file.filename:

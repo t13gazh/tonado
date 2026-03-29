@@ -1,9 +1,10 @@
 """Playlist API routes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.dependencies import get_player, get_playlist_service
+from core.dependencies import get_auth_service, get_player, get_playlist_service, require_tier
+from core.services.auth_service import AuthService, AuthTier
 from core.schemas.common import ContentType
 from core.services.player_service import PlayerService
 from core.services.playlist_service import PlaylistService
@@ -32,14 +33,23 @@ class CreatePlaylistRequest(BaseModel):
 @router.post("/", status_code=201)
 async def create_playlist(
     req: CreatePlaylistRequest,
+    request: Request,
     svc: PlaylistService = Depends(get_playlist_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     p = await svc.create_playlist(req.name)
     return p.to_summary()
 
 
 @router.delete("/{playlist_id}")
-async def delete_playlist(playlist_id: int, svc: PlaylistService = Depends(get_playlist_service)) -> dict:
+async def delete_playlist(
+    playlist_id: int,
+    request: Request,
+    svc: PlaylistService = Depends(get_playlist_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if not await svc.delete_playlist(playlist_id):
         raise HTTPException(404, "Playlist not found")
     return {"status": "ok"}
@@ -55,8 +65,11 @@ class AddItemRequest(BaseModel):
 async def add_item(
     playlist_id: int,
     req: AddItemRequest,
+    request: Request,
     svc: PlaylistService = Depends(get_playlist_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     item = await svc.add_item(
         playlist_id, req.content_type, req.content_path, req.title,
     )
@@ -66,7 +79,13 @@ async def add_item(
 
 
 @router.delete("/items/{item_id}")
-async def remove_item(item_id: int, svc: PlaylistService = Depends(get_playlist_service)) -> dict:
+async def remove_item(
+    item_id: int,
+    request: Request,
+    svc: PlaylistService = Depends(get_playlist_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if not await svc.remove_item(item_id):
         raise HTTPException(404, "Item not found")
     return {"status": "ok"}

@@ -1,5 +1,7 @@
 """Authentication and settings API routes."""
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -10,6 +12,50 @@ from core.services.timer_service import TimerService
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+# --- Rate limiting ---
+
+# In-memory store: ip -> (failed_attempts, last_attempt_timestamp)
+_login_attempts: dict[str, tuple[int, float]] = {}
+
+_MAX_ATTEMPTS = 5
+_LOCKOUT_SECONDS = 60
+_CLEANUP_AGE_SECONDS = 600  # Remove entries older than 10 minutes
+
+
+def _cleanup_old_entries() -> None:
+    """Remove stale entries older than 10 minutes."""
+    now = time.monotonic()
+    stale = [ip for ip, (_, ts) in _login_attempts.items() if now - ts > _CLEANUP_AGE_SECONDS]
+    for ip in stale:
+        del _login_attempts[ip]
+
+
+def _check_rate_limit(client_ip: str) -> None:
+    """Raise 429 if the client is locked out after too many failed attempts."""
+    _cleanup_old_entries()
+    entry = _login_attempts.get(client_ip)
+    if entry is None:
+        return
+    attempts, last_ts = entry
+    if attempts >= _MAX_ATTEMPTS and time.monotonic() - last_ts < _LOCKOUT_SECONDS:
+        raise HTTPException(429, "Too many login attempts. Try again later.")
+
+
+def _record_failure(client_ip: str) -> None:
+    """Record a failed login attempt."""
+    now = time.monotonic()
+    entry = _login_attempts.get(client_ip)
+    if entry is None:
+        _login_attempts[client_ip] = (1, now)
+    else:
+        _login_attempts[client_ip] = (entry[0] + 1, now)
+
+
+def _reset_attempts(client_ip: str) -> None:
+    """Clear failed attempts after successful login."""
+    _login_attempts.pop(client_ip, None)
+
+
 # --- Login ---
 
 
@@ -18,10 +64,20 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-async def login(req: LoginRequest, auth: AuthService = Depends(get_auth_service)) -> dict:
+async def login(
+    req: LoginRequest,
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     result = await auth.login(req.pin)
     if result is None:
+        _record_failure(client_ip)
         raise HTTPException(401, "Invalid PIN")
+
+    _reset_attempts(client_ip)
     return result
 
 

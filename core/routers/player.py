@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from core.dependencies import get_player
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
 from core.services.player_service import PlayerService
+from core.utils.url import SSRFError, validate_url
 
 router = APIRouter(prefix="/api/player", tags=["player"])
 
@@ -162,6 +163,11 @@ class PlayUrlsRequest(BaseModel):
 @router.post("/play-urls")
 async def play_urls(req: PlayUrlsRequest, player: PlayerService = Depends(get_player)) -> dict:
     """Play multiple URLs as a queue, starting at given index."""
+    for url in req.urls:
+        try:
+            validate_url(url, resolve_dns=False)
+        except SSRFError as e:
+            raise HTTPException(400, str(e))
     await player.play_urls(req.urls, req.start_index)
     return {"status": "ok"}
 
@@ -186,5 +192,9 @@ class PlayUrlRequest(BaseModel):
 @router.post("/play-url")
 async def play_url(req: PlayUrlRequest, player: PlayerService = Depends(get_player)) -> dict:
     """Play a stream URL (radio, podcast)."""
+    try:
+        validate_url(req.url, resolve_dns=False)
+    except SSRFError as e:
+        raise HTTPException(400, str(e))
     await player.play_url(req.url)
     return {"status": "ok"}

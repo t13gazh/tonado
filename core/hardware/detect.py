@@ -149,7 +149,17 @@ def detect_pi_model() -> PiModel:
 
 
 def detect_rfid() -> tuple[str, str]:
-    """Detect connected RFID reader. Returns (type, device_path)."""
+    """Detect connected RFID reader. Returns (type, device_path).
+
+    Checks USB HID first (no config required), then SPI (RC522), then I2C (PN532).
+    """
+    # Check USB HID first — works without SPI/I2C config
+    for i in range(4):
+        hidraw = Path(f"/dev/hidraw{i}")
+        if hidraw.exists():
+            logger.info("RFID: USB HID reader detected on %s", hidraw)
+            return "usb", str(hidraw)
+
     # Check SPI (RC522)
     spi_device = Path("/dev/spidev0.0")
     if spi_device.exists():
@@ -158,7 +168,9 @@ def detect_rfid() -> tuple[str, str]:
             logger.info("RFID: RC522 detected on SPI")
             return "rc522", str(spi_device)
         except ImportError:
-            pass
+            logger.warning("RFID: SPI device found but spidev module not installed")
+    else:
+        logger.debug("RFID: SPI not available (enable with dtparam=spi=on in config.txt)")
 
     # Check I2C for PN532
     i2c_bus = Path("/dev/i2c-1")
@@ -175,14 +187,9 @@ def detect_rfid() -> tuple[str, str]:
             except OSError:
                 bus.close()
         except ImportError:
-            pass
-
-    # Check USB HID
-    for i in range(4):
-        hidraw = Path(f"/dev/hidraw{i}")
-        if hidraw.exists():
-            logger.info("RFID: USB HID reader detected on %s", hidraw)
-            return "usb", str(hidraw)
+            logger.warning("RFID: I2C device found but smbus2 module not installed")
+    else:
+        logger.debug("RFID: I2C not available (enable with dtparam=i2c_arm=on in config.txt)")
 
     return "none", ""
 

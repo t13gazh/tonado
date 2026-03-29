@@ -69,20 +69,20 @@ Tonado verwandelt einen Raspberry Pi in eine Musikbox für Kinder. Das Kind legt
 
 > **Alpha (v0.1.0)** — Funktioniert, aber noch nicht für Endnutzer bereit.
 
-Tonado läuft auf einem Pi Zero W mit HifiBerry MiniAmp. Die Web-App steuert Musik, Radio und Podcasts. Aber: RFID und Gyro sind noch nicht auf echter Hardware getestet, und die Software ist nur auf einer Hardware-Kombination geprüft.
+Tonado läuft auf einem Pi Zero W mit HifiBerry MiniAmp und RC522 RFID-Reader. Die Web-App steuert Musik, Radio und Podcasts. Hardware-Erkennung funktioniert automatisch — der Gyro-Sensor ist noch nicht auf echter Hardware getestet.
 
 ### Was funktioniert
 
 - Player mit Live-Progress, Seek, Shuffle, Repeat, Volume
 - Bibliothek: Ordner, Radio, Podcasts (mit Episoden-Queue)
-- Figuren-Wizard (UI fertig, RFID-Hardware ungetestet)
+- Figuren-Wizard (UI fertig, RC522 Hardware-Detection getestet)
 - Eltern-Einstellungen: PIN, Sleep Timer, Volume Limit
 - Browser-Audio: Musik direkt auf dem Smartphone hören
 - Security: Auth auf System-Endpoints, Path-Validation, Upload-Limits
 
 ### Was noch fehlt bis Beta (v0.2.0)
 
-- RFID-Reader auf echter Hardware testen (RC522, PN532, USB)
+- RFID-Reader: RC522 (SPI) getestet — PN532 (I2C) und USB noch offen
 - Gyro-Sensor (MPU6050) auf echter Hardware testen
 - Ersteinrichtungs-Wizard (Captive Portal) End-to-End testen
 - Hardware-Resilience: Saubere Fehlermeldungen wenn Teile fehlen
@@ -95,6 +95,7 @@ Tonado läuft auf einem Pi Zero W mit HifiBerry MiniAmp. Die Web-App steuert Mus
 | Komponente | Status |
 |-----------|--------|
 | Pi Zero W + HifiBerry MiniAmp | Funktioniert |
+| RC522 RFID-Reader (SPI) | Funktioniert (Auto-Detection) |
 | Alles andere | Noch nicht getestet |
 
 Wir suchen Tester! Wenn du einen Pi und RFID-Reader hast, melde dich gerne.

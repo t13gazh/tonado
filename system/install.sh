@@ -19,6 +19,8 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+NEEDS_REBOOT=false
+
 echo "[1/9] System-Pakete installieren..."
 apt-get update -qq
 apt-get install -y -qq \
@@ -61,7 +63,8 @@ if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
     echo "# Tonado: HifiBerry MiniAmp" >> "$BOOT_CONFIG"
     echo "dtoverlay=hifiberry-dac" >> "$BOOT_CONFIG"
     echo "gpio=25=op,dh" >> "$BOOT_CONFIG"
-    echo "HINWEIS: HifiBerry MiniAmp Overlay hinzugefuegt. Neustart erforderlich."
+    echo "HINWEIS: HifiBerry MiniAmp Overlay hinzugefuegt."
+    NEEDS_REBOOT=true
 fi
 
 echo "[5/9] MPD konfigurieren..."
@@ -91,9 +94,51 @@ chown -R mpd:audio /var/lib/mpd
 systemctl enable mpd
 systemctl restart mpd || true
 
-echo "[6/9] Hardware-Interfaces aktivieren..."
-raspi-config nonint do_spi 0 2>/dev/null || true
-raspi-config nonint do_i2c 0 2>/dev/null || true
+echo "[6/9] Hardware-Interfaces pruefen..."
+
+# Check for USB RFID reader (works without SPI/I2C)
+USB_RFID=false
+for hidraw in /dev/hidraw*; do
+    [ -e "$hidraw" ] && USB_RFID=true && break
+done
+
+if [ "$USB_RFID" = true ]; then
+    echo "  USB RFID-Reader erkannt — SPI/I2C fuer RFID nicht noetig."
+else
+    echo "  Kein USB RFID-Reader erkannt — SPI + I2C werden aktiviert."
+fi
+
+# Enable SPI (for RC522 RFID) — always enable, costs nothing
+if grep -q "^dtparam=spi=on" "$BOOT_CONFIG"; then
+    echo "  SPI: bereits aktiviert."
+elif grep -q "^#dtparam=spi=on" "$BOOT_CONFIG"; then
+    sed -i 's/^#dtparam=spi=on/dtparam=spi=on/' "$BOOT_CONFIG"
+    echo "  SPI: aktiviert (war auskommentiert)."
+    NEEDS_REBOOT=true
+else
+    echo "dtparam=spi=on" >> "$BOOT_CONFIG"
+    echo "  SPI: aktiviert (hinzugefuegt)."
+    NEEDS_REBOOT=true
+fi
+
+# Enable I2C (for PN532 RFID, MPU6050 gyro)
+if grep -q "^dtparam=i2c_arm=on" "$BOOT_CONFIG"; then
+    echo "  I2C: bereits aktiviert."
+elif grep -q "^#dtparam=i2c_arm=on" "$BOOT_CONFIG"; then
+    sed -i 's/^#dtparam=i2c_arm=on/dtparam=i2c_arm=on/' "$BOOT_CONFIG"
+    echo "  I2C: aktiviert (war auskommentiert)."
+    NEEDS_REBOOT=true
+else
+    echo "dtparam=i2c_arm=on" >> "$BOOT_CONFIG"
+    echo "  I2C: aktiviert (hinzugefuegt)."
+    NEEDS_REBOOT=true
+fi
+
+# Verify kernel modules can be loaded (if no reboot needed)
+if [ "$NEEDS_REBOOT" = false ]; then
+    modprobe spidev 2>/dev/null && echo "  SPI-Modul: geladen." || true
+    modprobe i2c-dev 2>/dev/null && echo "  I2C-Modul: geladen." || true
+fi
 
 echo "[7/9] systemd-Service installieren..."
 cat > /etc/systemd/system/tonado.service <<SERVICE
@@ -179,7 +224,11 @@ echo "=== Installation abgeschlossen ==="
 echo ""
 echo "Tonado laeuft auf http://${IP}"
 echo "(API auf Port 8080, Nginx auf Port 80)"
-echo ""
-echo "WICHTIG: Neustart empfohlen fuer HifiBerry-Overlay:"
-echo "  sudo reboot"
+
+if [ "$NEEDS_REBOOT" = true ]; then
+    echo ""
+    echo "WICHTIG: Hardware-Konfiguration geaendert (SPI/I2C/Audio)."
+    echo "Neustart erforderlich:"
+    echo "  sudo reboot"
+fi
 echo ""

@@ -55,7 +55,44 @@ class MockRfidReader(RfidReader):
 
 
 class Rc522Reader(RfidReader):
-    """RC522 RFID reader via SPI (spidev)."""
+    """RC522 RFID reader via SPI (spidev).
+
+    Full MFRC522 implementation with proper chip initialization,
+    antenna control, and ISO 14443A card communication.
+    """
+
+    # MFRC522 registers
+    _CMD_REG = 0x01
+    _COMIEN_REG = 0x02
+    _COMIRQ_REG = 0x04
+    _DIVIRQ_REG = 0x05
+    _ERROR_REG = 0x06
+    _FIFO_DATA_REG = 0x09
+    _FIFO_LEVEL_REG = 0x0A
+    _CONTROL_REG = 0x0C
+    _BIT_FRAMING_REG = 0x0D
+    _MODE_REG = 0x11
+    _TX_CONTROL_REG = 0x14
+    _TX_ASK_REG = 0x15
+    _CRC_RESULT_MSB = 0x21
+    _CRC_RESULT_LSB = 0x22
+    _TMODE_REG = 0x2A
+    _TPRESCALER_REG = 0x2B
+    _TRELOAD_H_REG = 0x2C
+    _TRELOAD_L_REG = 0x2D
+    _AUTO_TEST_REG = 0x36
+    _VERSION_REG = 0x37
+
+    # MFRC522 commands
+    _CMD_IDLE = 0x00
+    _CMD_CALCCRC = 0x03
+    _CMD_TRANSCEIVE = 0x0C
+    _CMD_SOFTRESET = 0x0F
+
+    # PICC commands (ISO 14443A)
+    _PICC_REQA = 0x26
+    _PICC_ANTICOLL = 0x93
+    _PICC_SELECT = 0x93
 
     def __init__(self, bus: int = 0, device: int = 0) -> None:
         self._bus = bus
@@ -69,17 +106,24 @@ class Rc522Reader(RfidReader):
             self._spi = spidev.SpiDev()
             self._spi.open(self._bus, self._device)
             self._spi.max_speed_hz = 1000000
-            logger.info("RC522 reader started on SPI bus %d device %d", self._bus, self._device)
+            self._spi.mode = 0  # SPI mode 0
+            self._init_chip()
+            version = self._read_register(self._VERSION_REG)
+            logger.info(
+                "RC522 reader started on SPI bus %d device %d (chip version 0x%02x)",
+                self._bus, self._device, version,
+            )
         except ImportError:
             raise RuntimeError("spidev not available — install with: pip install spidev")
 
     async def stop(self) -> None:
         if self._spi:
+            # Turn off antenna
+            self._clear_bitmask(self._TX_CONTROL_REG, 0x03)
             self._spi.close()
             self._spi = None
 
     async def read_card(self) -> str | None:
-        # RC522 communication runs in executor to avoid blocking the event loop
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._read_sync)
 
@@ -87,21 +131,55 @@ class Rc522Reader(RfidReader):
         uid = await self.read_card()
         return uid is not None
 
+    def _init_chip(self) -> None:
+        """Initialize MFRC522 with proper reset, timer, and antenna config."""
+        assert self._spi is not None
+
+        # Soft reset
+        self._write_register(self._CMD_REG, self._CMD_SOFTRESET)
+        import time
+        time.sleep(0.05)
+
+        # Timer: TPrescaler=0x0A9, TReload=0x03E8 → ~25ms timeout
+        self._write_register(self._TMODE_REG, 0x8D)       # TAuto=1, prescaler high
+        self._write_register(self._TPRESCALER_REG, 0x3E)   # Prescaler low
+        self._write_register(self._TRELOAD_H_REG, 0x00)    # Reload high
+        self._write_register(self._TRELOAD_L_REG, 0x1E)    # Reload low (30)
+
+        # Force 100% ASK modulation
+        self._write_register(self._TX_ASK_REG, 0x40)
+
+        # CRC preset value 0x6363 (ISO 14443A)
+        self._write_register(self._MODE_REG, 0x3D)
+
+        # Turn on antenna (TX1 and TX2)
+        self._set_bitmask(self._TX_CONTROL_REG, 0x03)
+
     def _read_sync(self) -> str | None:
         """Synchronous RC522 read via MFRC522 protocol."""
         if not self._spi:
             return None
         try:
-            # Write Request command (REQA)
-            self._write_register(0x0D, 0x07)  # BitFramingReg
-            result = self._transceive([0x26])  # REQA
-            if result is None:
+            # Step 1: REQA — request any card in field
+            self._write_register(self._BIT_FRAMING_REG, 0x07)  # 7 bits for REQA
+            result, bits = self._transceive([self._PICC_REQA])
+            if result is None or len(result) != 2:
                 self._last_uid = None
                 return None
 
-            # Anti-collision
-            result = self._transceive([0x93, 0x20])
-            if result is None or len(result) < 4:
+            # Step 2: Anti-collision (cascade level 1)
+            self._write_register(self._BIT_FRAMING_REG, 0x00)  # Full bytes
+            result, bits = self._transceive([self._PICC_ANTICOLL, 0x20])
+            if result is None or len(result) != 5:
+                self._last_uid = None
+                return None
+
+            # Verify BCC (XOR checksum of UID bytes)
+            bcc = 0
+            for b in result[:4]:
+                bcc ^= b
+            if bcc != result[4]:
+                logger.debug("RC522: BCC mismatch")
                 self._last_uid = None
                 return None
 
@@ -121,31 +199,51 @@ class Rc522Reader(RfidReader):
         result = self._spi.xfer2([((reg << 1) & 0x7E) | 0x80, 0])
         return result[1]
 
-    def _transceive(self, data: list[int]) -> list[int] | None:
-        """Send data and receive response from card."""
+    def _set_bitmask(self, reg: int, mask: int) -> None:
+        current = self._read_register(reg)
+        self._write_register(reg, current | mask)
+
+    def _clear_bitmask(self, reg: int, mask: int) -> None:
+        current = self._read_register(reg)
+        self._write_register(reg, current & ~mask)
+
+    def _transceive(self, data: list[int]) -> tuple[list[int] | None, int]:
+        """Send data to card and receive response. Returns (data, valid_bits)."""
         assert self._spi is not None
-        # Simplified MFRC522 transceive — full implementation handles IRQ/timeouts
-        self._write_register(0x01, 0x00)  # Idle
-        self._write_register(0x0A, 0x80)  # Clear FIFO
+
+        self._write_register(self._CMD_REG, self._CMD_IDLE)
+        self._write_register(self._COMIRQ_REG, 0x7F)          # Clear all IRQ flags
+        self._set_bitmask(self._FIFO_LEVEL_REG, 0x80)         # Flush FIFO
+
         for byte in data:
-            self._write_register(0x09, byte)  # FIFO data
-        self._write_register(0x01, 0x0C)  # Transceive
-        self._write_register(0x0D, self._read_register(0x0D) | 0x80)  # StartSend
+            self._write_register(self._FIFO_DATA_REG, byte)
 
-        # Wait for completion (simplified)
-        for _ in range(100):
-            irq = self._read_register(0x04)
-            if irq & 0x30:
+        self._write_register(self._CMD_REG, self._CMD_TRANSCEIVE)
+        self._set_bitmask(self._BIT_FRAMING_REG, 0x80)        # StartSend
+
+        # Wait for completion with timeout
+        for _ in range(2000):
+            irq = self._read_register(self._COMIRQ_REG)
+            if irq & 0x30:  # RxIRq or IdleIRq
                 break
+            if irq & 0x01:  # TimerIRq — timeout
+                return None, 0
         else:
-            return None
+            return None, 0
 
-        error = self._read_register(0x06)
-        if error & 0x1B:
-            return None
+        # Check for errors (BufferOvfl, CollErr, ParityErr, ProtocolErr)
+        error = self._read_register(self._ERROR_REG)
+        if error & 0x13:  # Buffer overflow, parity, protocol
+            return None, 0
 
-        n = self._read_register(0x0A)
-        return [self._read_register(0x09) for _ in range(n)]
+        # Read data from FIFO
+        n = self._read_register(self._FIFO_LEVEL_REG)
+        last_bits = self._read_register(self._CONTROL_REG) & 0x07
+
+        result = [self._read_register(self._FIFO_DATA_REG) for _ in range(n)]
+        valid_bits = (n - 1) * 8 + last_bits if last_bits else n * 8
+
+        return result, valid_bits
 
 
 class Pn532Reader(RfidReader):

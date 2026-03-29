@@ -1,7 +1,8 @@
 """Player API routes."""
 
 import logging
-import urllib.request
+
+import httpx
 from fastapi import APIRouter, HTTPException
 from starlette.responses import StreamingResponse
 
@@ -115,18 +116,19 @@ async def toggle_output(output_id: int, req: OutputToggle) -> dict:
 async def audio_stream():
     """Proxy MPD HTTP stream to browser (avoids CORS issues)."""
     try:
-        req = urllib.request.Request("http://localhost:8090/")
-        resp = urllib.request.urlopen(req)
+        client = httpx.AsyncClient(timeout=None)
+        resp = await client.send(
+            client.build_request("GET", "http://localhost:8090/"),
+            stream=True,
+        )
 
-        def generate():
+        async def generate():
             try:
-                while True:
-                    chunk = resp.read(4096)
-                    if not chunk:
-                        break
+                async for chunk in resp.aiter_bytes(chunk_size=4096):
                     yield chunk
             finally:
-                resp.close()
+                await resp.aclose()
+                await client.aclose()
 
         return StreamingResponse(generate(), media_type="audio/mpeg")
     except Exception as e:

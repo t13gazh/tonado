@@ -13,6 +13,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from core.utils.subprocess import async_run
+
 logger = logging.getLogger(__name__)
 
 _HOSTAPD_CONF = """\
@@ -159,13 +161,5 @@ class CaptivePortalService:
     @staticmethod
     async def _run(*cmd: str) -> int:
         """Run a system command, suppressing errors."""
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.wait()
-            return proc.returncode or 0
-        except FileNotFoundError:
-            return 1
+        rc, _, _ = await async_run(list(cmd))
+        return rc

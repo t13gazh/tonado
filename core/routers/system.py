@@ -3,13 +3,13 @@
 import json
 import logging
 import shutil
-import subprocess
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 
 from core.dependencies import require_tier
+from core.utils.subprocess import async_run
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.system_service import SystemService
@@ -67,40 +67,30 @@ def _get_backup() -> BackupService:
 
 
 
-def _detect_wifi() -> dict:
+async def _detect_wifi() -> dict:
     """Detect current WiFi connection status."""
     result: dict = {"connected": False, "ssid": "", "ip": ""}
-    try:
-        out = subprocess.run(
-            ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if out.returncode == 0:
-            for line in out.stdout.strip().splitlines():
-                parts = line.split(":")
-                if len(parts) >= 2 and parts[0] == "yes":
-                    result["connected"] = True
-                    result["ssid"] = parts[1]
-                    break
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        try:
-            out = subprocess.run(
-                ["iwgetid", "-r"], capture_output=True, text=True, timeout=5,
-            )
-            if out.returncode == 0 and out.stdout.strip():
-                result["connected"] = True
-                result["ssid"] = out.stdout.strip()
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
 
-    try:
-        out = subprocess.run(
-            ["hostname", "-I"], capture_output=True, text=True, timeout=5,
-        )
-        if out.returncode == 0 and out.stdout.strip():
-            result["ip"] = out.stdout.strip().split()[0]
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
+    rc, stdout, _ = await async_run(
+        ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
+        timeout=5,
+    )
+    if rc == 0:
+        for line in stdout.strip().splitlines():
+            parts = line.split(":")
+            if len(parts) >= 2 and parts[0] == "yes":
+                result["connected"] = True
+                result["ssid"] = parts[1]
+                break
+    else:
+        rc2, stdout2, _ = await async_run(["iwgetid", "-r"], timeout=5)
+        if rc2 == 0 and stdout2.strip():
+            result["connected"] = True
+            result["ssid"] = stdout2.strip()
+
+    rc3, stdout3, _ = await async_run(["hostname", "-I"], timeout=5)
+    if rc3 == 0 and stdout3.strip():
+        result["ip"] = stdout3.strip().split()[0]
 
     return result
 
@@ -199,7 +189,7 @@ async def system_health() -> dict:
         health["storage"] = {"status": "ok", "free_mb": 0, "detail": "Nicht verfügbar"}
 
     # Network
-    wifi = _detect_wifi()
+    wifi = await _detect_wifi()
     if wifi["connected"]:
         health["network"] = {
             "status": "connected",
@@ -219,7 +209,7 @@ async def hardware_status() -> dict:
     try:
         profile = detect_all()
         data = profile.to_dict()
-        data["wifi"] = _detect_wifi()
+        data["wifi"] = await _detect_wifi()
         return data
     except Exception as e:
         logger.error("Hardware detection failed: %s", e)

@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from core.utils.subprocess import async_run
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,13 +141,10 @@ class SystemService:
 
     async def _git(self, *args: str) -> tuple[int, str, str]:
         """Run a git command in the install directory."""
-        proc = await asyncio.create_subprocess_exec(
-            "git", "-C", str(self._install_dir), *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+        rc, stdout, stderr = await async_run(
+            ["git", "-C", str(self._install_dir), *args], timeout=60
         )
-        stdout, stderr = await proc.communicate()
-        return proc.returncode or 0, stdout.decode().strip(), stderr.decode().strip()
+        return rc, stdout.strip(), stderr.strip()
 
     async def check_update(self) -> dict[str, Any]:
         """Check if an update is available via git."""
@@ -302,25 +301,12 @@ class SystemService:
 
     @staticmethod
     async def _get_ip() -> str:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "hostname", "-I",
-                stdout=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await proc.communicate()
-            return stdout.decode().strip().split()[0] if stdout else ""
-        except Exception:
-            return ""
+        rc, stdout, _ = await async_run(["hostname", "-I"], timeout=5)
+        if rc == 0 and stdout.strip():
+            return stdout.strip().split()[0]
+        return ""
 
     @staticmethod
     async def _run(*cmd: str) -> int:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.wait()
-            return proc.returncode or 0
-        except FileNotFoundError:
-            return 1
+        rc, _, _ = await async_run(list(cmd))
+        return rc

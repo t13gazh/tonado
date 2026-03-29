@@ -88,7 +88,7 @@
 	}
 
 	// Determine current tier level: 0=open, 1=parent, 2=expert
-	const currentTier = $derived(() => {
+	const currentTier = $derived.by(() => {
 		if (!authStatus) return 0;
 		if (!authStatus.parent_pin_set && !authStatus.expert_pin_set) return 2; // No PINs = full access
 		if (!authStatus.authenticated) return 0;
@@ -98,8 +98,8 @@
 		if (authStatus.tier === 'parent') return 1;
 		return 0;
 	});
-	const isParent = $derived(currentTier() >= 1);
-	const isExpert = $derived(currentTier() >= 2);
+	const isParent = $derived(currentTier >= 1);
+	const isExpert = $derived(currentTier >= 2);
 
 	// PIN can only be changed when: no PIN set yet (first time), or user is authenticated
 	const canChangePin = $derived(

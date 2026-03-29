@@ -28,7 +28,8 @@ const languageRegistry: Language[] = [
 	{ code: 'en', name: 'English', native: 'English', complete: false },
 ];
 
-// Reactive state
+// TODO: Make reactive with $state when migrating to .svelte.ts
+// Currently language changes require a page reload to take effect.
 let currentLang = (typeof localStorage !== 'undefined'
 	? localStorage.getItem('tonado-lang')
 	: null) || 'de';

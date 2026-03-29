@@ -154,8 +154,8 @@ class CardService:
 
         mapping = await self.get_mapping(card_id)
         if mapping is None:
-            # Unknown card — do nothing
-            logger.debug("Unknown card: %s", card_id)
+            # Unknown card — do nothing (no sound, no notification)
+            logger.info("Unknown card: %s", card_id)
             await self._event_bus.publish("card_unknown", card_id=card_id)
             return
 
@@ -168,7 +168,7 @@ class CardService:
 
     async def _handle_card_removed(self) -> None:
         """Handle card removal from reader."""
-        logger.debug("Card removed")
+        logger.info("Card removed: %s", self._last_card_id)
         await self._event_bus.publish(
             "card_removed",
             card_id=self._last_card_id,

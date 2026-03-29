@@ -103,32 +103,26 @@ class SystemService(BaseService):
         return info
 
     async def restart(self) -> None:
-        """Restart Tonado service."""
+        """Restart Tonado service (fire-and-forget so HTTP response is sent first)."""
         if self._is_pi:
             logger.info("Restarting Tonado service...")
-            rc = await self._run("sudo", "systemctl", "restart", "tonado.service")
-            if rc != 0:
-                raise RuntimeError("Failed to restart service (exit code %d)" % rc)
+            self._fire_and_forget("sudo", "systemctl", "restart", "tonado.service")
         else:
             logger.info("Restart requested (no-op on non-Pi)")
 
     async def shutdown(self) -> None:
-        """Shutdown the system."""
+        """Shutdown the system (fire-and-forget so HTTP response is sent first)."""
         if self._is_pi:
             logger.info("System shutdown initiated...")
-            rc = await self._run("sudo", "shutdown", "-h", "now")
-            if rc != 0:
-                raise RuntimeError("Failed to shutdown (exit code %d)" % rc)
+            self._fire_and_forget("sudo", "shutdown", "-h", "now")
         else:
             logger.info("Shutdown requested (no-op on non-Pi)")
 
     async def reboot(self) -> None:
-        """Reboot the system."""
+        """Reboot the system (fire-and-forget so HTTP response is sent first)."""
         if self._is_pi:
             logger.info("System reboot initiated...")
-            rc = await self._run("sudo", "reboot")
-            if rc != 0:
-                raise RuntimeError("Failed to reboot (exit code %d)" % rc)
+            self._fire_and_forget("sudo", "reboot")
         else:
             logger.info("Reboot requested (no-op on non-Pi)")
 
@@ -272,6 +266,31 @@ class SystemService(BaseService):
         logger.info("Watchdog configured")
 
     # --- Helpers ---
+
+    @staticmethod
+    def _fire_and_forget(*cmd: str, delay: float = 1.0) -> None:
+        """Schedule a system command after a short delay.
+
+        The delay gives FastAPI enough time to send the HTTP response
+        before the process is killed (restart) or the system goes down
+        (reboot/shutdown).  The subprocess is fully detached so it
+        survives this Python process being terminated.
+        """
+        import subprocess  # noqa: delayed import — only used for power commands
+
+        async def _run_after_delay() -> None:
+            await asyncio.sleep(delay)
+            try:
+                subprocess.Popen(
+                    list(cmd),
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+            except Exception as exc:
+                logger.error("Fire-and-forget command failed: %s — %s", cmd, exc)
+
+        asyncio.get_running_loop().create_task(_run_after_delay())
 
     @staticmethod
     def _read_file(path: str) -> str | None:

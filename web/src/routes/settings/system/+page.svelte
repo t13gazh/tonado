@@ -14,6 +14,49 @@
 	let loading = $state(true);
 	let message = $state('');
 	let confirmShutdown = $state(false);
+	let powerAction = $state<'restart' | 'reboot' | 'shutdown' | null>(null);
+
+	async function waitForServer(timeout = 90_000): Promise<boolean> {
+		const start = Date.now();
+		while (Date.now() - start < timeout) {
+			try {
+				const res = await fetch('/api/system/info', { signal: AbortSignal.timeout(3000) });
+				if (res.ok) return true;
+			} catch {
+				// Server not yet ready
+			}
+			await new Promise((r) => setTimeout(r, 2000));
+		}
+		return false;
+	}
+
+	async function doPowerAction(action: 'restart' | 'reboot' | 'shutdown') {
+		powerAction = action;
+		try {
+			if (action === 'restart') {
+				await systemApi.restart();
+				message = t('system.restart_ok');
+			} else if (action === 'reboot') {
+				await systemApi.reboot();
+				message = t('system.reboot_ok');
+			} else {
+				await systemApi.shutdown();
+				message = t('system.shutdown_ok');
+				return; // No reconnect on shutdown
+			}
+		} catch {
+			// Request may fail if server dies before response — that's expected
+			message = action === 'restart' ? t('system.restart_ok') : t('system.reboot_ok');
+		}
+		// Wait for server to come back, then reload
+		const ok = await waitForServer();
+		if (ok) {
+			window.location.reload();
+		} else {
+			message = t('system.connection_lost');
+			powerAction = null;
+		}
+	}
 
 	onMount(async () => {
 		try {
@@ -228,7 +271,7 @@
 				{#if updateStatus}
 					{#if updateStatus.error}
 						<p class="text-sm text-text-muted">{updateStatus.error}</p>
-						<button onclick={() => { updateStatus = null; }} class="mt-2 w-full px-4 py-2.5 bg-surface text-text-muted border border-surface-lighter rounded-lg text-sm hover:text-text">
+						<button onclick={() => { updateStatus = null; }} class="mt-2 w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors">
 							{t('system.update_check')}
 						</button>
 					{:else if updateStatus.available}
@@ -294,18 +337,30 @@
 			<!-- Power -->
 			<div class="bg-surface-light rounded-xl p-4">
 				<div class="flex flex-col gap-2">
-					<button onclick={async () => { try { await systemApi.restart(); message = t('system.restart_ok'); } catch { message = t('system.restart_error'); } }} class="w-full px-4 py-2.5 bg-surface-lighter/50 rounded-lg text-sm text-text hover:bg-surface-lighter transition-colors text-left font-medium">
-						{t('system.restart')}
+					<button onclick={() => doPowerAction('restart')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50">
+						{#if powerAction === 'restart'}
+							<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.restart_ok')}</span>
+						{:else}
+							{t('system.restart')}
+						{/if}
 					</button>
-					<button onclick={async () => { try { await systemApi.reboot(); message = t('system.reboot_ok'); } catch { message = t('system.reboot_error'); } }} class="w-full px-4 py-2.5 bg-surface-lighter/50 rounded-lg text-sm text-text hover:bg-surface-lighter transition-colors text-left font-medium">
-						{t('system.reboot')}
+					<button onclick={() => doPowerAction('reboot')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50">
+						{#if powerAction === 'reboot'}
+							<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.reboot_ok')}</span>
+						{:else}
+							{t('system.reboot')}
+						{/if}
 					</button>
 					{#if confirmShutdown}
-						<button onclick={async () => { try { await systemApi.shutdown(); message = t('system.shutdown_ok'); } catch { message = t('system.shutdown_error'); } confirmShutdown = false; }} class="w-full px-4 py-2.5 bg-red-600 rounded-lg text-sm text-white text-left">
-							{t('system.confirm_shutdown')}
+						<button onclick={() => { doPowerAction('shutdown'); confirmShutdown = false; }} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50">
+							{#if powerAction === 'shutdown'}
+								<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.shutdown_ok')}</span>
+							{:else}
+								{t('system.confirm_shutdown')}
+							{/if}
 						</button>
 					{:else}
-						<button onclick={() => (confirmShutdown = true)} class="w-full px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-sm text-red-400 hover:bg-red-500/20 transition-colors text-left font-medium">
+						<button onclick={() => (confirmShutdown = true)} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50">
 							{t('system.shutdown')}
 						</button>
 					{/if}

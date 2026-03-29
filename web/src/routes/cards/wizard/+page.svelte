@@ -27,14 +27,20 @@
 		startScan();
 	});
 
+	let ignoreCardId = $state('');
+
 	async function startScan() {
 		scanning = true;
 		error = '';
 		try {
-			const result = await cards.waitForScan(30);
+			const result = await cards.waitForScan(30, ignoreCardId);
 			if (result.scanned && result.card_id) {
 				scannedCardId = result.card_id;
 				hasExisting = result.has_mapping ?? false;
+				// Reset form for new card
+				name = '';
+				contentPath = '';
+				contentType = 'folder';
 				if (result.mapping) {
 					name = result.mapping.name;
 					contentType = result.mapping.content_type as ContentType;
@@ -83,6 +89,7 @@
 	}
 
 	function resetAndScanNext() {
+		ignoreCardId = scannedCardId;
 		step = 'scan';
 		scannedCardId = '';
 		name = '';
@@ -169,7 +176,7 @@
 
 			<div class="flex gap-3 pt-2">
 				<button
-					onclick={() => { step = 'scan'; startScan(); }}
+					onclick={() => { ignoreCardId = scannedCardId; step = 'scan'; startScan(); }}
 					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
 				>
 					{t('general.back')}

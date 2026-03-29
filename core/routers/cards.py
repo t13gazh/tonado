@@ -76,13 +76,17 @@ async def delete_card(card_id: str) -> dict:
 
 
 @router.get("/scan/wait")
-async def wait_for_scan(timeout: float = 30.0) -> dict:
+async def wait_for_scan(timeout: float = 30.0, ignore: str = "") -> dict:
     """Wait for a card to be scanned. Used by the card wizard.
 
     Long-polls until a card is detected or timeout is reached.
+    Pass ignore=<card_id> to skip a specific card (e.g. the one just assigned).
     """
     timeout = min(timeout, 60.0)  # Cap at 60s
     card_id = await _get_service().wait_for_scan(timeout=timeout)
+    # Skip ignored card (user wants a different one)
+    if card_id and ignore and card_id == ignore:
+        card_id = await _get_service().wait_for_scan(timeout=timeout)
     if card_id is None:
         return {"scanned": False, "card_id": None}
 

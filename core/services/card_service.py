@@ -62,12 +62,14 @@ class CardService:
         reader: RfidReader,
         event_bus: EventBus,
         db: aiosqlite.Connection,
+        config_service: "ConfigService | None" = None,
         rescan_cooldown: float = 2.0,
         remove_pauses: bool = False,
     ) -> None:
         self._reader = reader
         self._event_bus = event_bus
         self._db = db
+        self._config_service = config_service
         self._rescan_cooldown = rescan_cooldown
         self._remove_pauses = remove_pauses
         self._scan_task: asyncio.Task | None = None
@@ -169,10 +171,16 @@ class CardService:
     async def _handle_card_removed(self) -> None:
         """Handle card removal from reader."""
         logger.info("Card removed: %s", self._last_card_id)
+        # Read current config value (may have changed at runtime)
+        should_pause = self._remove_pauses
+        if self._config_service:
+            val = await self._config_service.get("card.remove_pauses")
+            if val is not None:
+                should_pause = bool(val)
         await self._event_bus.publish(
             "card_removed",
             card_id=self._last_card_id,
-            should_pause=self._remove_pauses,
+            should_pause=should_pause,
         )
 
     # --- CRUD operations ---

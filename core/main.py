@@ -83,6 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         reader=rfid_reader,
         event_bus=event_bus,
         db=db,
+        config_service=config_service,
         rescan_cooldown=card_cooldown,
         remove_pauses=card_remove_pauses,
     )

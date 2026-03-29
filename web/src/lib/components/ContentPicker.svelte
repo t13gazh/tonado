@@ -106,14 +106,14 @@
 <!-- Content type tabs -->
 <div>
 	<span class="text-xs text-text-muted mb-2 block">{t('wizard.content_type')}</span>
-	<div class="flex gap-1.5 overflow-x-auto pb-1">
+	<div class="flex flex-wrap gap-1.5">
 		{#each contentTypes as ct}
 			<button
 				onclick={() => onTypeChange(ct.value)}
-				class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap
+				class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
 					{contentType === ct.value ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'}"
 			>
-				<svg class="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d={ct.icon}/></svg>
+				<svg class="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d={ct.icon}/></svg>
 				{ct.label()}
 			</button>
 		{/each}

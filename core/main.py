@@ -6,11 +6,11 @@ from typing import AsyncGenerator
 
 from pathlib import Path
 
-import aiosqlite
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from core.database import DatabaseManager
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
 from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
@@ -50,8 +50,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Core infrastructure
     event_bus = EventBus()
 
+    # Database — single connection for all services
+    db_manager = DatabaseManager(settings.db_path)
+    await db_manager.start()
+    db = db_manager.connection
+
     # Config service
-    config_service = ConfigService(settings.db_path)
+    config_service = ConfigService(db)
     await config_service.start()
 
     # Read runtime config from DB (overrides env defaults)
@@ -78,8 +83,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await player_service.set_volume(startup_volume)
 
     # Card service
-    db = await aiosqlite.connect(str(settings.db_path))
-    await db.execute("PRAGMA journal_mode=WAL")
     rfid_reader = detect_reader(settings.hardware_mode)
     card_service = CardService(
         reader=rfid_reader,
@@ -276,7 +279,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await card_service.stop()
     await player_service.stop()
     await config_service.stop()
-    await db.close()
+    await db_manager.stop()
     logger.info("Tonado stopped")
 
 

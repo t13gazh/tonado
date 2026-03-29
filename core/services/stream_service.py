@@ -16,36 +16,8 @@ import aiosqlite
 
 logger = logging.getLogger(__name__)
 
-_INIT_SQL = """
-CREATE TABLE IF NOT EXISTS radio_stations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    url TEXT NOT NULL UNIQUE,
-    category TEXT DEFAULT 'custom',
-    logo_url TEXT
-);
 
-CREATE TABLE IF NOT EXISTS podcasts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    feed_url TEXT NOT NULL UNIQUE,
-    last_checked TIMESTAMP,
-    auto_download INTEGER DEFAULT 1,
-    logo_url TEXT
-);
 
-CREATE TABLE IF NOT EXISTS podcast_episodes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    podcast_id INTEGER NOT NULL REFERENCES podcasts(id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    audio_url TEXT NOT NULL,
-    published TEXT,
-    duration TEXT,
-    downloaded INTEGER DEFAULT 0,
-    local_path TEXT,
-    UNIQUE(podcast_id, audio_url)
-);
-"""
 
 # Pre-configured German radio stations.
 # Only direct MP3 stream URLs verified on Pi Zero W via MPD.
@@ -142,8 +114,7 @@ class StreamService:
         self._podcast_dir = podcast_dir or Path.home() / "tonado" / "podcasts"
 
     async def start(self) -> None:
-        await self._db.executescript(_INIT_SQL)
-        await self._db.commit()
+        """Seed default stations and podcasts (schema managed by DatabaseManager)."""
         await self._seed_stations()
         await self._seed_podcasts()
         self._podcast_dir.mkdir(parents=True, exist_ok=True)

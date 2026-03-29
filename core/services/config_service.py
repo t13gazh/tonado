@@ -2,7 +2,6 @@
 
 import json
 import logging
-from pathlib import Path
 from typing import Any
 
 import aiosqlite
@@ -23,38 +22,21 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
     "system.idle_shutdown_minutes": (0, "int"),
 }
 
-_INIT_SQL = """
-CREATE TABLE IF NOT EXISTS config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    type TEXT DEFAULT 'string'
-);
-"""
-
 
 class ConfigService:
     """Key-value config store with typed values and defaults."""
 
-    def __init__(self, db_path: Path) -> None:
-        self._db_path = db_path
-        self._db: aiosqlite.Connection | None = None
+    def __init__(self, db: aiosqlite.Connection) -> None:
+        self._db: aiosqlite.Connection = db
 
     async def start(self) -> None:
-        """Open database and initialize schema."""
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = await aiosqlite.connect(str(self._db_path))
-        await self._db.execute("PRAGMA journal_mode=WAL")
-        await self._db.execute("PRAGMA busy_timeout=5000")
-        await self._db.execute(_INIT_SQL)
-        await self._db.commit()
+        """Seed default config values."""
         await self._seed_defaults()
-        logger.info("Config service started (db=%s)", self._db_path)
+        logger.info("Config service started")
 
     async def stop(self) -> None:
-        """Close database connection."""
-        if self._db:
-            await self._db.close()
-            self._db = None
+        """No-op — database lifecycle managed by DatabaseManager."""
+        pass
 
     async def _seed_defaults(self) -> None:
         """Insert default values for keys that don't exist yet."""

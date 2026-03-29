@@ -13,23 +13,8 @@ import aiosqlite
 
 logger = logging.getLogger(__name__)
 
-_INIT_SQL = """
-CREATE TABLE IF NOT EXISTS playlists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
-CREATE TABLE IF NOT EXISTS playlist_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
-    position INTEGER NOT NULL,
-    content_type TEXT NOT NULL,
-    content_path TEXT NOT NULL,
-    title TEXT,
-    UNIQUE(playlist_id, position)
-);
-"""
+
 
 
 @dataclass
@@ -88,8 +73,7 @@ class PlaylistService:
         self._media_dir = media_dir or Path.home() / "tonado" / "media"
 
     async def start(self) -> None:
-        await self._db.executescript(_INIT_SQL)
-        await self._db.commit()
+        """Start playlist service (schema managed by DatabaseManager)."""
         logger.info("Playlist service started")
 
     async def list_playlists(self) -> list[Playlist]:

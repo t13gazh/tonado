@@ -13,18 +13,6 @@ from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
-_INIT_SQL = """
-CREATE TABLE IF NOT EXISTS cards (
-    card_id TEXT PRIMARY KEY,
-    name TEXT,
-    content_type TEXT NOT NULL,
-    content_path TEXT NOT NULL,
-    cover_path TEXT,
-    resume_position REAL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-"""
-
 
 @dataclass
 class CardMapping:
@@ -82,9 +70,7 @@ class CardService:
         self._scan_waiters: list[asyncio.Future[str]] = []
 
     async def start(self) -> None:
-        """Initialize card table and start scanning loop."""
-        await self._db.execute(_INIT_SQL)
-        await self._db.commit()
+        """Start RFID scanning loop (schema managed by DatabaseManager)."""
         await self._reader.start()
         self._scan_task = asyncio.create_task(self._scan_loop())
         logger.info("Card service started")

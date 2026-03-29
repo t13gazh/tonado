@@ -110,7 +110,7 @@
 			await loadAll();
 			flashToast();
 		} catch (e) {
-			error = 'Bitte erst anmelden, um die PIN zu ändern.';
+			error = t('settings.login_required_change');
 		}
 	}
 
@@ -122,7 +122,7 @@
 			await loadAll();
 			flashToast();
 		} catch {
-			error = 'Bitte erst anmelden, um die PIN zu ändern.';
+			error = t('settings.login_required_change');
 		}
 	}
 
@@ -176,7 +176,7 @@
 
 	{#if authStatus?.authenticated}
 		<div class="flex items-center justify-between mb-4 px-1">
-			<span class="text-xs text-text-muted">Angemeldet als: <span class="text-primary">{authStatus.tier === 'expert' ? 'Experte' : authStatus.tier === 'parent' ? 'Eltern' : 'Offen'}</span></span>
+			<span class="text-xs text-text-muted">{t('settings.logged_in_as')} <span class="text-primary">{authStatus.tier === 'expert' ? t('settings.tier_expert') : authStatus.tier === 'parent' ? t('settings.tier_parent') : t('settings.tier_open')}</span></span>
 			<button onclick={logout} class="text-xs text-text-muted hover:text-text">{t('settings.logout')}</button>
 		</div>
 	{/if}
@@ -294,7 +294,7 @@
 		<!-- PIN management -->
 		<div class="bg-surface-light rounded-xl p-4">
 			{#if !canChangePin}
-				<p class="text-xs text-text-muted">Bitte erst anmelden, um PINs zu verwalten.</p>
+				<p class="text-xs text-text-muted">{t('settings.login_required_pin')}</p>
 			{:else}
 				<h2 class="text-sm font-semibold mb-3">{t('settings.pin_parent')}</h2>
 				<p class="text-xs text-text-muted mb-2">
@@ -351,7 +351,7 @@
 					onclick={() => { const v = !(allConfig['wizard.expert_mode'] ?? false); allConfig['wizard.expert_mode'] = v; saveSetting('wizard.expert_mode', v); }}
 					class="px-3 py-1 rounded-full text-xs font-medium transition-colors {allConfig['wizard.expert_mode'] ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
 				>
-					{allConfig['wizard.expert_mode'] ? 'An' : 'Aus'}
+					{allConfig['wizard.expert_mode'] ? t('settings.on') : t('settings.off')}
 				</button>
 			</div>
 		</div>
@@ -363,7 +363,7 @@
 		>
 			<div>
 				<h2 class="text-sm font-semibold">{t('system.title')}</h2>
-				<p class="text-xs text-text-muted mt-0.5">Updates, Backup, Neustart</p>
+				<p class="text-xs text-text-muted mt-0.5">{t('settings.system_desc')}</p>
 			</div>
 			<svg class="w-5 h-5 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M9 18l6-6-6-6"/>

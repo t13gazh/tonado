@@ -1,6 +1,8 @@
 """System management API routes (expert area)."""
 
 import json
+import logging
+import subprocess
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -8,6 +10,9 @@ from fastapi.responses import JSONResponse
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.system_service import SystemService
+from core.hardware.detect import detect_all
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["system"])
 
@@ -56,12 +61,65 @@ def _require_tier(request: Request, tier: AuthTier) -> None:
         raise HTTPException(403, "Zugriff verweigert")
 
 
+def _detect_wifi() -> dict:
+    """Detect current WiFi connection status."""
+    result: dict = {"connected": False, "ssid": "", "ip": ""}
+    try:
+        out = subprocess.run(
+            ["nmcli", "-t", "-f", "ACTIVE,SSID,DEVICE", "connection", "show", "--active"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if out.returncode == 0:
+            for line in out.stdout.strip().splitlines():
+                parts = line.split(":")
+                if len(parts) >= 2 and parts[0] == "yes":
+                    result["connected"] = True
+                    result["ssid"] = parts[1]
+                    break
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        try:
+            out = subprocess.run(
+                ["iwgetid", "-r"], capture_output=True, text=True, timeout=5,
+            )
+            if out.returncode == 0 and out.stdout.strip():
+                result["connected"] = True
+                result["ssid"] = out.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            pass
+
+    try:
+        out = subprocess.run(
+            ["hostname", "-I"], capture_output=True, text=True, timeout=5,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            result["ip"] = out.stdout.strip().split()[0]
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    return result
+
+
 # --- System info ---
 
 @router.get("/info")
 async def system_info() -> dict:
     info = await _get_system().get_info()
     return info.to_dict()
+
+
+# --- Hardware status ---
+
+@router.get("/hardware")
+async def hardware_status() -> dict:
+    """Return detected hardware profile including WiFi status."""
+    try:
+        profile = detect_all()
+        data = profile.to_dict()
+        data["wifi"] = _detect_wifi()
+        return data
+    except Exception as e:
+        logger.error("Hardware detection failed: %s", e)
+        raise HTTPException(500, "Hardware-Erkennung fehlgeschlagen")
 
 
 # --- Power ---

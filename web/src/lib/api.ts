@@ -37,6 +37,37 @@ export interface CardCreate {
 	cover_path?: string;
 }
 
+export interface HardwareAudioOutput {
+	name: string;
+	type: string;
+	device: string;
+	recommended: boolean;
+}
+
+export interface HardwareStatus {
+	pi: {
+		model: string;
+		revision: string;
+		ram_mb: number;
+		has_wifi: boolean;
+		has_bluetooth: boolean;
+		supported: boolean;
+	};
+	rfid: {
+		reader: string;
+		device: string;
+	};
+	audio: HardwareAudioOutput[];
+	gyro_detected: boolean;
+	gpio_available: boolean;
+	is_mock: boolean;
+	wifi: {
+		connected: boolean;
+		ssid: string;
+		ip: string;
+	};
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
 	const { headers: extraHeaders, ...rest } = options ?? {};
 	const token = getAuthToken();
@@ -276,6 +307,7 @@ export interface SystemInfoData {
 
 export const systemApi = {
 	info: () => request<SystemInfoData>('/system/info'),
+	hardware: () => request<HardwareStatus>('/system/hardware'),
 	restart: () => request<void>('/system/restart', { method: 'POST' }),
 	shutdown: () => request<void>('/system/shutdown', { method: 'POST' }),
 	reboot: () => request<void>('/system/reboot', { method: 'POST' }),
@@ -297,4 +329,71 @@ export const config = {
 	get: (key: string) => request<{ key: string; value: unknown }>(`/config/${key}`),
 	set: (key: string, value: unknown) =>
 		request<void>('/config/', { method: 'PUT', body: JSON.stringify({ key, value }) }),
+};
+
+// Setup Wizard API
+export interface SetupStatus {
+	current_step: string;
+	progress: number;
+	is_complete: boolean;
+	hardware: HardwareDetection | null;
+	hardware_changed: boolean;
+}
+
+export interface HardwareDetection {
+	pi: {
+		model: string;
+		revision: string;
+		ram_mb: number;
+		has_wifi: boolean;
+		has_bluetooth: boolean;
+		supported: boolean;
+	};
+	rfid: {
+		reader: string;
+		device: string;
+	};
+	audio: {
+		name: string;
+		type: string;
+		device: string;
+		recommended: boolean;
+	}[];
+	gyro_detected: boolean;
+	gpio_available: boolean;
+	is_mock: boolean;
+}
+
+export interface WifiNetwork {
+	ssid: string;
+	signal: number;
+	security: string;
+	connected: boolean;
+}
+
+export interface WifiStatus {
+	connected: boolean;
+	ssid: string;
+	ip_address: string;
+	signal_strength: number;
+}
+
+export const setupApi = {
+	status: () => request<SetupStatus>('/setup/status'),
+	detectHardware: () => request<HardwareDetection>('/setup/detect-hardware', { method: 'POST' }),
+	wifiConnect: (ssid: string, password: string = '') =>
+		request<{ success: boolean; status?: WifiStatus; error?: string }>('/setup/wifi/connect', {
+			method: 'POST',
+			body: JSON.stringify({ ssid, password }),
+		}),
+	wifiScan: () => request<WifiNetwork[]>('/setup/wifi/scan'),
+	wifiStatus: () => request<WifiStatus>('/setup/wifi/status'),
+	setupAudio: (device: string) =>
+		request<{ success: boolean; device: string }>('/setup/audio', {
+			method: 'POST',
+			body: JSON.stringify({ device }),
+		}),
+	firstCardDone: () => request<{ success: boolean }>('/setup/first-card-done', { method: 'POST' }),
+	complete: () => request<{ success: boolean }>('/setup/complete', { method: 'POST' }),
+	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 };

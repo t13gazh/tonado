@@ -42,7 +42,7 @@
 		try {
 			allCards = await cards.list();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Fehler';
+			error = e instanceof Error ? e.message : t('general.error');
 		} finally {
 			loading = false;
 		}
@@ -77,7 +77,7 @@
 			editingCard = null;
 			await loadCards();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Fehler';
+			error = e instanceof Error ? e.message : t('general.error');
 		}
 	}
 
@@ -88,7 +88,7 @@
 			deletingCard = null;
 			await loadCards();
 		} catch (e) {
-			error = e instanceof Error ? e.message : 'Fehler';
+			error = e instanceof Error ? e.message : t('general.error');
 		}
 	}
 </script>

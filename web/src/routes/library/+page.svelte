@@ -15,6 +15,13 @@
 	let tab = $state<Tab>('folders');
 	let error = $state('');
 
+	$effect(() => {
+		if (error) {
+			const timer = setTimeout(() => (error = ''), 5000);
+			return () => clearTimeout(timer);
+		}
+	});
+
 	// Folders
 	let folders = $state<MediaFolder[]>([]);
 	let loadingFolders = $state(true);
@@ -77,7 +84,7 @@
 			const body = type === 'folder' ? { path } : { url: path };
 			await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 			goto('/');
-		} catch {}
+		} catch { error = t('general.error'); }
 	}
 
 	async function playFolderFromTrack(folderPath: string, startIndex: number) {
@@ -88,11 +95,11 @@
 				body: JSON.stringify({ path: folderPath, start_index: startIndex }),
 			});
 			goto('/');
-		} catch {}
+		} catch { error = t('general.error'); }
 	}
 
 	async function createFolder() { if (!newFolderName.trim()) return; await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); }
-	async function deleteFolder(name: string) { if (!confirm('Wirklich löschen?')) return; await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
+	async function deleteFolder(name: string) { if (!confirm(t('general.confirm_delete'))) return; await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
 	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; folderTracks = await library.tracks(name); } }
 	async function handleFiles(folderName: string, files: FileList) {
 		uploadFolder = folderName; uploading = true; error = '';
@@ -101,7 +108,7 @@
 			await loadFolders();
 			if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
 		} catch (e) {
-			error = 'Upload fehlgeschlagen: ' + (e instanceof Error ? e.message : String(e));
+			error = t('general.upload_failed') + ': ' + (e instanceof Error ? e.message : String(e));
 		} finally {
 			uploading = false; uploadFolder = '';
 		}
@@ -109,9 +116,9 @@
 
 	function isValidUrl(url: string): boolean { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; } }
 	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); }
-	async function removeStation(id: number) { if (!confirm('Wirklich löschen?')) return; await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
+	async function removeStation(id: number) { if (!confirm(t('general.confirm_delete'))) return; await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
 	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
-	async function removePodcast(id: number) { if (!confirm('Wirklich löschen?')) return; await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
+	async function removePodcast(id: number) { if (!confirm(t('general.confirm_delete'))) return; await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
 	async function playPodcastEpisode(index: number) {
 		if (podcastEpisodes.length === 0) return;
 		const urls = podcastEpisodes.map(e => e.audio_url);
@@ -122,7 +129,7 @@
 				body: JSON.stringify({ urls, start_index: index }),
 			});
 			goto('/');
-		} catch {}
+		} catch { error = t('general.error'); }
 	}
 
 	async function togglePodcast(id: number) {
@@ -197,7 +204,14 @@
 		{/each}
 	</div>
 
-	{#if error}<div class="text-sm text-red-400 mb-3">{error}</div>{/if}
+	{#if error}
+		<div class="text-sm text-red-400 mb-3 p-3 bg-red-400/10 rounded-lg flex items-center justify-between">
+			<span>{error}</span>
+			<button onclick={() => (error = '')} class="text-red-400 hover:text-red-300 ml-2">
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+			</button>
+		</div>
+	{/if}
 
 	<!-- ===================== FOLDERS ===================== -->
 	{#if tab === 'folders'}

@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { systemApi, type SystemInfoData } from '$lib/api';
+	import { systemApi, type SystemInfoData, type HardwareStatus } from '$lib/api';
 	import { onMount } from 'svelte';
 
 	let info = $state<SystemInfoData | null>(null);
+	let hardware = $state<HardwareStatus | null>(null);
 	let updateStatus = $state<{ available: boolean; commits: number } | null>(null);
 	let loading = $state(true);
 	let message = $state('');
@@ -11,15 +12,29 @@
 
 	onMount(async () => {
 		try {
-			info = await systemApi.info();
+			const [infoData, hwData] = await Promise.all([
+				systemApi.info(),
+				systemApi.hardware().catch(() => null),
+			]);
+			info = infoData;
+			hardware = hwData;
 		} catch {}
 		loading = false;
 	});
 
+	function rfidLabel(reader: string): string {
+		const labels: Record<string, string> = {
+			rc522: 'RC522 (SPI)',
+			pn532: 'PN532 (I2C)',
+			usb: 'USB HID',
+		};
+		return labels[reader] ?? reader;
+	}
+
 	function formatUptime(seconds: number): string {
 		const h = Math.floor(seconds / 3600);
 		const m = Math.floor((seconds % 3600) / 60);
-		return h > 0 ? `${h} Std. ${m} Min.` : `${m} Min.`;
+		return h > 0 ? t('system.uptime_hours', { h, m }) : t('system.uptime_minutes', { m });
 	}
 
 	async function checkUpdate() {
@@ -29,7 +44,7 @@
 	async function applyUpdate() {
 		message = 'Update wird installiert...';
 		const result = await systemApi.applyUpdate();
-		message = result.success ? 'Update installiert. Neustart...' : `Fehler: ${result.error}`;
+		message = result.success ? t('system.update_done') : t('system.update_error', { error: result.error ?? '' });
 	}
 
 	async function handleBackupImport(e: Event) {
@@ -87,6 +102,78 @@
 					<span>{info.disk_total_gb ? `${info.disk_used_gb} / ${info.disk_total_gb} GB` : '—'}</span>
 				</div>
 			</div>
+
+			<!-- Hardware -->
+			{#if hardware}
+				<div class="bg-surface-light rounded-xl p-4">
+					<h2 class="text-sm font-semibold mb-3">{t('system.hardware')}</h2>
+					<div class="flex flex-col gap-2.5 text-sm">
+						{#if hardware.pi.model !== 'unknown'}
+							<div class="flex items-center justify-between">
+								<span class="text-text-muted">{t('system.model')}</span>
+								<span>{hardware.pi.model}{hardware.pi.ram_mb ? ` (${hardware.pi.ram_mb} MB)` : ''}</span>
+							</div>
+						{/if}
+
+						<div class="flex items-center justify-between">
+							<span class="text-text-muted">{t('system.hardware_rfid')}</span>
+							<span class="flex items-center gap-1.5">
+								<span class="w-2 h-2 rounded-full {hardware.rfid.reader !== 'none' ? 'bg-green-500' : 'bg-red-500'}"></span>
+								{#if hardware.rfid.reader !== 'none'}
+									{rfidLabel(hardware.rfid.reader)}
+								{:else}
+									{t('system.hardware_not_detected')}
+								{/if}
+							</span>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<span class="text-text-muted">{t('system.hardware_gyro')}</span>
+							<span class="flex items-center gap-1.5">
+								<span class="w-2 h-2 rounded-full {hardware.gyro_detected ? 'bg-green-500' : 'bg-red-500'}"></span>
+								{hardware.gyro_detected ? t('system.hardware_detected') : t('system.hardware_not_detected')}
+							</span>
+						</div>
+
+						<div class="flex items-start justify-between">
+							<span class="text-text-muted">{t('system.hardware_audio')}</span>
+							<div class="flex flex-col items-end gap-1">
+								{#if hardware.audio.length > 0}
+									{#each hardware.audio as output}
+										<span class="flex items-center gap-1.5">
+											{#if output.recommended}
+												<span class="w-2 h-2 rounded-full bg-green-500"></span>
+											{/if}
+											{output.name}
+										</span>
+									{/each}
+								{:else}
+									<span class="flex items-center gap-1.5">
+										<span class="w-2 h-2 rounded-full bg-red-500"></span>
+										{t('system.hardware_not_detected')}
+									</span>
+								{/if}
+							</div>
+						</div>
+
+						<div class="flex items-center justify-between">
+							<span class="text-text-muted">{t('system.hardware_wifi')}</span>
+							<span class="flex items-center gap-1.5">
+								<span class="w-2 h-2 rounded-full {hardware.wifi.connected ? 'bg-green-500' : 'bg-red-500'}"></span>
+								{#if hardware.wifi.connected}
+									{hardware.wifi.ssid}{hardware.wifi.ip ? ` (${hardware.wifi.ip})` : ''}
+								{:else}
+									{t('system.hardware_not_connected')}
+								{/if}
+							</span>
+						</div>
+
+						{#if hardware.is_mock}
+							<div class="text-xs text-text-muted/60 mt-1">Simulierte Hardware (kein Raspberry Pi)</div>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			<!-- Update -->
 			<div class="bg-surface-light rounded-xl p-4">

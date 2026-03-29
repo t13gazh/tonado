@@ -9,6 +9,7 @@ Guides the user through:
 Tracks setup state so the wizard can resume if interrupted.
 """
 
+import hashlib
 import logging
 from enum import StrEnum
 from typing import Any
@@ -45,15 +46,20 @@ class SetupWizard:
         self._wifi = wifi_service
         self._hardware: HardwareProfile | None = None
         self._current_step = SetupStep.NOT_STARTED
+        self._hardware_changed = False
 
     async def start(self) -> None:
-        """Load saved setup state."""
+        """Load saved setup state and check for hardware changes."""
         saved = await self._config.get("setup.step")
         if saved and saved in SetupStep.__members__.values():
             self._current_step = SetupStep(saved)
         else:
             self._current_step = SetupStep.NOT_STARTED
         logger.info("Setup wizard state: %s", self._current_step)
+
+        # If setup is complete, check for hardware changes
+        if self.is_complete:
+            await self._check_hardware_changes()
 
     @property
     def is_complete(self) -> bool:
@@ -63,6 +69,10 @@ class SetupWizard:
     def current_step(self) -> SetupStep:
         return self._current_step
 
+    @property
+    def hardware_changed(self) -> bool:
+        return self._hardware_changed
+
     def status(self) -> dict[str, Any]:
         step_index = _STEPS.index(self._current_step)
         total = len(_STEPS) - 1  # Exclude NOT_STARTED
@@ -71,11 +81,45 @@ class SetupWizard:
             "progress": max(0, step_index) / max(1, total - 1),
             "is_complete": self.is_complete,
             "hardware": self._hardware.to_dict() if self._hardware else None,
+            "hardware_changed": self._hardware_changed,
         }
 
     async def _save_step(self, step: SetupStep) -> None:
         self._current_step = step
         await self._config.set("setup.step", step.value)
+
+    def _compute_hardware_fingerprint(self, profile: HardwareProfile) -> str:
+        """Compute a hash fingerprint of the hardware configuration."""
+        parts = [
+            f"rfid:{profile.rfid_reader}",
+            f"gyro:{profile.gyro_detected}",
+            f"pi:{profile.pi.model}",
+        ]
+        for audio in sorted(profile.audio_outputs, key=lambda a: a.device):
+            parts.append(f"audio:{audio.name}:{audio.device}")
+        raw = "|".join(parts)
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+    async def _check_hardware_changes(self) -> None:
+        """Detect hardware and compare fingerprint to saved one."""
+        try:
+            profile = detect_all()
+            if profile.is_mock:
+                return  # Skip check on non-Pi systems
+            current_fp = self._compute_hardware_fingerprint(profile)
+            saved_fp = await self._config.get("setup.hardware_fingerprint")
+            if saved_fp and saved_fp != current_fp:
+                self._hardware_changed = True
+                await self._config.set("setup.hardware_changed", True)
+                logger.warning(
+                    "Hardware change detected: saved=%s current=%s",
+                    saved_fp, current_fp,
+                )
+            else:
+                self._hardware_changed = False
+            self._hardware = profile
+        except Exception as e:
+            logger.warning("Hardware change check failed: %s", e)
 
     # --- Step handlers ---
 
@@ -97,6 +141,10 @@ class SetupWizard:
         if self._hardware.pi.model != "unknown":
             await self._config.set("hardware.pi_model", self._hardware.pi.model)
             await self._config.set("hardware.pi_ram_mb", self._hardware.pi.ram_mb)
+
+        # Save hardware fingerprint
+        fingerprint = self._compute_hardware_fingerprint(self._hardware)
+        await self._config.set("setup.hardware_fingerprint", fingerprint)
 
         logger.info("Hardware detection complete: %s", self._hardware.pi.model)
         return self._hardware
@@ -127,6 +175,12 @@ class SetupWizard:
 
     async def complete_setup(self) -> dict[str, Any]:
         """Mark setup as fully complete."""
+        # Update fingerprint on completion
+        if self._hardware:
+            fingerprint = self._compute_hardware_fingerprint(self._hardware)
+            await self._config.set("setup.hardware_fingerprint", fingerprint)
+        self._hardware_changed = False
+        await self._config.set("setup.hardware_changed", False)
         await self._save_step(SetupStep.COMPLETED)
         logger.info("Setup wizard completed")
         return {"success": True}
@@ -135,4 +189,6 @@ class SetupWizard:
         """Reset setup to start over."""
         await self._save_step(SetupStep.NOT_STARTED)
         self._hardware = None
+        self._hardware_changed = False
+        await self._config.set("setup.hardware_changed", False)
         logger.info("Setup wizard reset")

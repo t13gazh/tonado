@@ -204,6 +204,7 @@ export default {
 	'system.overlay': 'Write protection (OverlayFS)',
 	'system.overlay_on': 'Enable',
 	'system.overlay_off': 'Disable',
+	'system.power': 'Power',
 	'system.restart': 'Restart Tonado',
 	'system.reboot': 'Restart Pi',
 	'system.shutdown': 'Shut down Pi',

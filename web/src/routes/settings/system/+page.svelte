@@ -271,7 +271,7 @@
 				{#if updateStatus}
 					{#if updateStatus.error}
 						<p class="text-sm text-text-muted">{updateStatus.error}</p>
-						<button onclick={() => { updateStatus = null; }} class="mt-2 w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors">
+						<button onclick={() => { updateStatus = null; }} class="mt-2 w-full px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm font-medium hover:bg-primary/25 transition-colors">
 							{t('system.update_check')}
 						</button>
 					{:else if updateStatus.available}
@@ -292,7 +292,7 @@
 							<button
 								onclick={applyUpdate}
 								disabled={updating}
-								class="w-full px-4 py-2.5 bg-accent text-white rounded-lg text-sm disabled:opacity-50"
+								class="w-full px-4 py-2.5 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 							>
 								{#if updating}
 									<span class="animate-pulse">{t('system.update_installing')}</span>
@@ -305,7 +305,7 @@
 						<p class="text-sm text-text-muted">{t('system.update_none')}</p>
 					{/if}
 				{:else}
-					<button onclick={checkUpdate} disabled={checking} class="w-full px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm font-medium hover:bg-primary/25 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+					<button onclick={checkUpdate} disabled={checking} class="w-full px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm font-medium hover:bg-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
 						{#if checking}
 							<Spinner size="sm" />
 							{t('system.update_checking')}
@@ -323,11 +323,11 @@
 					<a
 						href={systemApi.exportBackup()}
 						download="tonado-backup.json"
-						class="flex-1 px-4 py-2 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm text-center font-medium hover:bg-primary/25 transition-colors"
+						class="flex-1 px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm text-center font-medium hover:bg-primary/25 transition-colors"
 					>
 						{t('system.backup_export')}
 					</a>
-					<label class="flex-1 px-4 py-2 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm text-center font-medium hover:bg-primary/25 transition-colors cursor-pointer">
+					<label class="flex-1 px-4 py-2.5 bg-primary/15 text-primary border border-primary/30 rounded-lg text-sm text-center font-medium hover:bg-primary/25 transition-colors cursor-pointer">
 						{t('system.backup_import')}
 						<input type="file" accept=".json" class="hidden" onchange={handleBackupImport} />
 					</label>
@@ -336,31 +336,32 @@
 
 			<!-- Power -->
 			<div class="bg-surface-light rounded-xl p-4">
+				<h2 class="text-sm font-semibold mb-3">{t('system.power')}</h2>
 				<div class="flex flex-col gap-2">
-					<button onclick={() => doPowerAction('restart')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50">
+					<button onclick={() => doPowerAction('restart')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 						{#if powerAction === 'restart'}
-							<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.restart_ok')}</span>
+							<span class="flex items-center justify-center gap-2"><Spinner size="sm" /> {t('system.restart_ok')}</span>
 						{:else}
 							{t('system.restart')}
 						{/if}
 					</button>
-					<button onclick={() => doPowerAction('reboot')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface-light hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50">
+					<button onclick={() => doPowerAction('reboot')} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-surface hover:bg-surface-lighter rounded-lg text-text-muted text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 						{#if powerAction === 'reboot'}
-							<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.reboot_ok')}</span>
+							<span class="flex items-center justify-center gap-2"><Spinner size="sm" /> {t('system.reboot_ok')}</span>
 						{:else}
 							{t('system.reboot')}
 						{/if}
 					</button>
 					{#if confirmShutdown}
-						<button onclick={() => { doPowerAction('shutdown'); confirmShutdown = false; }} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50">
+						<button onclick={() => { doPowerAction('shutdown'); confirmShutdown = false; }} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 							{#if powerAction === 'shutdown'}
-								<span class="flex items-center gap-2"><Spinner size="sm" /> {t('system.shutdown_ok')}</span>
+								<span class="flex items-center justify-center gap-2"><Spinner size="sm" /> {t('system.shutdown_ok')}</span>
 							{:else}
 								{t('system.confirm_shutdown')}
 							{/if}
 						</button>
 					{:else}
-						<button onclick={() => (confirmShutdown = true)} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50">
+						<button onclick={() => (confirmShutdown = true)} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-500/10 border border-red-600/30 rounded-lg text-red-400 text-sm font-medium hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 							{t('system.shutdown')}
 						</button>
 					{/if}

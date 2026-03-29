@@ -204,6 +204,7 @@ export default {
 	'system.overlay': 'Schreibschutz (OverlayFS)',
 	'system.overlay_on': 'Aktivieren',
 	'system.overlay_off': 'Deaktivieren',
+	'system.power': 'Ein/Aus',
 	'system.restart': 'Tonado neustarten',
 	'system.reboot': 'Pi neustarten',
 	'system.shutdown': 'Pi ausschalten',

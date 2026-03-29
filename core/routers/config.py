@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from core.dependencies import get_config_service
+from core.dependencies import get_auth_service, get_config_service, require_tier
 from core.schemas.config import ConfigSetRequest, ConfigValueResponse
+from core.services.auth_service import AuthService, AuthTier
 from core.services.config_service import ConfigService
 
 router = APIRouter(prefix="/api/config", tags=["config"])
@@ -38,7 +39,13 @@ async def get_value(key: str, svc: ConfigService = Depends(get_config_service)) 
 
 
 @router.put("/")
-async def set_value(req: ConfigSetRequest, svc: ConfigService = Depends(get_config_service)) -> dict:
+async def set_value(
+    request: Request,
+    req: ConfigSetRequest,
+    svc: ConfigService = Depends(get_config_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if _is_sensitive(req.key):
         raise HTTPException(403, "This setting cannot be changed directly")
     await svc.set(req.key, req.value)
@@ -46,7 +53,13 @@ async def set_value(req: ConfigSetRequest, svc: ConfigService = Depends(get_conf
 
 
 @router.delete("/{key}")
-async def delete_value(key: str, svc: ConfigService = Depends(get_config_service)) -> dict:
+async def delete_value(
+    request: Request,
+    key: str,
+    svc: ConfigService = Depends(get_config_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     if _is_sensitive(key):
         raise HTTPException(403, "This setting cannot be deleted")
     deleted = await svc.delete(key)

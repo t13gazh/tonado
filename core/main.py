@@ -1,5 +1,6 @@
 """Tonado Core — FastAPI entry point and service wiring."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -22,6 +23,7 @@ from core.services.card_service import CardService
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
+from core.services.hardware_detector import HardwareDetector
 from core.services.player_service import PlayerService
 from core.services.library_service import LibraryService
 from core.services.playlist_service import PlaylistService
@@ -42,14 +44,24 @@ logger = logging.getLogger(__name__)
 
 
 async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
-    """Create and start all services, returning them as a dict."""
-    # Database — single connection for all services
+    """Create and start all services, returning them as a dict.
+
+    Services are started in dependency groups using asyncio.gather()
+    to reduce startup time on slow hardware (Pi Zero W: ~30-60s → ~10-15s).
+
+    Dependency graph:
+      Group 0: DB + Config (everything depends on these)
+      Group 1: HardwareDetector + PlayerService (independent, needed by Group 2)
+      Group 2: CardService + GyroService + LibraryService + StreamService
+               + PlaylistService + AuthService + WifiService + WebSocketHub
+      Group 3: TimerService + SetupWizard (depend on Group 1+2 services)
+    """
+    # --- Group 0: Foundation (sequential — everything depends on DB + Config) ---
     db_manager = DatabaseManager(settings.db_path)
     await db_manager.start()
     db = db_manager.connection
 
-    # Config service
-    config_service = ConfigService(db)
+    config_service = ConfigService(db, event_bus)
     await config_service.start()
 
     # Read runtime config from DB (overrides env defaults)
@@ -62,21 +74,28 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         gyro_enabled = settings.gyro_enabled
     gyro_sensitivity = await config_service.get("gyro.sensitivity") or settings.gyro_sensitivity
 
-    # Player service
+    # --- Group 1: Hardware detection + Player (independent, needed by later groups) ---
+    hardware_detector = HardwareDetector()
     player_service = PlayerService(
         event_bus=event_bus,
         host=settings.mpd_host,
         port=settings.mpd_port,
     )
-    await player_service.start()
+    await asyncio.gather(
+        hardware_detector.start(),
+        player_service.start(),
+    )
+    hw_profile = hardware_detector.profile
 
     # Set startup volume from config
     startup_volume = await config_service.get("player.startup_volume")
     if startup_volume is not None:
         await player_service.set_volume(startup_volume)
 
-    # Card service
-    rfid_reader = detect_reader(settings.hardware_mode)
+    # --- Group 2: Independent services (all only need DB/Config/HW profile) ---
+    rfid_type = hw_profile.rfid_reader if not hw_profile.is_mock else "mock"
+    rfid_reader = detect_reader(reader_type=rfid_type, device=hw_profile.rfid_device)
+    reader_connected = rfid_type not in ("none", "mock")
     card_service = CardService(
         reader=rfid_reader,
         event_bus=event_bus,
@@ -84,10 +103,9 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         config_service=config_service,
         rescan_cooldown=card_cooldown,
         remove_pauses=card_remove_pauses,
+        reader_connected=reader_connected,
     )
-    await card_service.start()
 
-    # Gyro service
     gyro_sensor = detect_gyro(settings.hardware_mode)
     gyro_service = GyroService(
         sensor=gyro_sensor,
@@ -95,47 +113,42 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         sensitivity=gyro_sensitivity,
         enabled=gyro_enabled,
     )
-    await gyro_service.start()
 
-    # Library service
     library_service = LibraryService(settings.media_dir)
-    await library_service.start()
-
-    # Stream service
     stream_service = StreamService(db)
-    await stream_service.start()
-
-    # Playlist service
     playlist_service = PlaylistService(db, media_dir=settings.media_dir)
-    await playlist_service.start()
-
-    # Auth service
     auth_service = AuthService(config_service)
-    await auth_service.start()
+    wifi_service = WifiService()
+    ws_hub = WebSocketHub(event_bus)
+    player_service.set_listener_check(lambda: ws_hub.has_connections)
 
-    # Timer service (sleep timer, idle shutdown, volume enforcement, resume)
+    await asyncio.gather(
+        card_service.start(),
+        gyro_service.start(),
+        library_service.start(),
+        stream_service.start(),
+        playlist_service.start(),
+        auth_service.start(),
+        wifi_service.start(),
+        ws_hub.start(),
+    )
+
+    # --- Group 3: Services that depend on Group 2 ---
     timer_service = TimerService(event_bus, player_service, config_service)
-    await timer_service.start()
-
-    # System + Backup services
     system_service = SystemService()
     backup_service = BackupService(db, config_service)
-
-    # WebSocket hub
-    ws_hub = WebSocketHub(event_bus)
-    await ws_hub.start()
-
-    # WiFi + Setup wizard + Captive portal
-    wifi_service = WifiService()
-    await wifi_service.start()
-
     captive_portal = CaptivePortalService()
 
     setup_wizard = SetupWizard(
         config_service=config_service,
         wifi_service=wifi_service,
+        hardware_detector=hardware_detector,
     )
-    await setup_wizard.start()
+
+    await asyncio.gather(
+        timer_service.start(),
+        setup_wizard.start(),
+    )
 
     # If setup not complete and on Pi, start captive portal
     if not setup_wizard.is_complete and settings.hardware_mode != "mock":
@@ -144,6 +157,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
 
     return {
         "db_manager": db_manager,
+        "hardware_detector": hardware_detector,
         "player_service": player_service,
         "card_service": card_service,
         "config_service": config_service,
@@ -189,16 +203,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Tonado ready — listening on %s:%d", settings.host, settings.port)
     yield
 
-    # Shutdown
+    # Shutdown — stop all services in reverse startup order
     logger.info("Shutting down Tonado...")
-    if services["captive_portal"].active:
-        await services["captive_portal"].stop()
-    await services["timer_service"].stop()
-    await services["gyro_service"].stop()
-    await services["card_service"].stop()
-    await services["player_service"].stop()
-    await services["config_service"].stop()
-    await services["db_manager"].stop()
+    shutdown_order = [
+        "captive_portal",
+        "setup_wizard",
+        "wifi_service",
+        "ws_hub",
+        "backup_service",
+        "timer_service",
+        "system_service",
+        "auth_service",
+        "playlist_service",
+        "stream_service",
+        "library_service",
+        "gyro_service",
+        "card_service",
+        "player_service",
+        "hardware_detector",
+        "config_service",
+        "db_manager",
+    ]
+    for name in shutdown_order:
+        svc = services.get(name)
+        if svc is None:
+            continue
+        try:
+            await svc.stop()
+        except Exception:
+            logger.exception("Error stopping %s", name)
     logger.info("Tonado stopped")
 
 
@@ -236,7 +269,9 @@ async def websocket_endpoint(ws: WebSocket) -> None:
             data = await ws.receive_text()
             # Future: handle client commands via WebSocket
             logger.debug("WebSocket received: %s", data)
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
         await hub.disconnect(ws)
 
 

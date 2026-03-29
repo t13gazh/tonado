@@ -36,12 +36,15 @@ class TimerService(BaseService):
         self._sleep_remaining: float = 0
         self._sleep_active: bool = False
         self._last_activity: float = time.monotonic()
+        self._cached_max_volume: int | None = None
+        self._max_volume_loaded: bool = False
 
     async def start(self) -> None:
         """Subscribe to events and start background tasks."""
         self._event_bus.subscribe("player_state_changed", self._on_player_state)
         self._event_bus.subscribe("card_scanned", self._on_activity)
         self._event_bus.subscribe("gesture_detected", self._on_activity)
+        self._event_bus.subscribe("config_changed", self._on_config_changed)
         self._idle_task = asyncio.create_task(self._idle_loop())
         logger.info("Timer service started")
 
@@ -97,11 +100,13 @@ class TimerService(BaseService):
     # --- Volume enforcement ---
 
     async def _enforce_max_volume(self) -> None:
-        """Enforce the maximum volume setting."""
-        max_vol = await self._config.get("player.max_volume")
-        if max_vol is not None and self._player.state.volume > max_vol:
-            await self._player.set_volume(max_vol)
-            logger.debug("Volume capped to max: %d", max_vol)
+        """Enforce the maximum volume setting (cached to avoid DB reads on every event)."""
+        if not self._max_volume_loaded:
+            self._cached_max_volume = await self._config.get("player.max_volume")
+            self._max_volume_loaded = True
+        if self._cached_max_volume is not None and self._player.state.volume > self._cached_max_volume:
+            await self._player.set_volume(self._cached_max_volume)
+            logger.debug("Volume capped to max: %d", self._cached_max_volume)
 
     # --- Idle shutdown ---
 
@@ -147,6 +152,11 @@ class TimerService(BaseService):
     async def _on_player_state(self, state: dict, **_) -> None:
         await self._enforce_max_volume()
         self._last_activity = time.monotonic()
+
+    async def _on_config_changed(self, key: str = "", **_) -> None:
+        """Invalidate cached config values when config changes."""
+        if not key or key == "player.max_volume":
+            self._max_volume_loaded = False
 
     async def _on_activity(self, **_) -> None:
         self._last_activity = time.monotonic()

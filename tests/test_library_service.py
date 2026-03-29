@@ -29,7 +29,7 @@ async def test_list_folders(lib_service: LibraryService) -> None:
     _create_album(lib_service._media_dir, "Album A", tracks=3)
     _create_album(lib_service._media_dir, "Album B", tracks=5, cover=False)
 
-    folders = lib_service.list_folders()
+    folders = await lib_service.list_folders()
     assert len(folders) == 2
     assert folders[0].name == "Album A"
     assert folders[0].track_count == 3

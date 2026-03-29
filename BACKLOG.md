@@ -8,10 +8,28 @@
 - [ ] Captive Portal / Setup-Wizard Ersteinrichtungs-Flow
 - [ ] SD-Karte >= 16 GB, Install-Script End-to-End testen
 - [ ] Pi-Test mit echter Hardware (RFID, Gyro)
-- [ ] Performance-Optimierung für Pi Zero W
+- [ ] Performance-Optimierung für Pi Zero W (siehe Architektur-Audit unten)
 - [ ] README.md mit Installationsanleitung für Endnutzer
 - [ ] Hardcoded Strings → i18n
 - [ ] Error-Boundaries und User-freundliche Fehlermeldungen
+
+## Architektur-Audit (2026-03-29)
+
+### KRITISCH
+- [ ] Sequentieller Startup: Services mit `asyncio.gather()` parallel starten, Podcast-Seed als Background-Task (`main.py`, `stream_service.py`)
+- [ ] 1Hz EventBus-Spam: `_elapsed_loop` nur bei WebSocket-Clients publishen, TimerService max_volume cachen statt DB-Read pro Sekunde (`player_service.py`, `timer_service.py`)
+
+### WARNUNG
+- [ ] Sync Library-IO: `list_folders()` blockiert Event-Loop, Durations in DB cachen (`library_service.py`)
+- [ ] Unvollständiger Shutdown: 7 von 14 Services werden gestoppt, Rest hängt (`main.py`)
+- [ ] urllib statt httpx in RSS-Parsing: Konvention-Verletzung + Thread-Pool (`stream_service.py`)
+- [ ] PlaylistItem.content_type raw str statt ContentType Enum (`playlist_service.py`)
+- [ ] WebSocket-Disconnect Cleanup: `try/finally` statt nur `WebSocketDisconnect` (`main.py`)
+- [ ] Config-API ohne Auth: PUT/DELETE braucht mindestens Parent-Tier (`config.py`)
+
+### VERBESSERUNG
+- [ ] Loading-Heuristik fragil: Explizites Flag statt duration/elapsed Berechnung (`player_service.py`)
+- [ ] scan_waiters Leak: finally-Block für Future-Cleanup bei Request-Abbruch (`card_service.py`)
 
 ## Setup-Wizard
 - [ ] Audio Test-Button (Sound abspielen zum Prüfen)

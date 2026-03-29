@@ -103,7 +103,7 @@ Tonado folgt einer **Service-Architektur**: Unabhängige Python-Services kommuni
   - **Offen:** Player-Ansicht, keine PIN nötig
   - **Eltern:** Bibliothek, Karten, Uploads, Einstellungen — PIN geschützt
   - **Experte:** Hardware, System, WiFi, Debug — separate PIN
-- **Implementierung:** PBKDF2-Hash fuer PINs, JWT-Token mit Tier-Claims
+- **Implementierung:** PBKDF2-Hash für PINs, JWT-Token mit Tier-Claims
 
 ## Event-Bus
 
@@ -182,7 +182,7 @@ CREATE TABLE podcasts (
 - **Kein `shell=True`** — nirgendwo, niemals
 - **Kein `subprocess` für Player-Befehle** — MPD direkt via Socket
 - **Input-Validierung** an jeder API-Grenze
-- **PIN-Hashing** mit PBKDF2 (stdlib, kein C-Compiler noetig)
+- **PIN-Hashing** mit PBKDF2 (stdlib, kein C-Compiler nötig)
 - **JWT-Tokens** mit kurzer Laufzeit
 - **Read-Only Root-Filesystem** im Produktivbetrieb (OverlayFS)
 

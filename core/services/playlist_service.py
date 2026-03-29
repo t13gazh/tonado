@@ -11,6 +11,7 @@ from typing import Any
 
 import aiosqlite
 
+from core.schemas.common import ContentType
 from core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class PlaylistItem:
     id: int
     position: int
-    content_type: str  # "track", "folder", "stream"
+    content_type: ContentType
     content_path: str
     title: str | None = None
     duration_seconds: float = 0
@@ -120,7 +121,7 @@ class PlaylistService(BaseService):
     async def add_item(
         self,
         playlist_id: int,
-        content_type: str,
+        content_type: ContentType,
         content_path: str,
         title: str | None = None,
     ) -> PlaylistItem | None:

@@ -20,6 +20,21 @@ class WebSocketHub:
         self._connections: set[WebSocket] = set()
         self._last_state: dict[str, Any] = {}
 
+    async def stop(self) -> None:
+        """Close all connections and unsubscribe from events."""
+        for ws in list(self._connections):
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        self._connections.clear()
+        logger.info("WebSocket hub stopped")
+
+    @property
+    def has_connections(self) -> bool:
+        """True if at least one WebSocket client is connected."""
+        return bool(self._connections)
+
     async def start(self) -> None:
         """Subscribe to events that should be broadcast."""
         self._event_bus.subscribe("player_state_changed", self._on_player_state)

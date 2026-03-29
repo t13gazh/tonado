@@ -10,7 +10,9 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
 import aiosqlite
+import httpx
 
 from core.services.base import BaseService
 
@@ -92,13 +94,26 @@ class StreamService(BaseService):
         super().__init__()
         self._db = db
         self._podcast_dir = podcast_dir or Path.home() / "tonado" / "podcasts"
+        self._refresh_task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Seed default stations and podcasts (schema managed by DatabaseManager)."""
         await self._seed_stations()
-        await self._seed_podcasts()
+        await self._seed_podcasts_metadata()
         self._podcast_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Stream service started")
+
+        # Fetch podcast episodes in background — avoids blocking startup
+        self._refresh_task = asyncio.create_task(self._refresh_seeded_podcasts())
+
+    async def stop(self) -> None:
+        """Cancel background refresh if still running."""
+        if self._refresh_task and not self._refresh_task.done():
+            self._refresh_task.cancel()
+            try:
+                await self._refresh_task
+            except asyncio.CancelledError:
+                pass
 
     async def _seed_stations(self) -> None:
         """Insert default radio stations if table is empty."""
@@ -115,8 +130,8 @@ class StreamService(BaseService):
         await self._db.commit()
         logger.info("Seeded %d default radio stations", len(_DEFAULT_STATIONS))
 
-    async def _seed_podcasts(self) -> None:
-        """Insert default podcasts if table is empty."""
+    async def _seed_podcasts_metadata(self) -> None:
+        """Insert default podcast metadata if table is empty (no network I/O)."""
         cursor = await self._db.execute("SELECT COUNT(*) FROM podcasts")
         row = await cursor.fetchone()
         if row and row[0] > 0:
@@ -129,14 +144,19 @@ class StreamService(BaseService):
         await self._db.commit()
         logger.info("Seeded %d default podcasts", len(_DEFAULT_PODCASTS))
 
-        # Fetch episodes for seeded podcasts in background
+    async def _refresh_seeded_podcasts(self) -> None:
+        """Fetch episodes for all podcasts — runs as background task after startup."""
         cursor = await self._db.execute("SELECT id FROM podcasts")
         rows = await cursor.fetchall()
+        if not rows:
+            return
+        logger.info("Background: refreshing %d podcast feeds...", len(rows))
         for (pid,) in rows:
             try:
                 await self.refresh_podcast(pid)
             except Exception as e:
-                logger.warning("Failed to refresh seeded podcast %d: %s", pid, e)
+                logger.warning("Failed to refresh podcast %d: %s", pid, e)
+        logger.info("Background: podcast refresh complete")
 
     # --- Radio stations ---
 
@@ -254,21 +274,20 @@ class StreamService(BaseService):
     @staticmethod
     async def _parse_rss(feed_url: str) -> list[dict]:
         """Parse an RSS feed and extract audio episodes."""
-        import urllib.request
+        max_size = 5 * 1024 * 1024  # 5 MB limit to prevent XML bombs
 
-        loop = asyncio.get_running_loop()
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(15.0),
+            headers={"User-Agent": "Tonado/0.1"},
+            max_redirects=5,
+        ) as client:
+            resp = await client.get(feed_url)
+            resp.raise_for_status()
 
-        def fetch() -> bytes:
-            max_size = 5 * 1024 * 1024  # 5 MB limit to prevent XML bombs
-            req = urllib.request.Request(feed_url, headers={"User-Agent": "Tonado/0.1"})
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = resp.read(max_size + 1)
-                if len(data) > max_size:
-                    raise ValueError(f"RSS feed too large: {len(data)} bytes")
-                return data
+        if len(resp.content) > max_size:
+            raise ValueError(f"RSS feed too large: {len(resp.content)} bytes")
 
-        data = await loop.run_in_executor(None, fetch)
-        root = ET.fromstring(data)
+        root = ET.fromstring(resp.content)
 
         episodes = []
         for item in root.iter("item"):

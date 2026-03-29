@@ -8,6 +8,7 @@ from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
 from core.services.gyro_service import GyroService
+from core.services.hardware_detector import HardwareDetector
 from core.services.library_service import LibraryService
 from core.services.player_service import PlayerService
 from core.services.playlist_service import PlaylistService
@@ -100,6 +101,10 @@ def get_captive_portal(request: Request) -> CaptivePortalService:
 
 def get_gyro_service(request: Request) -> GyroService:
     return request.app.state.gyro_service
+
+
+def get_hardware_detector(request: Request) -> HardwareDetector:
+    return request.app.state.hardware_detector
 
 
 def get_settings(request: Request) -> Settings:

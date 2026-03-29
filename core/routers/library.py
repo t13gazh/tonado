@@ -39,7 +39,7 @@ def _safe_path(folder_name: str, svc: LibraryService) -> str:
 
 @router.get("/folders")
 async def list_folders(svc: LibraryService = Depends(get_library_service)) -> list[dict]:
-    return [f.to_dict() for f in svc.list_folders()]
+    return [f.to_dict() for f in await svc.list_folders()]
 
 
 @router.get("/folders/{folder_name}")

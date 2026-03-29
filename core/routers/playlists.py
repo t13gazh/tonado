@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core.dependencies import get_player, get_playlist_service
+from core.schemas.common import ContentType
 from core.services.player_service import PlayerService
 from core.services.playlist_service import PlaylistService
 
@@ -45,7 +46,7 @@ async def delete_playlist(playlist_id: int, svc: PlaylistService = Depends(get_p
 
 
 class AddItemRequest(BaseModel):
-    content_type: str = Field(pattern=r"^(track|folder|stream)$")
+    content_type: ContentType
     content_path: str = Field(min_length=1)
     title: str | None = None
 

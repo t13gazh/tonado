@@ -7,6 +7,7 @@ from typing import Any
 import aiosqlite
 
 from core.services.base import BaseService
+from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,10 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
 class ConfigService(BaseService):
     """Key-value config store with typed values and defaults."""
 
-    def __init__(self, db: aiosqlite.Connection) -> None:
+    def __init__(self, db: aiosqlite.Connection, event_bus: EventBus | None = None) -> None:
         super().__init__()
         self._db: aiosqlite.Connection = db
+        self._event_bus = event_bus
 
     async def start(self) -> None:
         """Seed default config values."""
@@ -70,7 +72,7 @@ class ConfigService(BaseService):
         return self._decode(row[0], row[1])
 
     async def set(self, key: str, value: Any) -> None:
-        """Set a config value."""
+        """Set a config value and notify subscribers."""
         assert self._db is not None
         type_ = self._infer_type(value)
         encoded = self._encode(value, type_)
@@ -79,6 +81,8 @@ class ConfigService(BaseService):
             (key, encoded, type_),
         )
         await self._db.commit()
+        if self._event_bus:
+            await self._event_bus.publish("config_changed", key=key, value=value)
 
     async def get_all(self) -> dict[str, Any]:
         """Get all config values as a dictionary."""

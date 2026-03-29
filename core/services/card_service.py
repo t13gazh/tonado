@@ -45,6 +45,7 @@ class CardService(BaseService):
         config_service: "ConfigService | None" = None,
         rescan_cooldown: float = 2.0,
         remove_pauses: bool = False,
+        reader_connected: bool = False,
     ) -> None:
         super().__init__()
         self._reader = reader
@@ -53,6 +54,7 @@ class CardService(BaseService):
         self._config_service = config_service
         self._rescan_cooldown = rescan_cooldown
         self._remove_pauses = remove_pauses
+        self._reader_connected: bool = reader_connected
         self._scan_task: asyncio.Task | None = None
         self._last_card_id: str | None = None
         self._last_scan_time: float = 0.0
@@ -79,11 +81,10 @@ class CardService(BaseService):
         await self._reader.stop()
 
     def health(self) -> dict:
-        """Return RFID reader health status."""
-        from core.hardware.rfid import MockRfidReader
+        """Return RFID reader health status based on detection result."""
         reader_type = type(self._reader).__name__
-        if isinstance(self._reader, MockRfidReader):
-            return {"status": "not_configured", "detail": "Mock-Reader"}
+        if not self._reader_connected:
+            return {"status": "not_configured", "detail": "Kein RFID-Reader erkannt"}
         return {"status": "connected", "detail": reader_type}
 
     async def _scan_loop(self) -> None:
@@ -255,6 +256,8 @@ class CardService(BaseService):
         try:
             return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
+            return None
+        finally:
+            # Always clean up — covers timeout, cancellation, and other errors
             if future in self._scan_waiters:
                 self._scan_waiters.remove(future)
-            return None

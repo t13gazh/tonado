@@ -14,6 +14,7 @@ Folder name is the title (no ID3 parsing — deliberate simplicity).
 Duration is read from audio headers via mutagen.
 """
 
+import asyncio
 import logging
 import shutil
 from dataclasses import asdict, dataclass, field
@@ -67,8 +68,17 @@ class LibraryService(BaseService):
         self._media_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Library service started (media_dir=%s)", self._media_dir)
 
-    def list_folders(self) -> list[MediaFolder]:
-        """List all media folders (albums/audiobooks)."""
+    async def list_folders(self) -> list[MediaFolder]:
+        """List all media folders (albums/audiobooks).
+
+        Runs the IO-intensive scanning (directory iteration + mutagen duration
+        parsing) in a thread-pool executor so the event loop stays responsive.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._list_folders_sync)
+
+    def _list_folders_sync(self) -> list[MediaFolder]:
+        """Synchronous implementation of list_folders (runs in executor)."""
         folders: list[MediaFolder] = []
         if not self._media_dir.exists():
             return folders

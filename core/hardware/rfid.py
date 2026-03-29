@@ -375,52 +375,43 @@ class UsbHidReader(RfidReader):
         return None
 
 
-def detect_reader(hardware_mode: str = "auto") -> RfidReader:
-    """Detect and return the appropriate RFID reader.
+def detect_reader(reader_type: str = "auto", device: str = "") -> RfidReader:
+    """Create the appropriate RFID reader instance.
 
     Args:
-        hardware_mode: "auto", "mock", "rc522", "pn532", "usb", or "pi" (auto-detect on Pi)
+        reader_type: Explicit type from HardwareDetector profile or settings.
+            "rc522", "pn532", "usb" — create reader directly.
+            "none", "mock" — return mock reader.
+            "auto" — run detect_rfid() from detect.py (real chip probe).
+        device: Device path hint (e.g. "/dev/spidev0.0", "/dev/hidraw0").
     """
-    if hardware_mode == "mock":
+    if reader_type == "mock":
         return MockRfidReader()
 
-    if hardware_mode == "rc522":
+    if reader_type == "none":
+        logger.info("No RFID reader configured, using mock reader")
+        return MockRfidReader()
+
+    if reader_type == "rc522":
         return Rc522Reader()
 
-    if hardware_mode == "pn532":
+    if reader_type == "pn532":
         return Pn532Reader()
 
-    if hardware_mode == "usb":
-        return UsbHidReader()
+    if reader_type == "usb":
+        dev = device or "/dev/hidraw0"
+        return UsbHidReader(device_path=dev)
 
-    # Auto-detection
-    if hardware_mode in ("auto", "pi"):
-        # Try SPI (RC522)
-        try:
-            import spidev  # noqa: F401
-            from pathlib import Path
-            if Path("/dev/spidev0.0").exists():
-                logger.info("Auto-detected RC522 (SPI)")
-                return Rc522Reader()
-        except ImportError:
-            pass
+    # Auto-detection — delegate to detect.py which does real chip probing
+    if reader_type == "auto":
+        from core.hardware.detect import detect_rfid
+        detected_type, detected_device = detect_rfid()
+        if detected_type != "none":
+            logger.info("Auto-detected RFID: %s on %s", detected_type, detected_device)
+            return detect_reader(reader_type=detected_type, device=detected_device)
+        logger.info("No RFID hardware detected, using mock reader")
+        return MockRfidReader()
 
-        # Try I2C (PN532)
-        try:
-            import smbus2  # noqa: F401
-            from pathlib import Path
-            if Path("/dev/i2c-1").exists():
-                logger.info("Auto-detected PN532 (I2C)")
-                return Pn532Reader()
-        except ImportError:
-            pass
-
-        # Try USB HID
-        from pathlib import Path
-        if Path("/dev/hidraw0").exists():
-            logger.info("Auto-detected USB HID reader")
-            return UsbHidReader()
-
-    # Fallback to mock
-    logger.info("No RFID hardware detected, using mock reader")
+    # Unknown type — fallback to mock
+    logger.warning("Unknown reader_type '%s', using mock reader", reader_type)
     return MockRfidReader()

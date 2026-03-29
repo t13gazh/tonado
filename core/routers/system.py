@@ -12,6 +12,7 @@ from core.dependencies import (
     get_backup_service,
     get_card_service,
     get_gyro_service,
+    get_hardware_detector,
     get_player,
     get_system_service,
     get_wifi_service,
@@ -21,10 +22,10 @@ from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.card_service import CardService
 from core.services.gyro_service import GyroService
+from core.services.hardware_detector import HardwareDetector
 from core.services.player_service import PlayerService
 from core.services.system_service import SystemService
 from core.services.wifi_service import WifiService
-from core.hardware.detect import detect_all
 from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
@@ -121,16 +122,30 @@ async def system_health(
 # --- Hardware status ---
 
 @router.get("/hardware")
-async def hardware_status(wifi: WifiService = Depends(get_wifi_service)) -> dict:
-    """Return detected hardware profile including WiFi status."""
+async def hardware_status(
+    detector: HardwareDetector = Depends(get_hardware_detector),
+    wifi: WifiService = Depends(get_wifi_service),
+) -> dict:
+    """Return cached hardware profile including WiFi status."""
+    data = detector.profile.to_dict()
+    data["wifi"] = await _wifi_status_dict(wifi)
+    return data
+
+
+@router.post("/hardware/redetect")
+async def hardware_redetect(
+    request: Request,
+    detector: HardwareDetector = Depends(get_hardware_detector),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    """Re-run hardware detection (expert only)."""
+    require_tier(request, AuthTier.EXPERT, auth)
     try:
-        profile = detect_all()
-        data = profile.to_dict()
-        data["wifi"] = await _wifi_status_dict(wifi)
-        return data
+        profile = await detector.redetect()
+        return profile.to_dict()
     except Exception as e:
-        logger.error("Hardware detection failed: %s", e)
-        raise HTTPException(500, "Hardware detection failed")
+        logger.error("Hardware re-detection failed: %s", e)
+        raise HTTPException(500, "Hardware re-detection failed")
 
 
 # --- Power ---

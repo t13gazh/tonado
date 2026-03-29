@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any
+from typing import Any, Callable
 
 from mpd.asyncio import MPDClient
 
@@ -73,6 +73,14 @@ class PlayerService(BaseService):
         self._idle_task: asyncio.Task | None = None
         self._elapsed_task: asyncio.Task | None = None
         self._connected = False
+        self._has_listeners: Callable[[], bool] | None = None
+
+    def set_listener_check(self, check: Callable[[], bool]) -> None:
+        """Set a callback that returns True when broadcast listeners exist.
+
+        Used by _elapsed_loop to skip publishing when no clients are connected.
+        """
+        self._has_listeners = check
 
     @property
     def state(self) -> PlayerState:
@@ -341,7 +349,11 @@ class PlayerService(BaseService):
                 await asyncio.sleep(1)
 
     async def _elapsed_loop(self) -> None:
-        """Periodically update elapsed time during playback for smooth progress."""
+        """Periodically update elapsed time during playback for smooth progress.
+
+        Skips publishing when no WebSocket clients are connected to avoid
+        unnecessary JSON serialization and event bus overhead on Pi Zero W.
+        """
         while self._connected:
             try:
                 await asyncio.sleep(1)
@@ -349,7 +361,9 @@ class PlayerService(BaseService):
                     self._state.elapsed += 1.0
                     if self._state.elapsed > self._state.duration and self._state.duration > 0:
                         self._state.elapsed = self._state.duration
-                    await self._publish_state()
+                    # Only publish if someone is listening (WebSocket clients connected)
+                    if self._has_listeners is None or self._has_listeners():
+                        await self._publish_state()
             except asyncio.CancelledError:
                 break
             except Exception:

@@ -1,6 +1,6 @@
 # Entwicklung
 
-Anleitung fuer Entwickler, die an Tonado mitarbeiten moechten.
+Anleitung für Entwickler, die an Tonado mitarbeiten möchten.
 
 ## Tech Stack
 
@@ -65,7 +65,7 @@ Browser: `http://localhost:5173`
 
 ### Mock-Modus
 
-Hardware-Services (RFID, Gyro, GPIO) laufen auf Windows/Mac automatisch im Mock-Modus. MPD muss nicht installiert sein — der Player-Service faengt Verbindungsfehler ab.
+Hardware-Services (RFID, Gyro, GPIO) laufen auf Windows/Mac automatisch im Mock-Modus. MPD muss nicht installiert sein — der Player-Service fängt Verbindungsfehler ab.
 
 ## Frontend auf den Pi deployen
 
@@ -73,7 +73,7 @@ Node.js ist auf dem Pi **nicht** installiert. Das Frontend wird lokal gebaut und
 
 ```bash
 cd web && npm run build
-# Build committen und pushen — Pi zieht Update ueber die App
+# Build committen und pushen — Pi zieht Update über die App
 ```
 
 Alternativ manuell per scp:
@@ -106,7 +106,7 @@ pytest -v -s
 - **Branch:** `main` als Standard-Branch
 
 ```bash
-# Linter pruefen
+# Linter prüfen
 ruff check .
 
 # Linter auto-fix
@@ -117,11 +117,11 @@ ruff check --fix .
 
 Detaillierte Architektur-Dokumentation: [ARCHITEKTUR.md](ARCHITEKTUR.md)
 
-Kurzfassung: Service-Architektur mit Event-Bus. Unabhaengige Python-Services kommunizieren ueber asyncio Events. Frontend ist eine statische PWA (Svelte 5), die ueber REST und WebSocket mit dem Backend spricht.
+Kurzfassung: Service-Architektur mit Event-Bus. Unabhängige Python-Services kommunizieren über asyncio Events. Frontend ist eine statische PWA (Svelte 5), die über REST und WebSocket mit dem Backend spricht.
 
 ## Weiterführende Docs
 
 - [Architektur](ARCHITEKTUR.md) — Service-Diagramm, Datenmodell, Security
 - [Roadmap](ROADMAP.md) — Meilensteine und Phasen
 - [Vision](VISION.md) — Produktvision und UX-Prinzipien
-- [Hardware](hardware.md) — Unterstuetzte Hardware und Verkabelung
+- [Hardware](hardware.md) — Unterstützte Hardware und Verkabelung

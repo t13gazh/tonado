@@ -15,7 +15,7 @@ from dataclasses import asdict
 from enum import StrEnum
 from typing import Any
 
-from core.hardware.detect import HardwareProfile, detect_all
+from core.hardware.detect import HardwareProfile
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.services.wifi_service import WifiService
@@ -43,10 +43,12 @@ class SetupWizard(BaseService):
         self,
         config_service: ConfigService,
         wifi_service: WifiService,
+        hardware_detector: "HardwareDetector | None" = None,
     ) -> None:
         super().__init__()
         self._config = config_service
         self._wifi = wifi_service
+        self._detector = hardware_detector
         self._hardware: HardwareProfile | None = None
         self._current_step = SetupStep.NOT_STARTED
         self._hardware_changed = False
@@ -104,9 +106,9 @@ class SetupWizard(BaseService):
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     async def _check_hardware_changes(self) -> None:
-        """Detect hardware and compare fingerprint to saved one."""
+        """Compare cached hardware profile fingerprint to saved one."""
         try:
-            profile = detect_all()
+            profile = self._get_profile()
             if profile.is_mock:
                 return  # Skip check on non-Pi systems
             current_fp = self._compute_hardware_fingerprint(profile)
@@ -126,9 +128,22 @@ class SetupWizard(BaseService):
 
     # --- Step handlers ---
 
+    def _get_profile(self) -> HardwareProfile:
+        """Get hardware profile from detector or fallback to mock."""
+        if self._detector is not None:
+            return self._detector.profile
+        return HardwareProfile(is_mock=True)
+
     async def detect_hardware(self) -> HardwareProfile:
-        """Step 1: Detect hardware and return profile."""
-        self._hardware = detect_all()
+        """Step 1: Detect hardware and return profile.
+
+        Uses HardwareDetector's cached profile. Triggers redetect() to ensure
+        fresh results during wizard flow.
+        """
+        if self._detector is not None:
+            self._hardware = await self._detector.redetect()
+        else:
+            self._hardware = HardwareProfile(is_mock=True)
         await self._save_step(SetupStep.HARDWARE_DETECTION)
 
         # Save detected hardware to config

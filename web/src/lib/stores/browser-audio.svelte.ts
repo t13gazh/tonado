@@ -48,7 +48,7 @@ function retryStream(): void {
 		if (!_active || !audioElement) return;
 		audioElement.src = streamUrl();
 		audioElement.load();
-		audioElement.play().catch(() => { _loading = false; });
+		audioElement.play().catch(() => { retryStream(); });
 	}, RETRY_DELAY_MS);
 }
 
@@ -62,9 +62,10 @@ export function setBrowserAudioElement(el: HTMLAudioElement): void {
 		if (_active) _loading = true;
 	});
 	el.addEventListener('error', () => {
-		if (_active) {
+		if (_active && !_reloadTimer) {
+			// Only retry if no reload is already scheduled (track change)
 			retryStream();
-		} else {
+		} else if (!_active) {
 			_loading = false;
 		}
 	});
@@ -77,7 +78,7 @@ export function startBrowserAudio(): void {
 	_active = true;
 	audioElement.src = streamUrl();
 	audioElement.load();
-	audioElement.play().catch(() => { _loading = false; });
+	audioElement.play().catch(() => { retryStream(); });
 }
 
 export function stopBrowserAudio(): void {
@@ -116,6 +117,10 @@ export function reloadBrowserAudio(): void {
 		if (!_active || !audioElement) return;
 		audioElement.src = streamUrl();
 		audioElement.load();
-		audioElement.play().catch(() => { _loading = false; });
+		audioElement.play().catch(() => {
+			// play() failed (stream not ready yet or autoplay blocked) —
+			// fall through to retry logic so we don't silently give up.
+			retryStream();
+		});
 	}, RELOAD_DELAY_MS);
 }

@@ -143,18 +143,24 @@
 	}
 
 	let lastTrackUri = $state('');
+	let lastPlayState = $state('');
 
 	onMount(async () => {
 		try { outputs = await player.outputs(); } catch {}
 	});
 
 	// Reload browser audio stream when the current track changes
+	// or when playback restarts (same URI after stop→play cycle)
 	$effect(() => {
 		const uri = state.current_uri;
-		if (lastTrackUri && uri !== lastTrackUri && uri !== '') {
+		const playState = state.state;
+		const uriChanged = uri !== '' && uri !== lastTrackUri && lastTrackUri !== '';
+		const restarted = uri !== '' && uri === lastTrackUri && lastPlayState === 'stopped' && playState === 'playing';
+		if (uriChanged || restarted) {
 			reloadBrowserAudio();
 		}
 		lastTrackUri = uri;
+		lastPlayState = playState;
 	});
 
 	async function toggleBrowserAudio() {

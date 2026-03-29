@@ -102,7 +102,7 @@ export function stopBrowserAudio(): void {
  * on its httpd output before the browser requests the proxy.
  */
 let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
-const RELOAD_DELAY_MS = 1500;
+const RELOAD_DELAY_MS = 2500;
 
 export function reloadBrowserAudio(): void {
 	if (!_active || !audioElement) return;
@@ -111,6 +111,10 @@ export function reloadBrowserAudio(): void {
 	if (_reloadTimer) {
 		clearTimeout(_reloadTimer);
 	}
+	// Immediately stop old stream to prevent error events from stale connection
+	audioElement.pause();
+	audioElement.removeAttribute('src');
+	audioElement.load();
 	_loading = true;
 	_reloadTimer = setTimeout(() => {
 		_reloadTimer = null;
@@ -118,8 +122,6 @@ export function reloadBrowserAudio(): void {
 		audioElement.src = streamUrl();
 		audioElement.load();
 		audioElement.play().catch(() => {
-			// play() failed (stream not ready yet or autoplay blocked) —
-			// fall through to retry logic so we don't silently give up.
 			retryStream();
 		});
 	}, RELOAD_DELAY_MS);

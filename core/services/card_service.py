@@ -246,15 +246,21 @@ class CardService:
         await self._db.commit()
 
     async def wait_for_scan(self, timeout: float = 30.0) -> str | None:
-        """Wait for the next card to be scanned. Used by the card wizard.
+        """Wait for a card to be scanned. Used by the card wizard.
 
-        Returns card_id or None on timeout.
+        If a card is already on the reader, returns it immediately.
+        Otherwise waits for the next card placement or timeout.
         """
+        # Return immediately if a card is currently present
+        if self._card_on_reader and self._active_card_id:
+            return self._active_card_id
+
         loop = asyncio.get_running_loop()
         future: asyncio.Future[str] = loop.create_future()
         self._scan_waiters.append(future)
         try:
             return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
-            self._scan_waiters.remove(future) if future in self._scan_waiters else None
+            if future in self._scan_waiters:
+                self._scan_waiters.remove(future)
             return None

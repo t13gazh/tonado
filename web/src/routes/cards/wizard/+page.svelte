@@ -89,7 +89,9 @@
 				step = 'content';
 				loadContentLists();
 			} else {
-				scanning = false;
+				// Timeout — auto-retry silently
+				startScan();
+				return;
 			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Fehler';
@@ -241,16 +243,7 @@
 				<p class="text-sm text-red-400">{error}</p>
 			{/if}
 
-			{#if !scanning}
-				<button
-					onclick={startScan}
-					class="px-6 py-2.5 bg-primary hover:bg-primary-light text-white rounded-xl text-sm font-medium transition-colors"
-				>
-					{t('general.retry')}
-				</button>
-			{:else}
-				<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
-			{/if}
+			<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
 		</div>
 	{/if}
 

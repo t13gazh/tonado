@@ -247,24 +247,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Setup not complete — starting captive portal")
         await captive_portal.start()
 
-    # Initialize routers with service instances
-    player.init(player_service)
-    cards.init(card_service)
-    config.init(config_service)
-    library.init(library_service)
-    streams.init(stream_service)
-    playlists.init(playlist_service, player_service)
-    auth.init(auth_service, timer_service)
-    system.init(
-        system_service, backup_service, auth_service,
-        player_service=player_service,
-        card_service=card_service,
-        gyro_service=gyro_service,
-        settings=settings,
-    )
-    setup.init(setup_wizard, wifi_service, captive_portal, auth_service)
-
-    # Store hub on app state for WebSocket endpoint
+    # Store all services on app.state for FastAPI dependency injection
+    app.state.player_service = player_service
+    app.state.card_service = card_service
+    app.state.config_service = config_service
+    app.state.library_service = library_service
+    app.state.stream_service = stream_service
+    app.state.playlist_service = playlist_service
+    app.state.auth_service = auth_service
+    app.state.timer_service = timer_service
+    app.state.system_service = system_service
+    app.state.backup_service = backup_service
+    app.state.setup_wizard = setup_wizard
+    app.state.wifi_service = wifi_service
+    app.state.captive_portal = captive_portal
+    app.state.gyro_service = gyro_service
+    app.state.settings = settings
     app.state.ws_hub = ws_hub
 
     logger.info("Tonado ready — listening on %s:%d", settings.host, settings.port)

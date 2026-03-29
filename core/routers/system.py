@@ -3,68 +3,31 @@
 import json
 import logging
 import shutil
-from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 
-from core.dependencies import require_tier
+from core.dependencies import (
+    get_auth_service,
+    get_backup_service,
+    get_card_service,
+    get_gyro_service,
+    get_player,
+    get_system_service,
+    require_tier,
+)
 from core.utils.subprocess import async_run
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
+from core.services.card_service import CardService
+from core.services.gyro_service import GyroService
+from core.services.player_service import PlayerService
 from core.services.system_service import SystemService
 from core.hardware.detect import detect_all
-
-if TYPE_CHECKING:
-    from core.services.card_service import CardService
-    from core.services.gyro_service import GyroService
-    from core.services.player_service import PlayerService
-    from core.settings import Settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/system", tags=["system"])
-
-_system: SystemService | None = None
-_backup: BackupService | None = None
-_auth: AuthService | None = None
-_player: "PlayerService | None" = None
-_card: "CardService | None" = None
-_gyro: "GyroService | None" = None
-_settings: "Settings | None" = None
-
-
-def init(
-    system_service: SystemService,
-    backup_service: BackupService,
-    auth_service: AuthService | None = None,
-    *,
-    player_service: "PlayerService | None" = None,
-    card_service: "CardService | None" = None,
-    gyro_service: "GyroService | None" = None,
-    settings: "Settings | None" = None,
-) -> None:
-    global _system, _backup, _auth, _player, _card, _gyro, _settings
-    _system = system_service
-    _backup = backup_service
-    _auth = auth_service
-    _player = player_service
-    _card = card_service
-    _gyro = gyro_service
-    _settings = settings
-
-
-def _get_system() -> SystemService:
-    if _system is None:
-        raise HTTPException(503, "System service not available")
-    return _system
-
-
-def _get_backup() -> BackupService:
-    if _backup is None:
-        raise HTTPException(503, "Backup service not available")
-    return _backup
-
 
 
 async def _detect_wifi() -> dict:
@@ -98,40 +61,35 @@ async def _detect_wifi() -> dict:
 # --- System info ---
 
 @router.get("/info")
-async def system_info() -> dict:
-    info = await _get_system().get_info()
+async def system_info(svc: SystemService = Depends(get_system_service)) -> dict:
+    info = await svc.get_info()
     return info.to_dict()
 
 
 # --- Health status (hardware resilience) ---
 
 @router.get("/health")
-async def system_health() -> dict:
+async def system_health(
+    player: PlayerService = Depends(get_player),
+    card: CardService = Depends(get_card_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
     """Return health status of all hardware components for UI degraded-state banners."""
     health: dict = {}
 
     # MPD / Player
-    if _player is not None:
-        health["mpd"] = _player.health()
-    else:
-        health["mpd"] = {"status": "disconnected", "detail": "Player-Service nicht initialisiert"}
+    health["mpd"] = player.health()
 
     # RFID reader
-    if _card is not None:
-        health["rfid"] = _card.health()
-    else:
-        health["rfid"] = {"status": "not_configured", "detail": "Kein Figuren-Leser erkannt"}
+    health["rfid"] = card.health()
 
     # Gyro sensor
-    if _gyro is not None:
-        health["gyro"] = _gyro.health()
-    else:
-        health["gyro"] = {"status": "not_configured", "detail": "Kein Bewegungssensor erkannt"}
+    health["gyro"] = gyro.health()
 
     # Audio output — delegate to MPD outputs if available
-    if _player is not None and _player.health()["status"] == "connected":
+    if player.health()["status"] == "connected":
         try:
-            outputs = await _player.list_outputs()
+            outputs = await player.list_outputs()
             if outputs:
                 names = ", ".join(o["name"] for o in outputs if o["enabled"])
                 health["audio"] = {"status": "ok", "detail": names or "Kein aktiver Ausgang"}
@@ -191,60 +149,84 @@ async def hardware_status() -> dict:
 # --- Power ---
 
 @router.post("/restart")
-async def restart_service(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    await _get_system().restart()
+async def restart_service(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    await svc.restart()
     return {"status": "ok"}
 
 
 @router.post("/shutdown")
-async def shutdown(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    await _get_system().shutdown()
+async def shutdown(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    await svc.shutdown()
     return {"status": "ok"}
 
 
 @router.post("/reboot")
-async def reboot(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    await _get_system().reboot()
+async def reboot(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    await svc.reboot()
     return {"status": "ok"}
 
 
 # --- Updates ---
 
 @router.get("/update/check")
-async def check_update() -> dict:
-    return await _get_system().check_update()
+async def check_update(svc: SystemService = Depends(get_system_service)) -> dict:
+    return await svc.check_update()
 
 
 @router.post("/update/apply")
-async def apply_update(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    return await _get_system().apply_update()
+async def apply_update(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    return await svc.apply_update()
 
 
 # --- OverlayFS ---
 
 @router.post("/overlay/enable")
-async def enable_overlay(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    success = await _get_system().enable_overlay()
+async def enable_overlay(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    success = await svc.enable_overlay()
     return {"status": "ok" if success else "error"}
 
 
 @router.post("/overlay/disable")
-async def disable_overlay(request: Request) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
-    success = await _get_system().disable_overlay()
+async def disable_overlay(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
+    success = await svc.disable_overlay()
     return {"status": "ok" if success else "error"}
 
 
 # --- Backup/Restore ---
 
 @router.get("/backup")
-async def export_backup() -> JSONResponse:
-    data = await _get_backup().export_backup()
+async def export_backup(svc: BackupService = Depends(get_backup_service)) -> JSONResponse:
+    data = await svc.export_backup()
     return JSONResponse(
         content=data,
         headers={
@@ -254,8 +236,13 @@ async def export_backup() -> JSONResponse:
 
 
 @router.post("/restore")
-async def import_backup(request: Request, file: UploadFile = File(...)) -> dict:
-    require_tier(request, AuthTier.EXPERT, _auth)
+async def import_backup(
+    request: Request,
+    file: UploadFile = File(...),
+    auth: AuthService = Depends(get_auth_service),
+    svc: BackupService = Depends(get_backup_service),
+) -> dict:
+    require_tier(request, AuthTier.EXPERT, auth)
     if not file.filename or not file.filename.endswith(".json"):
         raise HTTPException(400, "Only JSON files allowed")
 
@@ -268,5 +255,5 @@ async def import_backup(request: Request, file: UploadFile = File(...)) -> dict:
     if "version" not in data:
         raise HTTPException(400, "Not a valid Tonado backup")
 
-    counts = await _get_backup().import_backup(data)
+    counts = await svc.import_backup(data)
     return {"status": "ok", "imported": counts}

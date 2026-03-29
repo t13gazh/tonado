@@ -1,34 +1,13 @@
 """Authentication and settings API routes."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.dependencies import get_token, require_tier
+from core.dependencies import get_auth_service, get_timer_service, get_token, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.timer_service import TimerService
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-_auth: AuthService | None = None
-_timer: TimerService | None = None
-
-
-def init(auth_service: AuthService, timer_service: TimerService) -> None:
-    global _auth, _timer
-    _auth = auth_service
-    _timer = timer_service
-
-
-def _get_auth() -> AuthService:
-    if _auth is None:
-        raise HTTPException(503, "Auth service not available")
-    return _auth
-
-
-def _get_timer() -> TimerService:
-    if _timer is None:
-        raise HTTPException(503, "Timer service not available")
-    return _timer
 
 
 # --- Login ---
@@ -39,16 +18,15 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-async def login(req: LoginRequest) -> dict:
-    result = await _get_auth().login(req.pin)
+async def login(req: LoginRequest, auth: AuthService = Depends(get_auth_service)) -> dict:
+    result = await auth.login(req.pin)
     if result is None:
         raise HTTPException(401, "Invalid PIN")
     return result
 
 
 @router.get("/status")
-async def auth_status(request: Request) -> dict:
-    auth = _get_auth()
+async def auth_status(request: Request, auth: AuthService = Depends(get_auth_service)) -> dict:
     token = get_token(request)
     claims = auth.verify_token(token) if token else None
 
@@ -69,18 +47,21 @@ class SetPinRequest(BaseModel):
 
 
 @router.post("/pin")
-async def set_pin(req: SetPinRequest, request: Request) -> dict:
-    auth = _get_auth()
+async def set_pin(
+    req: SetPinRequest,
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
     target_tier = AuthTier(req.tier)
 
     # Setting expert PIN requires expert access (or no expert PIN set yet)
     if target_tier == AuthTier.EXPERT:
         if await auth.is_pin_set(AuthTier.EXPERT):
-            require_tier(request, AuthTier.EXPERT, _auth)
+            require_tier(request, AuthTier.EXPERT, auth)
     # Setting parent PIN requires at least parent access
     elif target_tier == AuthTier.PARENT:
         if await auth.is_pin_set(AuthTier.PARENT):
-            require_tier(request, AuthTier.PARENT, _auth)
+            require_tier(request, AuthTier.PARENT, auth)
 
     await auth.set_pin(target_tier, req.pin)
     return {"status": "ok"}
@@ -91,10 +72,14 @@ class RemovePinRequest(BaseModel):
 
 
 @router.delete("/pin")
-async def remove_pin(req: RemovePinRequest, request: Request) -> dict:
+async def remove_pin(
+    req: RemovePinRequest,
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
     target_tier = AuthTier(req.tier)
-    require_tier(request, target_tier, _auth)
-    await _get_auth().remove_pin(target_tier)
+    require_tier(request, target_tier, auth)
+    await auth.remove_pin(target_tier)
     return {"status": "ok"}
 
 
@@ -106,17 +91,20 @@ class SleepTimerRequest(BaseModel):
 
 
 @router.post("/sleep-timer")
-async def start_sleep_timer(req: SleepTimerRequest) -> dict:
-    await _get_timer().start_sleep_timer(req.minutes)
+async def start_sleep_timer(
+    req: SleepTimerRequest,
+    timer: TimerService = Depends(get_timer_service),
+) -> dict:
+    await timer.start_sleep_timer(req.minutes)
     return {"status": "ok", "minutes": req.minutes}
 
 
 @router.delete("/sleep-timer")
-async def cancel_sleep_timer() -> dict:
-    await _get_timer().cancel_sleep_timer()
+async def cancel_sleep_timer(timer: TimerService = Depends(get_timer_service)) -> dict:
+    await timer.cancel_sleep_timer()
     return {"status": "ok"}
 
 
 @router.get("/sleep-timer")
-async def sleep_timer_status() -> dict:
-    return _get_timer().sleep_timer_status()
+async def sleep_timer_status(timer: TimerService = Depends(get_timer_service)) -> dict:
+    return timer.sleep_timer_status()

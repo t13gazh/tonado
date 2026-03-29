@@ -3,103 +3,90 @@
 import logging
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 
+from core.dependencies import get_player
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
 from core.services.player_service import PlayerService
 
 router = APIRouter(prefix="/api/player", tags=["player"])
 
-# Service reference set during app startup
-_player: PlayerService | None = None
-
-
-def init(player_service: PlayerService) -> None:
-    global _player
-    _player = player_service
-
-
-def _get_player() -> PlayerService:
-    if _player is None:
-        raise HTTPException(503, "Player service not available")
-    return _player
-
 
 @router.get("/state", response_model=PlayerStateResponse)
-async def get_state() -> dict:
-    return _get_player().state.to_dict()
+async def get_state(player: PlayerService = Depends(get_player)) -> dict:
+    return player.state.to_dict()
 
 
 @router.post("/play")
-async def play() -> dict:
-    await _get_player().play()
+async def play(player: PlayerService = Depends(get_player)) -> dict:
+    await player.play()
     return {"status": "ok"}
 
 
 @router.post("/pause")
-async def pause() -> dict:
-    await _get_player().pause()
+async def pause(player: PlayerService = Depends(get_player)) -> dict:
+    await player.pause()
     return {"status": "ok"}
 
 
 @router.post("/toggle")
-async def toggle() -> dict:
-    await _get_player().toggle()
+async def toggle(player: PlayerService = Depends(get_player)) -> dict:
+    await player.toggle()
     return {"status": "ok"}
 
 
 @router.post("/stop")
-async def stop() -> dict:
-    await _get_player().stop_playback()
+async def stop(player: PlayerService = Depends(get_player)) -> dict:
+    await player.stop_playback()
     return {"status": "ok"}
 
 
 @router.post("/next")
-async def next_track() -> dict:
-    await _get_player().next_track()
+async def next_track(player: PlayerService = Depends(get_player)) -> dict:
+    await player.next_track()
     return {"status": "ok"}
 
 
 @router.post("/previous")
-async def previous_track() -> dict:
-    await _get_player().previous_track()
+async def previous_track(player: PlayerService = Depends(get_player)) -> dict:
+    await player.previous_track()
     return {"status": "ok"}
 
 
 @router.post("/volume")
-async def set_volume(req: VolumeRequest) -> dict:
-    await _get_player().set_volume(req.volume)
+async def set_volume(req: VolumeRequest, player: PlayerService = Depends(get_player)) -> dict:
+    await player.set_volume(req.volume)
     return {"status": "ok", "volume": req.volume}
 
 
 @router.post("/seek")
-async def seek(req: SeekRequest) -> dict:
-    await _get_player().seek(req.position)
+async def seek(req: SeekRequest, player: PlayerService = Depends(get_player)) -> dict:
+    await player.seek(req.position)
     return {"status": "ok"}
 
 
 @router.post("/shuffle")
-async def toggle_random() -> dict:
+async def toggle_random(player: PlayerService = Depends(get_player)) -> dict:
     """Toggle random (shuffle) mode on/off."""
-    state = await _get_player().toggle_random()
+    state = await player.toggle_random()
     return {"status": "ok", "shuffle": state}
 
 
 @router.post("/repeat")
-async def cycle_repeat() -> dict:
+async def cycle_repeat(player: PlayerService = Depends(get_player)) -> dict:
     """Cycle repeat mode: off → all → single → off."""
-    mode = await _get_player().cycle_repeat()
+    mode = await player.cycle_repeat()
     return {"status": "ok", "repeat_mode": mode.value}
 
 
 @router.get("/outputs")
-async def list_outputs() -> list:
-    return await _get_player().list_outputs()
+async def list_outputs(player: PlayerService = Depends(get_player)) -> list:
+    return await player.list_outputs()
 
 
 class OutputToggle(BaseModel):
@@ -107,8 +94,8 @@ class OutputToggle(BaseModel):
 
 
 @router.post("/outputs/{output_id}")
-async def toggle_output(output_id: int, req: OutputToggle) -> dict:
-    await _get_player().toggle_output(output_id, req.enabled)
+async def toggle_output(output_id: int, req: OutputToggle, player: PlayerService = Depends(get_player)) -> dict:
+    await player.toggle_output(output_id, req.enabled)
     return {"status": "ok"}
 
 
@@ -141,9 +128,9 @@ class PlayUrlsRequest(BaseModel):
 
 
 @router.post("/play-urls")
-async def play_urls(req: PlayUrlsRequest) -> dict:
+async def play_urls(req: PlayUrlsRequest, player: PlayerService = Depends(get_player)) -> dict:
     """Play multiple URLs as a queue, starting at given index."""
-    await _get_player().play_urls(req.urls, req.start_index)
+    await player.play_urls(req.urls, req.start_index)
     return {"status": "ok"}
 
 
@@ -153,10 +140,10 @@ class PlayFolderRequest(BaseModel):
 
 
 @router.post("/play-folder")
-async def play_folder(req: PlayFolderRequest) -> dict:
+async def play_folder(req: PlayFolderRequest, player: PlayerService = Depends(get_player)) -> dict:
     """Play all tracks in a media folder, optionally starting at a specific track."""
     logger.info("play_folder called with path: %r, start_index: %d", req.path, req.start_index)
-    await _get_player().play_folder(req.path, start_index=req.start_index)
+    await player.play_folder(req.path, start_index=req.start_index)
     return {"status": "ok"}
 
 
@@ -165,7 +152,7 @@ class PlayUrlRequest(BaseModel):
 
 
 @router.post("/play-url")
-async def play_url(req: PlayUrlRequest) -> dict:
+async def play_url(req: PlayUrlRequest, player: PlayerService = Depends(get_player)) -> dict:
     """Play a stream URL (radio, podcast)."""
-    await _get_player().play_url(req.url)
+    await player.play_url(req.url)
     return {"status": "ok"}

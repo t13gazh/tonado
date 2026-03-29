@@ -3,33 +3,21 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 
+from core.dependencies import get_library_service
 from core.services.library_service import LibraryService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
-_library: LibraryService | None = None
-
 # Maximum upload size per file in bytes (500 MB default)
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 
 
-def init(library_service: LibraryService) -> None:
-    global _library
-    _library = library_service
-
-
-def _get_service() -> LibraryService:
-    if _library is None:
-        raise HTTPException(503, "Library service not available")
-    return _library
-
-
-def _safe_path(folder_name: str) -> str:
+def _safe_path(folder_name: str, svc: LibraryService) -> str:
     """Validate folder_name against path traversal attacks.
 
     Raises HTTPException 400 if the name contains '..' or resolves outside media_dir.
@@ -40,9 +28,8 @@ def _safe_path(folder_name: str) -> str:
         raise HTTPException(400, "Invalid folder name")
 
     # Resolve and verify the path stays within media_dir
-    service = _get_service()
-    resolved = (service._media_dir / folder_name).resolve()
-    media_resolved = service._media_dir.resolve()
+    resolved = (svc._media_dir / folder_name).resolve()
+    media_resolved = svc._media_dir.resolve()
     if not str(resolved).startswith(str(media_resolved)):
         raise HTTPException(400, "Invalid folder name")
 
@@ -50,63 +37,67 @@ def _safe_path(folder_name: str) -> str:
 
 
 @router.get("/folders")
-async def list_folders() -> list[dict]:
-    return [f.to_dict() for f in _get_service().list_folders()]
+async def list_folders(svc: LibraryService = Depends(get_library_service)) -> list[dict]:
+    return [f.to_dict() for f in svc.list_folders()]
 
 
 @router.get("/folders/{folder_name}")
-async def get_folder(folder_name: str) -> dict:
-    _safe_path(folder_name)
-    folder = _get_service().get_folder(folder_name)
+async def get_folder(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> dict:
+    _safe_path(folder_name, svc)
+    folder = svc.get_folder(folder_name)
     if folder is None:
         raise HTTPException(404, "Folder not found")
     return folder.to_dict()
 
 
 @router.get("/folders/{folder_name}/tracks")
-async def list_tracks(folder_name: str) -> list[dict]:
-    _safe_path(folder_name)
-    tracks = _get_service().list_tracks(folder_name)
-    if not tracks and _get_service().get_folder(folder_name) is None:
+async def list_tracks(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> list[dict]:
+    _safe_path(folder_name, svc)
+    tracks = svc.list_tracks(folder_name)
+    if not tracks and svc.get_folder(folder_name) is None:
         raise HTTPException(404, "Folder not found")
     return [t.to_dict() for t in tracks]
 
 
 @router.get("/{folder_name}/cover")
-async def get_cover(folder_name: str) -> FileResponse:
-    _safe_path(folder_name)
-    cover_path = _get_service().get_cover_path(folder_name)
+async def get_cover(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> FileResponse:
+    _safe_path(folder_name, svc)
+    cover_path = svc.get_cover_path(folder_name)
     if cover_path is None:
         raise HTTPException(404, "No cover available")
     return FileResponse(cover_path)
 
 
 @router.post("/folders")
-async def create_folder(name: str = Form(...)) -> dict:
+async def create_folder(name: str = Form(...), svc: LibraryService = Depends(get_library_service)) -> dict:
     # Sanitize folder name
     safe_name = name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
         raise HTTPException(400, "Invalid folder name")
-    folder = _get_service().create_folder(safe_name)
+    folder = svc.create_folder(safe_name)
     return folder.to_dict()
 
 
 @router.delete("/folders/{folder_name}")
-async def delete_folder(folder_name: str) -> dict:
-    _safe_path(folder_name)
-    if not _get_service().delete_folder(folder_name):
+async def delete_folder(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> dict:
+    _safe_path(folder_name, svc)
+    if not svc.delete_folder(folder_name):
         raise HTTPException(404, "Folder not found")
     return {"status": "ok"}
 
 
 @router.put("/folders/{folder_name}/rename")
-async def rename_folder(folder_name: str, new_name: str = Form(...)) -> dict:
-    _safe_path(folder_name)
+async def rename_folder(
+    folder_name: str,
+    new_name: str = Form(...),
+    svc: LibraryService = Depends(get_library_service),
+) -> dict:
+    _safe_path(folder_name, svc)
     safe_name = new_name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
         raise HTTPException(400, "Invalid folder name")
-    _safe_path(safe_name)
-    if not _get_service().rename_folder(folder_name, safe_name):
+    _safe_path(safe_name, svc)
+    if not svc.rename_folder(folder_name, safe_name):
         raise HTTPException(400, "Rename failed")
     return {"status": "ok", "new_name": safe_name}
 
@@ -115,13 +106,14 @@ async def rename_folder(folder_name: str, new_name: str = Form(...)) -> dict:
 async def upload_file(
     folder_name: str,
     file: UploadFile = File(...),
+    svc: LibraryService = Depends(get_library_service),
 ) -> dict:
     """Upload a file to a media folder.
 
     Supports audio files and cover images.
     For large files, the frontend should use chunked upload.
     """
-    _safe_path(folder_name)
+    _safe_path(folder_name, svc)
 
     if not file.filename:
         raise HTTPException(400, "No filename provided")
@@ -136,7 +128,7 @@ async def upload_file(
     if suffix not in allowed:
         raise HTTPException(400, f"File type not allowed: {suffix}")
 
-    target = _get_service().get_upload_path(folder_name, safe_filename)
+    target = svc.get_upload_path(folder_name, safe_filename)
 
     # Stream file to disk with size limit enforcement
     try:
@@ -174,9 +166,10 @@ async def upload_file(
 async def upload_cover(
     folder_name: str,
     file: UploadFile = File(...),
+    svc: LibraryService = Depends(get_library_service),
 ) -> dict:
     """Upload or replace cover art for a folder."""
-    _safe_path(folder_name)
+    _safe_path(folder_name, svc)
 
     if not file.filename:
         raise HTTPException(400, "No filename provided")
@@ -189,7 +182,7 @@ async def upload_cover(
     max_cover_bytes = 10 * 1024 * 1024
 
     # Always save as cover.{ext}
-    target = _get_service().get_upload_path(folder_name, f"cover{suffix}")
+    target = svc.get_upload_path(folder_name, f"cover{suffix}")
 
     try:
         bytes_written = 0
@@ -215,5 +208,5 @@ async def upload_cover(
 
 
 @router.get("/stats")
-async def library_stats() -> dict:
-    return _get_service().disk_usage()
+async def library_stats(svc: LibraryService = Depends(get_library_service)) -> dict:
+    return svc.disk_usage()

@@ -145,26 +145,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await player_service.play_url(content_path)
         elif content_type == "podcast":
             if content_path.startswith("podcast:"):
-                # Full podcast — load episodes and play as queue
                 try:
                     podcast_id = int(content_path.split(":")[1])
                     episodes = await stream_service.list_episodes(podcast_id)
                     if episodes:
                         urls = [ep.audio_url for ep in episodes]
-                        await player_service.play_urls(urls)
+                        await player_service.play_urls(urls, resume_position=resume)
                 except (ValueError, IndexError):
                     logger.warning("Invalid podcast path: %s", content_path)
             else:
-                # Single episode URL (direct MP3)
                 await player_service.play_url(content_path)
         elif content_type == "playlist":
-            # playlist:ID format
             try:
                 pl_id = int(content_path.split(":")[-1])
                 playlist = await playlist_service.get_playlist(pl_id)
                 if playlist and playlist.items:
                     urls = [item.content_path for item in playlist.items]
-                    await player_service.play_urls(urls)
+                    await player_service.play_urls(urls, resume_position=resume)
             except (ValueError, IndexError):
                 logger.warning("Invalid playlist path: %s", content_path)
         elif content_type == "command":
@@ -198,9 +195,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     async def on_card_removed(card_id: str | None = None, should_pause: bool = False, **_) -> None:
         nonlocal _current_card_id
-        # Save resume position before pausing
+        # Save resume position directly (not via event bus — avoids race condition)
         if _current_card_id:
-            await timer_service.save_resume_position(_current_card_id)
+            elapsed = await player_service.get_elapsed()
+            if elapsed > 0:
+                await card_service.update_resume_position(_current_card_id, elapsed)
         if should_pause:
             await player_service.pause()
         _current_card_id = None

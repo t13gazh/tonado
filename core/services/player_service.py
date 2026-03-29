@@ -114,7 +114,7 @@ class PlayerService:
             await self._client.seekcur(resume_position)
         await self._sync_state()
 
-    async def play_urls(self, urls: list[str], start_index: int = 0) -> None:
+    async def play_urls(self, urls: list[str], start_index: int = 0, resume_position: float = 0) -> None:
         """Clear queue, add URLs from start_index onward, play immediately."""
         if not self._connected:
             return
@@ -124,6 +124,8 @@ class PlayerService:
         # Add the selected track and start playback immediately
         await self._client.add(urls[start_index])
         await self._client.play(0)
+        if resume_position > 0:
+            await self._client.seekcur(resume_position)
         # Queue remaining tracks after the selected one
         for url in urls[start_index + 1:]:
             await self._client.add(url)

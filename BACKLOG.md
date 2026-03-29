@@ -2,9 +2,22 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
-## Nächste Schritte
+## v0.2.0-beta — Nächste Schritte
+- [ ] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch
+- [ ] Figuren-UI + Einstellungen + System-Seite testen und fixen
+- [ ] Captive Portal / Setup-Wizard Ersteinrichtungs-Flow
+- [ ] SD-Karte >= 16 GB, Install-Script End-to-End testen
 - [ ] Pi-Test mit echter Hardware (RFID, Gyro)
 - [ ] Performance-Optimierung für Pi Zero W
+- [ ] README.md mit Installationsanleitung für Endnutzer
+- [ ] Hardcoded Strings → i18n
+- [ ] Error-Boundaries und User-freundliche Fehlermeldungen
+
+## Setup-Wizard
+- [ ] Audio Test-Button (Sound abspielen zum Prüfen)
+- [ ] WiFi Passwort-Toggle (Auge-Icon)
+- [ ] OnOffShim-Erkennung, GPIO-Buttons (Lautstärke, An/Aus)
+- [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden
 
 ## Prio 1 — Kernfunktionen
 - [ ] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
@@ -49,11 +62,21 @@
 - [ ] Playlist aus mehreren Ordnern zusammenstellen: Quick-Add — durch Bibliothek browsen, Titel antippen = hinzugefügt. So einfach wie möglich
 - [ ] Warteschlange / "Als nächstes": Spontan einen Titel einschieben ohne Playlist zu ändern
 - [ ] Cover-Art: ID3-Tags auslesen und Cover anzeigen. Fallback: Auto-Generierung (Farbe + Initiale) oder eigenes Bild hochladen
+- [ ] Ordner umbenennen: Alle Referenzen (cards.content_path, playlist_items) aktualisieren
+- [ ] Playlist umbenennen: Backend existiert (rename_playlist()), Frontend-UI fehlt
+- [ ] Verknüpfungen über IDs statt Pfade: Ordner-Rename darf keine Zuordnungen zerstören
+- [ ] Sleep Timer Countdown im Player: Hinweis + verbleibende Zeit in der Player-Ansicht
 - [ ] Metadaten bearbeiten: Titel/Album/Interpret in der App korrigieren
 - [ ] Batch-Upload: Mehrere Dateien gleichzeitig hochladen mit Fortschrittsanzeige
 - [ ] Ordner hochladen: Ganzes Album auf einmal, Ordnerstruktur beibehalten
 
 - [ ] SD-Karten-Portabilität: SD-Karte zwischen verschiedenen Pi-Modellen wechselbar (z.B. auf Pi Zero W vorbereiten, in Pi 3B+ stecken). Hardware-Wizard erkennt neue Hardware beim Boot und rekonfiguriert automatisch (Audio-Output, RFID-Interface etc.)
+
+## Migrations-Wizard
+- [ ] Phoniebox v2/v3 Daten und Karten-Zuordnungen zu Tonado migrieren
+- [ ] Audio-Dateien (Symlinks), Karten-Mapping, Hardware-Config, Playlisten
+- [ ] Erkennung: /home/pi/RPi-Jukebox-RFID/ vorhanden? Version?
+- [ ] Zeitpunkt: Nach v0.2.0-beta
 
 ## Prio 4 — Zukunft / Hardware-abhängig
 - [ ] Aufnahme über Mikrofon am Pi: USB-Mikro oder I2S MEMS-Mikro (INMP441/SPH0645) anschließen, direkt an der Box aufnehmen statt über Handy-Browser. Karte auflegen + Knopf drücken = aufnehmen

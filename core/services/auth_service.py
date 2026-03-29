@@ -41,6 +41,7 @@ class AuthService:
     def __init__(self, config: ConfigService) -> None:
         self._config = config
         self._jwt_secret: str = ""
+        self._pin_cache: dict[str, bool] = {}
 
     async def start(self) -> None:
         """Initialize auth service. Generate JWT secret if not set."""
@@ -49,6 +50,9 @@ class AuthService:
             secret = secrets.token_hex(32)
             await self._config.set("auth.jwt_secret", secret)
         self._jwt_secret = secret
+        # Cache PIN status for sync access checks
+        for tier in (AuthTier.PARENT, AuthTier.EXPERT):
+            self._pin_cache[tier.value] = await self.is_pin_set(tier)
         logger.info("Auth service started")
 
     async def is_pin_set(self, tier: AuthTier) -> bool:
@@ -64,11 +68,13 @@ class AuthService:
         derived = hashlib.pbkdf2_hmac("sha256", pin.encode(), salt.encode(), 100_000).hex()
         pin_hash = f"{salt}${derived}"
         await self._config.set(f"auth.pin_hash.{tier}", pin_hash)
+        self._pin_cache[tier.value] = True
         logger.info("PIN set for tier: %s", tier)
 
     async def remove_pin(self, tier: AuthTier) -> None:
         """Remove the PIN for a tier (makes it unprotected)."""
         await self._config.delete(f"auth.pin_hash.{tier}")
+        self._pin_cache[tier.value] = False
         logger.info("PIN removed for tier: %s", tier)
 
     async def verify_pin(self, tier: AuthTier, pin: str) -> bool:
@@ -114,8 +120,14 @@ class AuthService:
 
         Open tier always passes. Parent/Expert tiers need valid tokens.
         Expert token also grants parent access.
+        If the required PIN is not set, access is granted (no lockout).
         """
         if required_tier == AuthTier.OPEN:
+            return True
+
+        # If no PIN is configured for this tier, allow access
+        # (prevents lockout when no PINs are set)
+        if not self._pin_cache.get(required_tier.value, False):
             return True
 
         if not token:

@@ -43,7 +43,7 @@ def _require_tier(request: Request, tier: AuthTier) -> None:
     auth = _get_auth()
     token = _get_token(request)
     if not auth.check_access(token, tier):
-        raise HTTPException(403, "Zugriff verweigert")
+        raise HTTPException(403, "Access denied")
 
 
 # --- Login ---
@@ -57,7 +57,7 @@ class LoginRequest(BaseModel):
 async def login(req: LoginRequest) -> dict:
     result = await _get_auth().login(req.pin)
     if result is None:
-        raise HTTPException(401, "Ungültige PIN")
+        raise HTTPException(401, "Invalid PIN")
     return result
 
 

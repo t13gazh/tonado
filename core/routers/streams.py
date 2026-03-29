@@ -45,7 +45,7 @@ async def add_station(req: AddStationRequest) -> dict:
 @router.delete("/radio/{station_id}")
 async def delete_station(station_id: int) -> dict:
     if not await _get_service().delete_station(station_id):
-        raise HTTPException(404, "Sender nicht gefunden")
+        raise HTTPException(404, "Station not found")
     return {"status": "ok"}
 
 
@@ -73,7 +73,7 @@ async def add_podcast(req: AddPodcastRequest) -> dict:
 @router.delete("/podcasts/{podcast_id}")
 async def delete_podcast(podcast_id: int) -> dict:
     if not await _get_service().delete_podcast(podcast_id):
-        raise HTTPException(404, "Podcast nicht gefunden")
+        raise HTTPException(404, "Podcast not found")
     return {"status": "ok"}
 
 

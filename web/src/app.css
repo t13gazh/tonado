@@ -70,3 +70,22 @@ body {
 .animate-fade-up {
 	animation: fade-up 0.3s ease-out;
 }
+
+/* Indeterminate progress bar */
+@keyframes indeterminate {
+	0% { transform: translateX(-100%); }
+	100% { transform: translateX(400%); }
+}
+.animate-indeterminate {
+	animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+/* Touch feedback for interactive elements */
+.touch-active {
+	-webkit-tap-highlight-color: transparent;
+}
+.touch-active:active {
+	transform: scale(0.97);
+	opacity: 0.8;
+	transition: transform 0.1s ease, opacity 0.1s ease;
+}

@@ -37,14 +37,14 @@ def _safe_path(folder_name: str) -> str:
     """
     # Reject any path component that is ".."
     if ".." in Path(folder_name).parts:
-        raise HTTPException(400, "Ungültiger Ordnername")
+        raise HTTPException(400, "Invalid folder name")
 
     # Resolve and verify the path stays within media_dir
     service = _get_service()
     resolved = (service._media_dir / folder_name).resolve()
     media_resolved = service._media_dir.resolve()
     if not str(resolved).startswith(str(media_resolved)):
-        raise HTTPException(400, "Ungültiger Ordnername")
+        raise HTTPException(400, "Invalid folder name")
 
     return folder_name
 
@@ -59,7 +59,7 @@ async def get_folder(folder_name: str) -> dict:
     _safe_path(folder_name)
     folder = _get_service().get_folder(folder_name)
     if folder is None:
-        raise HTTPException(404, "Ordner nicht gefunden")
+        raise HTTPException(404, "Folder not found")
     return folder.to_dict()
 
 
@@ -68,7 +68,7 @@ async def list_tracks(folder_name: str) -> list[dict]:
     _safe_path(folder_name)
     tracks = _get_service().list_tracks(folder_name)
     if not tracks and _get_service().get_folder(folder_name) is None:
-        raise HTTPException(404, "Ordner nicht gefunden")
+        raise HTTPException(404, "Folder not found")
     return [t.to_dict() for t in tracks]
 
 
@@ -77,7 +77,7 @@ async def get_cover(folder_name: str) -> FileResponse:
     _safe_path(folder_name)
     cover_path = _get_service().get_cover_path(folder_name)
     if cover_path is None:
-        raise HTTPException(404, "Kein Cover vorhanden")
+        raise HTTPException(404, "No cover available")
     return FileResponse(cover_path)
 
 
@@ -86,7 +86,7 @@ async def create_folder(name: str = Form(...)) -> dict:
     # Sanitize folder name
     safe_name = name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
-        raise HTTPException(400, "Ungültiger Ordnername")
+        raise HTTPException(400, "Invalid folder name")
     folder = _get_service().create_folder(safe_name)
     return folder.to_dict()
 
@@ -95,7 +95,7 @@ async def create_folder(name: str = Form(...)) -> dict:
 async def delete_folder(folder_name: str) -> dict:
     _safe_path(folder_name)
     if not _get_service().delete_folder(folder_name):
-        raise HTTPException(404, "Ordner nicht gefunden")
+        raise HTTPException(404, "Folder not found")
     return {"status": "ok"}
 
 
@@ -104,10 +104,10 @@ async def rename_folder(folder_name: str, new_name: str = Form(...)) -> dict:
     _safe_path(folder_name)
     safe_name = new_name.strip().replace("/", "_").replace("\\", "_")
     if not safe_name:
-        raise HTTPException(400, "Ungültiger Ordnername")
+        raise HTTPException(400, "Invalid folder name")
     _safe_path(safe_name)
     if not _get_service().rename_folder(folder_name, safe_name):
-        raise HTTPException(400, "Umbenennung fehlgeschlagen")
+        raise HTTPException(400, "Rename failed")
     return {"status": "ok", "new_name": safe_name}
 
 
@@ -124,7 +124,7 @@ async def upload_file(
     _safe_path(folder_name)
 
     if not file.filename:
-        raise HTTPException(400, "Kein Dateiname")
+        raise HTTPException(400, "No filename provided")
 
     # Basic filename sanitization
     safe_filename = file.filename.replace("/", "_").replace("\\", "_")
@@ -134,7 +134,7 @@ async def upload_file(
     allowed = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus",
                ".jpg", ".jpeg", ".png", ".webp"}
     if suffix not in allowed:
-        raise HTTPException(400, f"Dateityp nicht erlaubt: {suffix}")
+        raise HTTPException(400, f"File type not allowed: {suffix}")
 
     target = _get_service().get_upload_path(folder_name, safe_filename)
 
@@ -149,7 +149,7 @@ async def upload_file(
                     target.unlink(missing_ok=True)
                     raise HTTPException(
                         413,
-                        f"Datei zu groß (max. {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
+                        f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
                     )
                 f.write(chunk)
     except HTTPException:
@@ -157,7 +157,7 @@ async def upload_file(
     except Exception as e:
         logger.error("Upload failed: %s", e)
         target.unlink(missing_ok=True)
-        raise HTTPException(500, "Upload fehlgeschlagen")
+        raise HTTPException(500, "Upload failed")
 
     size = target.stat().st_size
     logger.info("Uploaded %s to %s (%d bytes)", safe_filename, folder_name, size)
@@ -179,11 +179,11 @@ async def upload_cover(
     _safe_path(folder_name)
 
     if not file.filename:
-        raise HTTPException(400, "Kein Dateiname")
+        raise HTTPException(400, "No filename provided")
 
     suffix = Path(file.filename).suffix.lower()
     if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(400, "Nur Bilder erlaubt (jpg, png, webp)")
+        raise HTTPException(400, "Only images allowed (jpg, png, webp)")
 
     # Cover images: 10 MB limit
     max_cover_bytes = 10 * 1024 * 1024
@@ -201,7 +201,7 @@ async def upload_cover(
                     target.unlink(missing_ok=True)
                     raise HTTPException(
                         413,
-                        f"Cover zu groß (max. {max_cover_bytes // (1024 * 1024)} MB)",
+                        f"Cover too large (max {max_cover_bytes // (1024 * 1024)} MB)",
                     )
                 f.write(chunk)
     except HTTPException:
@@ -209,7 +209,7 @@ async def upload_cover(
     except Exception as e:
         logger.error("Cover upload failed: %s", e)
         target.unlink(missing_ok=True)
-        raise HTTPException(500, "Upload fehlgeschlagen")
+        raise HTTPException(500, "Upload failed")
 
     return {"status": "ok", "cover_path": f"/api/library/{folder_name}/cover"}
 

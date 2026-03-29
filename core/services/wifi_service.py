@@ -188,7 +188,7 @@ class WifiService:
 
     async def _nmcli_status(self) -> WifiStatus:
         proc = await asyncio.create_subprocess_exec(
-            "nmcli", "-t", "-f", "GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS,WLAN.SIGNAL",
+            "nmcli", "-t", "-f", "GENERAL.STATE,GENERAL.CONNECTION,IP4.ADDRESS",
             "device", "show", "wlan0",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -203,13 +203,30 @@ class WifiService:
             key = key.strip()
             value = value.strip()
 
-            if key == "GENERAL.CONNECTION" and value != "--":
+            if key == "GENERAL.CONNECTION" and value and value != "--":
                 status.ssid = value
                 status.connected = True
-            elif key == "IP4.ADDRESS":
+            elif key.startswith("IP4.ADDRESS"):
                 status.ip_address = value.split("/")[0] if "/" in value else value
-            elif key == "WLAN.SIGNAL":
-                status.signal = int(value) if value.isdigit() else 0
+
+        # Get actual SSID and signal from wifi list (GENERAL.CONNECTION is the profile name)
+        if status.connected:
+            try:
+                sig_proc = await asyncio.create_subprocess_exec(
+                    "nmcli", "-t", "-f", "SSID,SIGNAL,ACTIVE", "device", "wifi", "list",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                sig_out, _ = await sig_proc.communicate()
+                for sig_line in sig_out.decode().strip().splitlines():
+                    parts = sig_line.split(":")
+                    if len(parts) >= 3 and parts[2].strip() == "yes":
+                        if parts[0].strip():
+                            status.ssid = parts[0].strip()
+                        status.signal = int(parts[1]) if parts[1].isdigit() else 0
+                        break
+            except Exception:
+                pass
 
         return status
 

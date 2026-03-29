@@ -140,10 +140,10 @@
 						>
 							<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
 							<span class="truncate">{f.name}</span>
-							<span class="text-xs opacity-60 ml-auto flex-shrink-0">{f.track_count} Titel</span>
+							<span class="text-xs opacity-60 ml-auto flex-shrink-0">{t('content_picker.tracks', { count: f.track_count })}</span>
 						</button>
 						{#if f.track_count > 0}
-							<button onclick={() => loadTracks(f.path)} class="p-2 text-text-muted hover:text-text rounded-lg" aria-label="Titel anzeigen">
+							<button onclick={() => loadTracks(f.path)} class="p-2 text-text-muted hover:text-text rounded-lg" aria-label={t('content_picker.show_tracks_aria')}>
 								<svg class="w-4 h-4 transition-transform {expandedFolder === f.path ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
 							</button>
 						{/if}
@@ -184,7 +184,7 @@
 				</button>
 			{/each}
 			{#if radioStations.length === 0}
-				<p class="text-sm text-text-muted py-4 text-center">Keine Radiosender vorhanden</p>
+				<p class="text-sm text-text-muted py-4 text-center">{t('content_picker.no_stations')}</p>
 			{/if}
 		</div>
 
@@ -200,10 +200,10 @@
 						>
 							<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h2v-8H5v-2a7 7 0 0 1 14 0v2h-3v8h2a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>
 							<span class="truncate">{p.name}</span>
-							<span class="text-xs opacity-60 ml-auto flex-shrink-0">{p.episode_count} Folgen</span>
+							<span class="text-xs opacity-60 ml-auto flex-shrink-0">{t('content_picker.episodes', { count: p.episode_count })}</span>
 						</button>
 						{#if p.episode_count > 0}
-							<button onclick={() => loadEpisodes(p.id)} class="p-2 text-text-muted hover:text-text rounded-lg" aria-label="Folgen anzeigen">
+							<button onclick={() => loadEpisodes(p.id)} class="p-2 text-text-muted hover:text-text rounded-lg" aria-label={t('content_picker.show_episodes_aria')}>
 								<svg class="w-4 h-4 transition-transform {expandedPodcast === p.id ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
 							</button>
 						{/if}
@@ -225,7 +225,7 @@
 				</div>
 			{/each}
 			{#if podcastList.length === 0}
-				<p class="text-sm text-text-muted py-4 text-center">Keine Podcasts vorhanden</p>
+				<p class="text-sm text-text-muted py-4 text-center">{t('content_picker.no_podcasts')}</p>
 			{/if}
 		</div>
 
@@ -239,7 +239,7 @@
 				>
 					<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
 					<span class="truncate">{pl.name}</span>
-					<span class="text-xs opacity-60 ml-auto flex-shrink-0">{pl.item_count} Titel</span>
+					<span class="text-xs opacity-60 ml-auto flex-shrink-0">{t('content_picker.tracks', { count: pl.item_count })}</span>
 				</button>
 			{/each}
 			{#if playlists.length === 0}
@@ -271,7 +271,7 @@
 			type="text"
 			value={contentPath}
 			oninput={(e) => select(e.currentTarget.value, name)}
-			placeholder={contentType === 'stream' ? 'https://...' : 'Ordner/Datei.mp3'}
+			placeholder={contentType === 'stream' ? 'https://...' : t('content_picker.manual_placeholder')}
 			class="w-full px-3 py-2 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50 font-mono text-xs"
 		/>
 	</div>

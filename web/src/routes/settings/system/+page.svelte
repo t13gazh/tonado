@@ -62,7 +62,7 @@
 				message = t('system.update_error', { error: result.error ?? '' });
 			}
 		} catch {
-			message = t('system.update_error', { error: 'Verbindung verloren' });
+			message = t('system.update_error', { error: t('system.connection_lost') });
 		}
 		updating = false;
 	}
@@ -208,7 +208,7 @@
 						</div>
 
 						{#if hardware.is_mock}
-							<div class="text-xs text-text-muted/60 mt-1">Simulierte Hardware (kein Raspberry Pi)</div>
+							<div class="text-xs text-text-muted/60 mt-1">{t('system.mock_hardware')}</div>
 						{/if}
 					</div>
 				</div>

@@ -1,8 +1,8 @@
 # Tonado
 
-**Die Musikbox, die dir gehört.**
+> Die Musikbox, die dir gehört.
 
-Tonado verwandelt einen Raspberry Pi in eine Musikbox für Kinder. Figur oder Karte auflegen — Musik spielt. Alles andere steuern Eltern bequem vom Smartphone. Kein Abo, keine Cloud, keine Limits.
+Open-Source Kinder-Musikbox mit RFID-Figuren, gesteuert vom Smartphone. Raspberry Pi basiert, kein Abo, keine Cloud, keine Limits.
 
 ## Features
 
@@ -13,79 +13,78 @@ Tonado verwandelt einen Raspberry Pi in eine Musikbox für Kinder. Figur oder Ka
 - **Gesten-Steuerung** — Box kippen zum Skippen, schütteln für Shuffle (optional, mit Gyro-Sensor)
 - **Open Source** — MIT-Lizenz, vollständig anpassbar, keine versteckten Kosten
 
-## So funktioniert's
-
-1. **Tonado-Image auf SD-Karte schreiben** — z.B. mit dem Raspberry Pi Imager
-2. **SD-Karte in den Pi stecken und einschalten**
-3. **Mit dem WLAN „Tonado-Setup" verbinden** — der Einrichtungsassistent führt durch den Rest
-
-Danach öffnest du die Tonado-App im Browser auf deinem Smartphone, lädst Musik hoch, weist sie einer Figur zu — fertig.
-
 ## Was du brauchst
 
 | Komponente | Beispiel | ca. Preis |
 |---|---|---|
 | Raspberry Pi | Zero W, 3B+, 4 oder 5 | 15–50 € |
 | microSD-Karte | mind. 16 GB, Class 10 | 8 € |
-| Lautsprecher | z.B. HifiBerry MiniAmp + kleiner Lautsprecher | 15–25 € |
-| RFID-Reader | z.B. RC522 (SPI) | 5–10 € |
-| Figuren oder Karten | RFID-Chips (13.56 MHz) | 5 € / 10 Stk |
+| Lautsprecher | HifiBerry MiniAmp + kleiner Lautsprecher | 15–25 € |
+| RFID-Reader | RC522 (SPI) oder USB-RFID-Reader | 5–10 € |
+| RFID-Figuren oder -Karten | 13.56 MHz (MIFARE Classic o.ä.) | 5 € / 10 Stk |
 | USB-Netzteil | 5V, passend zum Pi-Modell | 10 € |
 | **Optional:** Gyro-Sensor | MPU6050 — für Gesten-Steuerung | 3 € |
-| **Optional:** Gehäuse | 3D-Druck, Holzbox, ... | variabel |
+| **Optional:** Gehäuse | 3D-Druck, Holzbox, Brotdose, ... | variabel |
 
 **Gesamtkosten: ca. 70–100 €** — eigene Musik, kein Abo, keine laufenden Kosten.
 
-<!-- Screenshots folgen -->
+Alle Details zu Modellen, Optionen und Verkabelung: **[Hardware-Anleitung](docs/hardware.md)**
+
+## Schnellstart
+
+### 1. SD-Karte vorbereiten
+
+1. [Raspberry Pi Imager](https://www.raspberrypi.com/software/) installieren
+2. **Raspberry Pi OS Lite** auswählen (64-bit, oder 32-bit für Pi Zero W)
+3. In den Einstellungen: Hostname, SSH, WLAN, Benutzername `pi` konfigurieren
+4. Image auf SD-Karte schreiben
+
+### 2. Tonado installieren
+
+Per SSH auf dem Pi einloggen und einen Befehl ausführen:
+
+```bash
+ssh pi@<hostname>.local
+curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
+```
+
+Das Script erledigt alles automatisch — Pakete, Audio, RFID, Webserver. Dauert 5–15 Minuten je nach Pi-Modell. Falls ein Neustart nötig ist: `sudo reboot`
+
+### 3. Loslegen
+
+Browser öffnen, `http://<hostname>.local` aufrufen, Musik hochladen, Figuren zuweisen — fertig.
+
+Ausführliche Anleitung mit Troubleshooting: **[Installationsanleitung](docs/installation.md)**
+
+## Aktualisierung
+
+Über die App: **Einstellungen > System > Nach Updates suchen**
+
+Oder per SSH:
+
+```bash
+cd /opt/tonado && sudo -u pi git pull && sudo systemctl restart tonado
+```
+
+## Für Entwickler
+
+Tonado ist gebaut mit **Svelte 5**, **FastAPI**, **MPD** und **SQLite**. Hardware-Services laufen auf Windows/Mac im Mock-Modus.
+
+Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklung.md)**
 
 ## Status
 
 > **Alpha (v0.1.0)** — Tonado funktioniert, ist aber noch nicht für Endnutzer verpackt.
 
-**Was funktioniert:**
-- Player mit Live-Fortschritt, Seek, Shuffle, Repeat, Lautstärke
-- Bibliothek mit Ordnern, Internetradio, Podcasts
-- Figuren-Wizard: Figur scannen, Inhalt zuweisen
-- Eltern-Einstellungen: PIN, Einschlaftimer, Lautstärkelimit
-- Hardware-Erkennung: RC522 RFID-Reader wird automatisch erkannt
-- Browser-Audio: Musik direkt auf dem Smartphone hören
+**Was funktioniert:** Player, Bibliothek, Figuren-Wizard, Eltern-Einstellungen, Hardware-Erkennung, Browser-Audio, automatische Updates.
 
-**Was noch kommt:**
-- Fertiges Image zum Flashen (aktuell noch manuelle Installation)
-- Weitere RFID-Reader (PN532, USB) und Pi-Modelle testen
-- Captive-Portal-Ersteinrichtung End-to-End
-- Bessere Fehlermeldungen wenn Hardware fehlt
+**Was noch kommt:** Fertiges Image zum Flashen, weitere Hardware testen, bessere Fehlermeldungen, Mehrsprachigkeit.
 
-Wir suchen Tester! Wenn du einen Pi und RFID-Reader hast, melde dich gerne.
+## Mitmachen
 
-## Für Entwickler
-
-Tonado ist gebaut mit **Svelte 5**, **FastAPI**, **MPD** und **SQLite**.
-
-```
-web/          → Frontend (Svelte 5 + Tailwind CSS, PWA)
-core/         → Backend (Python / FastAPI)
-docs/         → Dokumentation
-tests/        → Tests
-install.sh    → Installations-Script
-```
-
-Entwicklungsumgebung einrichten:
-
-```bash
-# Backend
-python -m venv .venv
-.venv/Scripts/pip install -e ".[dev]"    # Windows
-# .venv/bin/pip install -e ".[dev]"      # Linux/Mac
-
-# Frontend
-cd web && npm install && npm run dev
-
-# Backend starten
-uvicorn core.main:app --host 127.0.0.1 --port 8080
-```
-
-Beiträge sind willkommen — schau in die [Issues](https://github.com/t13gazh/tonado/issues) oder eröffne eine neue.
+- **Testen:** Probier Tonado aus und melde Probleme als [Issue](https://github.com/t13gazh/tonado/issues)
+- **Hardware testen:** Wir suchen Tester mit Pi 3B+/4/5, PN532 (I2C) und USB-RFID-Readern
+- **Übersetzen:** Tonado ist auf Deutsch — Hilfe bei weiteren Sprachen willkommen (`web/src/lib/i18n/`)
 
 ## Lizenz
 

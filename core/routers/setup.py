@@ -55,7 +55,7 @@ def _require_expert(request: Request) -> None:
         return  # Auth service not initialized — allow (e.g. during first setup)
     token = _get_token(request)
     if not _auth.check_access(token, AuthTier.EXPERT):
-        raise HTTPException(403, "Zugriff verweigert")
+        raise HTTPException(403, "Access denied")
 
 
 # --- Setup wizard ---
@@ -141,7 +141,7 @@ async def portal_start(request: Request) -> dict:
         raise HTTPException(503, "Captive portal not available")
     success = await _captive_portal.start()
     if not success:
-        raise HTTPException(500, "Captive Portal konnte nicht gestartet werden")
+        raise HTTPException(500, "Failed to start captive portal")
     return _captive_portal.status()
 
 

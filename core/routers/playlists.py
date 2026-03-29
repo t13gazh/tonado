@@ -40,7 +40,7 @@ async def list_playlists() -> list[dict]:
 async def get_playlist(playlist_id: int) -> dict:
     p = await _get_service().get_playlist(playlist_id)
     if p is None:
-        raise HTTPException(404, "Playlist nicht gefunden")
+        raise HTTPException(404, "Playlist not found")
     return p.to_dict()
 
 
@@ -57,7 +57,7 @@ async def create_playlist(req: CreatePlaylistRequest) -> dict:
 @router.delete("/{playlist_id}")
 async def delete_playlist(playlist_id: int) -> dict:
     if not await _get_service().delete_playlist(playlist_id):
-        raise HTTPException(404, "Playlist nicht gefunden")
+        raise HTTPException(404, "Playlist not found")
     return {"status": "ok"}
 
 
@@ -73,14 +73,14 @@ async def add_item(playlist_id: int, req: AddItemRequest) -> dict:
         playlist_id, req.content_type, req.content_path, req.title,
     )
     if item is None:
-        raise HTTPException(404, "Playlist nicht gefunden")
+        raise HTTPException(404, "Playlist not found")
     return item.to_dict()
 
 
 @router.delete("/items/{item_id}")
 async def remove_item(item_id: int) -> dict:
     if not await _get_service().remove_item(item_id):
-        raise HTTPException(404, "Eintrag nicht gefunden")
+        raise HTTPException(404, "Item not found")
     return {"status": "ok"}
 
 
@@ -89,9 +89,9 @@ async def play_playlist(playlist_id: int) -> dict:
     """Play all items in a playlist sequentially."""
     p = await _get_service().get_playlist(playlist_id)
     if p is None:
-        raise HTTPException(404, "Playlist nicht gefunden")
+        raise HTTPException(404, "Playlist not found")
     if not p.items:
-        raise HTTPException(400, "Playlist ist leer")
+        raise HTTPException(400, "Playlist is empty")
 
     player = _get_player()
 

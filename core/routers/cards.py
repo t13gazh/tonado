@@ -31,7 +31,7 @@ async def list_cards() -> list[dict]:
 async def get_card(card_id: str) -> dict:
     mapping = await _get_service().get_mapping(card_id)
     if mapping is None:
-        raise HTTPException(404, "Karte nicht gefunden")
+        raise HTTPException(404, "Card not found")
     return mapping.to_dict()
 
 
@@ -52,7 +52,7 @@ async def create_card(req: CardMappingCreate) -> dict:
 async def update_card(card_id: str, req: CardMappingUpdate) -> dict:
     existing = await _get_service().get_mapping(card_id)
     if existing is None:
-        raise HTTPException(404, "Karte nicht gefunden")
+        raise HTTPException(404, "Card not found")
 
     if req.name is not None:
         existing.name = req.name
@@ -71,7 +71,7 @@ async def update_card(card_id: str, req: CardMappingUpdate) -> dict:
 async def delete_card(card_id: str) -> dict:
     deleted = await _get_service().delete_mapping(card_id)
     if not deleted:
-        raise HTTPException(404, "Karte nicht gefunden")
+        raise HTTPException(404, "Card not found")
     return {"status": "ok"}
 
 

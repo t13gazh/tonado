@@ -3,6 +3,8 @@
 	import { t } from '$lib/i18n';
 	import { connectWebSocket, disconnectWebSocket, isConnected } from '$lib/stores/player.svelte';
 	import { setBrowserAudioElement } from '$lib/stores/browser-audio.svelte';
+	import { startHealthPolling, stopHealthPolling, isBackendOffline, isMpdConnected, isRfidAvailable, isGyroAvailable, isStorageCritical, isStorageLow, getHealth } from '$lib/stores/health.svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -19,8 +21,12 @@
 
 	onMount(() => {
 		connectWebSocket();
+		startHealthPolling();
 		checkSetup();
-		return () => disconnectWebSocket();
+		return () => {
+			disconnectWebSocket();
+			stopHealthPolling();
+		};
 	});
 
 	async function checkSetup() {
@@ -30,7 +36,7 @@
 				goto('/setup');
 			}
 		} catch {
-			// Setup API not available, skip redirect
+			// Setup API not available — don't redirect, layout banner handles offline state
 		}
 		setupChecked = true;
 	}
@@ -50,6 +56,27 @@
 </svelte:head>
 
 <div class="relative flex flex-col h-dvh bg-surface">
+	<!-- Health warnings -->
+	{#if !isSetupRoute}
+		<div class="flex flex-col gap-2 px-3 pt-2 empty:hidden">
+			{#if isBackendOffline()}
+				<HealthBanner type="error" message={t('health.backend_offline')} />
+			{:else}
+				{#if !isMpdConnected()}
+					<HealthBanner type="error" message={t('health.mpd_disconnected')} />
+				{/if}
+				{#if isStorageCritical()}
+					<HealthBanner type="error" message={t('health.storage_critical')} />
+				{:else if isStorageLow()}
+					<HealthBanner type="warning" message={t('health.storage_low', { free_mb: String(getHealth()?.storage?.free_mb ?? '?') })} />
+				{/if}
+				{#if !isConnected()}
+					<HealthBanner type="error" message={t('error.connection_lost')} />
+				{/if}
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Main content -->
 	<main class="flex-1 overflow-y-auto">
 		{@render children()}
@@ -62,7 +89,7 @@
 				{@const active = item.href === '/' ? page.url.pathname === '/' : page.url.pathname.startsWith(item.href)}
 				<a
 					href={item.href}
-					class="flex flex-col items-center gap-1 px-6 py-1 rounded-lg transition-colors {active ? 'text-primary' : 'text-text-muted hover:text-text'}"
+					class="touch-active flex flex-col items-center gap-1 px-6 py-1 rounded-lg transition-colors {active ? 'text-primary' : 'text-text-muted hover:text-text'}"
 				>
 					{#if item.icon === 'player'}
 						<svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

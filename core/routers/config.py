@@ -42,17 +42,17 @@ async def get_all() -> dict:
 @router.get("/{key}", response_model=ConfigValueResponse)
 async def get_value(key: str) -> dict:
     if _is_sensitive(key):
-        raise HTTPException(403, "Zugriff auf diese Einstellung nicht erlaubt")
+        raise HTTPException(403, "Access to this setting not allowed")
     value = await _get_service().get(key)
     if value is None:
-        raise HTTPException(404, "Einstellung nicht gefunden")
+        raise HTTPException(404, "Setting not found")
     return {"key": key, "value": value}
 
 
 @router.put("/")
 async def set_value(req: ConfigSetRequest) -> dict:
     if _is_sensitive(req.key):
-        raise HTTPException(403, "Diese Einstellung kann nicht direkt geändert werden")
+        raise HTTPException(403, "This setting cannot be changed directly")
     await _get_service().set(req.key, req.value)
     return {"status": "ok", "key": req.key, "value": req.value}
 
@@ -60,8 +60,8 @@ async def set_value(req: ConfigSetRequest) -> dict:
 @router.delete("/{key}")
 async def delete_value(key: str) -> dict:
     if _is_sensitive(key):
-        raise HTTPException(403, "Diese Einstellung kann nicht gelöscht werden")
+        raise HTTPException(403, "This setting cannot be deleted")
     deleted = await _get_service().delete(key)
     if not deleted:
-        raise HTTPException(404, "Einstellung nicht gefunden")
+        raise HTTPException(404, "Setting not found")
     return {"status": "ok"}

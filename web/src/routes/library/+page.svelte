@@ -3,6 +3,8 @@
 	import { library, streams, playlistsApi, type MediaFolder, type MediaTrack, type RadioStation, type PodcastInfo, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
 	import { getPlayerState } from '$lib/stores/player.svelte';
+	import { isBackendOffline, isStorageCritical, isStorageLow, getHealth } from '$lib/stores/health.svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { player } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -32,6 +34,8 @@
 	let uploadFolder = $state('');
 	let uploadProgress = $state(0);
 	let uploading = $state(false);
+	let uploadCurrent = $state(0);
+	let uploadTotal = $state(0);
 
 	// Radio
 	let stations = $state<RadioStation[]>([]);
@@ -64,10 +68,11 @@
 
 	onMount(() => { loadFolders(); loadRadio(); loadPodcasts(); loadPlaylists(); });
 
-	async function loadFolders() { loadingFolders = true; try { folders = await library.folders(); } catch (e) { error = String(e); } finally { loadingFolders = false; } }
-	async function loadRadio() { loadingRadio = true; try { stations = await streams.listRadio(); } catch (e) { error = String(e); } finally { loadingRadio = false; } }
-	async function loadPodcasts() { loadingPodcasts = true; try { podcasts = await streams.listPodcasts(); } catch (e) { error = String(e); } finally { loadingPodcasts = false; } }
-	async function loadPlaylists() { loadingPlaylists = true; try { allPlaylists = await playlistsApi.list(); } catch (e) { error = String(e); } finally { loadingPlaylists = false; } }
+	function setError(e: unknown) { if (!isBackendOffline()) error = e instanceof Error ? e.message : String(e); }
+	async function loadFolders() { loadingFolders = true; try { folders = await library.folders(); } catch (e) { setError(e); } finally { loadingFolders = false; } }
+	async function loadRadio() { loadingRadio = true; try { stations = await streams.listRadio(); } catch (e) { setError(e); } finally { loadingRadio = false; } }
+	async function loadPodcasts() { loadingPodcasts = true; try { podcasts = await streams.listPodcasts(); } catch (e) { setError(e); } finally { loadingPodcasts = false; } }
+	async function loadPlaylists() { loadingPlaylists = true; try { allPlaylists = await playlistsApi.list(); } catch (e) { setError(e); } finally { loadingPlaylists = false; } }
 
 	function isNowPlaying(type: 'folder' | 'url', path: string): boolean {
 		if (type === 'folder') return nowPlayingUri.startsWith(path);
@@ -98,27 +103,29 @@
 		} catch { error = t('general.error'); }
 	}
 
-	async function createFolder() { if (!newFolderName.trim()) return; await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); }
-	async function deleteFolder(name: string) { if (!confirm(t('general.confirm_delete'))) return; await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); }
-	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; folderTracks = await library.tracks(name); } }
+	async function createFolder() { if (!newFolderName.trim()) return; try { await library.createFolder(newFolderName.trim()); newFolderName = ''; showNewFolder = false; await loadFolders(); } catch { error = t('error.create_failed'); } }
+	async function deleteFolder(name: string) { if (!confirm(t('general.confirm_delete'))) return; try { await library.deleteFolder(name); if (expandedFolder === name) expandedFolder = null; await loadFolders(); } catch { error = t('error.delete_failed'); } }
+	async function toggleFolder(name: string) { if (expandedFolder === name) { expandedFolder = null; folderTracks = []; } else { expandedFolder = name; try { folderTracks = await library.tracks(name); } catch { error = t('error.load_failed'); } } }
 	async function handleFiles(folderName: string, files: FileList) {
+		if (isStorageCritical()) { error = t('health.storage_critical'); return; }
 		uploadFolder = folderName; uploading = true; error = '';
+		uploadTotal = files.length; uploadCurrent = 0;
 		try {
-			for (let i = 0; i < files.length; i++) { uploadProgress = 0; await library.upload(folderName, files[i], (pct) => { uploadProgress = pct; }); }
+			for (let i = 0; i < files.length; i++) { uploadCurrent = i + 1; uploadProgress = 0; await library.upload(folderName, files[i], (pct) => { uploadProgress = pct; }); }
 			await loadFolders();
 			if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
 		} catch (e) {
-			error = t('general.upload_failed') + ': ' + (e instanceof Error ? e.message : String(e));
+			error = t('error.upload_failed');
 		} finally {
 			uploading = false; uploadFolder = '';
 		}
 	}
 
 	function isValidUrl(url: string): boolean { try { const u = new URL(url); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; } }
-	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); }
-	async function removeStation(id: number) { if (!confirm(t('general.confirm_delete'))) return; await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); }
-	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); }
-	async function removePodcast(id: number) { if (!confirm(t('general.confirm_delete'))) return; await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); }
+	async function addStation() { urlError = ''; if (!newStationName.trim() || !newStationUrl.trim()) return; if (!isValidUrl(newStationUrl)) { urlError = t('content.radio_url_invalid'); return; } try { await streams.addRadio(newStationName.trim(), newStationUrl.trim()); newStationName = ''; newStationUrl = ''; showAddStation = false; await loadRadio(); } catch { error = t('error.create_failed'); } }
+	async function removeStation(id: number) { if (!confirm(t('general.confirm_delete'))) return; try { await streams.deleteRadio(id); expandedRadio = null; await loadRadio(); } catch { error = t('error.delete_failed'); } }
+	async function addPodcast() { urlError = ''; if (!newPodcastName.trim() || !newPodcastUrl.trim()) return; if (!isValidUrl(newPodcastUrl)) { urlError = t('content.radio_url_invalid'); return; } try { await streams.addPodcast(newPodcastName.trim(), newPodcastUrl.trim()); newPodcastName = ''; newPodcastUrl = ''; showAddPodcast = false; await loadPodcasts(); } catch { error = t('error.create_failed'); } }
+	async function removePodcast(id: number) { if (!confirm(t('general.confirm_delete'))) return; try { await streams.deletePodcast(id); expandedPodcast = null; podcastEpisodes = []; await loadPodcasts(); } catch { error = t('error.delete_failed'); } }
 	async function playPodcastEpisode(index: number) {
 		if (podcastEpisodes.length === 0) return;
 		const urls = podcastEpisodes.map(e => e.audio_url);
@@ -138,11 +145,11 @@
 		try { podcastEpisodes = await streams.episodes(id); } catch { podcastEpisodes = []; }
 		finally { loadingEpisodes = false; }
 	}
-	async function createPlaylist() { if (!newPlaylistName.trim()) return; await playlistsApi.create(newPlaylistName.trim()); newPlaylistName = ''; showNewPlaylist = false; await loadPlaylists(); }
-	async function removePlaylist(id: number) { await playlistsApi.delete(id); if (expandedPlaylist?.id === id) expandedPlaylist = null; await loadPlaylists(); }
-	async function togglePlaylist(id: number) { if (expandedPlaylist?.id === id) { expandedPlaylist = null; } else { expandedPlaylist = await playlistsApi.get(id); } }
-	async function addPlaylistItem() { if (!expandedPlaylist || !newItemPath.trim()) return; await playlistsApi.addItem(expandedPlaylist.id, 'folder', newItemPath.trim(), newItemTitle.trim() || undefined); newItemPath = ''; newItemTitle = ''; showAddItem = false; expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); }
-	async function removePlaylistItem(itemId: number) { if (!expandedPlaylist) return; await playlistsApi.removeItem(itemId); expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); }
+	async function createPlaylist() { if (!newPlaylistName.trim()) return; try { await playlistsApi.create(newPlaylistName.trim()); newPlaylistName = ''; showNewPlaylist = false; await loadPlaylists(); } catch { error = t('error.create_failed'); } }
+	async function removePlaylist(id: number) { try { await playlistsApi.delete(id); if (expandedPlaylist?.id === id) expandedPlaylist = null; await loadPlaylists(); } catch { error = t('error.delete_failed'); } }
+	async function togglePlaylist(id: number) { if (expandedPlaylist?.id === id) { expandedPlaylist = null; } else { try { expandedPlaylist = await playlistsApi.get(id); } catch { error = t('error.load_failed'); } } }
+	async function addPlaylistItem() { if (!expandedPlaylist || !newItemPath.trim()) return; try { await playlistsApi.addItem(expandedPlaylist.id, 'folder', newItemPath.trim(), newItemTitle.trim() || undefined); newItemPath = ''; newItemTitle = ''; showAddItem = false; expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); } catch { error = t('error.save_failed'); } }
+	async function removePlaylistItem(itemId: number) { if (!expandedPlaylist) return; try { await playlistsApi.removeItem(itemId); expandedPlaylist = await playlistsApi.get(expandedPlaylist.id); await loadPlaylists(); } catch { error = t('error.delete_failed'); } }
 </script>
 
 <!--
@@ -152,7 +159,7 @@
 
 {#snippet playCircle(onclick: () => void, disabled?: boolean, nowActive?: boolean)}
 	{@const showPause = nowActive && isPlaying}
-	<button {onclick} class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''} {showPause ? 'bg-primary text-white' : nowActive ? 'bg-primary/20 text-primary' : 'bg-primary/10 hover:bg-primary/20 text-primary'}" {disabled} aria-label={showPause ? 'Pause' : 'Abspielen'}>
+	<button {onclick} class="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-colors {disabled ? 'opacity-30' : ''} {showPause ? 'bg-primary text-white' : nowActive ? 'bg-primary/20 text-primary' : 'bg-primary/10 hover:bg-primary/20 text-primary'}" {disabled} aria-label={showPause ? t('player.pause_aria') : t('player.play_aria')}>
 		{#if showPause}
 			<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
 		{:else}
@@ -195,6 +202,12 @@
 
 <div class="p-4">
 	<h1 class="text-xl font-bold mb-4">{t('library.title')}</h1>
+
+	{#if isStorageCritical()}
+		<div class="mb-4"><HealthBanner type="error" message={t('health.storage_critical')} /></div>
+	{:else if isStorageLow()}
+		<div class="mb-4"><HealthBanner type="warning" message={t('health.storage_low', { free_mb: getHealth()?.storage.free_mb ?? 0 })} /></div>
+	{/if}
 
 	<div class="flex gap-2 mb-4 overflow-x-auto">
 		{#each [['folders', t('content.tab_folders')], ['radio', t('content.tab_radio')], ['podcasts', t('content.tab_podcasts')], ['playlists', t('content.tab_playlists')]] as [key, label]}
@@ -251,11 +264,14 @@
 								<div class="flex items-center gap-2 py-2">
 									<label class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-lighter rounded-lg text-xs text-text-muted hover:text-text cursor-pointer">
 										<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-										Hochladen
-										<input type="file" multiple accept="audio/*,image/*" class="hidden" onchange={(e) => { const t = e.target as HTMLInputElement; if (t.files) handleFiles(folder.path, t.files); }} />
+										{t('library.upload')}
+										<input type="file" multiple accept="audio/*,image/*" class="hidden" onchange={(e) => { const el = e.target as HTMLInputElement; if (el.files) handleFiles(folder.path, el.files); }} />
 									</label>
 								</div>
 								{#if uploading && uploadFolder === folder.path}
+									{#if uploadTotal > 1}
+										<p class="text-xs text-text-muted mb-1">{t('library.upload_progress', { current: uploadCurrent, total: uploadTotal })}</p>
+									{/if}
 									<div class="mb-2 h-1.5 bg-surface-lighter rounded-full overflow-hidden"><div class="h-full bg-primary transition-[width] duration-200" style="width: {uploadProgress}%"></div></div>
 								{/if}
 								{#if folderTracks.length > 0}
@@ -278,10 +294,10 @@
 										{/each}
 									</div>
 								{:else}
-									<p class="text-xs text-text-muted py-2">Keine Titel in diesem Ordner.</p>
+									<p class="text-xs text-text-muted py-2">{t('library.no_tracks')}</p>
 								{/if}
 								<div class="mt-2 pt-2 border-t border-surface-lighter">
-									<button onclick={() => deleteFolder(folder.path)} class="text-xs text-red-400 hover:text-red-300">Ordner löschen</button>
+									<button onclick={() => deleteFolder(folder.path)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_folder')}</button>
 								</div>
 							</div>
 						{/if}
@@ -311,7 +327,7 @@
 		{#if loadingRadio}
 			{@render spinner()}
 		{:else if stations.length === 0}
-			<div class="text-center py-12 text-text-muted text-sm">Noch keine Radiosender.</div>
+			<div class="text-center py-12 text-text-muted text-sm">{t('library.no_stations')}</div>
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each stations as station (station.id)}
@@ -322,14 +338,14 @@
 							{@render thumbnail(station.logo_url, 'radio')}
 							<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{station.name}</p>
-								<p class="text-xs text-text-muted">{station.category === 'kinder' ? 'Kindersender' : station.category === 'allgemein' ? 'Radio' : 'Eigener Sender'}</p>
+								<p class="text-xs text-text-muted">{station.category === 'kinder' ? t('library.station_kinder') : station.category === 'allgemein' ? t('library.station_general') : t('library.station_custom')}</p>
 							</button>
 							{@render chevron(expanded, () => (expandedRadio = expanded ? null : station.id))}
 						</div>
 						{#if expanded}
 							<div class="px-3 pb-3 border-t border-surface-lighter">
 								<p class="text-[10px] text-text-muted font-mono py-2 truncate">{station.url}</p>
-								<button onclick={() => removeStation(station.id)} class="text-xs text-red-400 hover:text-red-300">Sender löschen</button>
+								<button onclick={() => removeStation(station.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_station')}</button>
 							</div>
 						{/if}
 					</div>
@@ -358,7 +374,7 @@
 		{#if loadingPodcasts}
 			{@render spinner()}
 		{:else if podcasts.length === 0}
-			<div class="text-center py-12 text-text-muted text-sm">Noch keine Podcasts hinzugefügt.</div>
+			<div class="text-center py-12 text-text-muted text-sm">{t('library.no_podcasts')}</div>
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each podcasts as podcast (podcast.id)}
@@ -372,7 +388,7 @@
 							{@render thumbnail(podcast.logo_url, 'podcast')}
 							<button onclick={() => togglePodcast(podcast.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
-								<p class="text-xs text-text-muted">{podcast.episode_count} Folgen</p>
+								<p class="text-xs text-text-muted">{t('library.episodes', { count: podcast.episode_count })}</p>
 							</button>
 							{@render chevron(expanded, () => togglePodcast(podcast.id))}
 						</div>
@@ -404,10 +420,10 @@
 										{/each}
 									</div>
 								{:else}
-									<p class="text-xs text-text-muted py-2">Keine Folgen verfügbar.</p>
+									<p class="text-xs text-text-muted py-2">{t('library.no_episodes')}</p>
 								{/if}
 								<div class="mt-2 pt-2 border-t border-surface-lighter">
-									<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">Podcast löschen</button>
+									<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_podcast')}</button>
 								</div>
 							</div>
 						{/if}
@@ -446,7 +462,7 @@
 							{@render thumbnail(null, 'playlist')}
 							<button onclick={() => togglePlaylist(pl.id)} class="flex-1 min-w-0 text-left">
 								<p class="text-sm font-medium text-text truncate">{pl.name}</p>
-								<p class="text-xs text-text-muted">{pl.item_count} Einträge{pl.duration_seconds ? ` · ${formatDuration(pl.duration_seconds)}` : ''}</p>
+								<p class="text-xs text-text-muted">{t('library.entries', { count: pl.item_count })}{pl.duration_seconds ? ` · ${formatDuration(pl.duration_seconds)}` : ''}</p>
 							</button>
 							{@render chevron(expanded, () => togglePlaylist(pl.id))}
 						</div>
@@ -456,7 +472,7 @@
 									{#if showAddItem}
 										<div class="flex flex-col gap-2 p-2 bg-surface rounded-lg">
 											{#if folders.length > 0}
-												<p class="text-[10px] text-text-muted uppercase tracking-wider">Ordner auswählen</p>
+												<p class="text-[10px] text-text-muted uppercase tracking-wider">{t('library.select_folder')}</p>
 												<div class="flex flex-wrap gap-1">
 													{#each folders as f}
 														<button onclick={() => { newItemPath = f.path; newItemTitle = f.name; }}
@@ -465,15 +481,15 @@
 													{/each}
 												</div>
 											{/if}
-											<input type="text" bind:value={newItemPath} placeholder="Oder Pfad/URL manuell" class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
-											<input type="text" bind:value={newItemTitle} placeholder="Anzeigename (optional)" class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
+											<input type="text" bind:value={newItemPath} placeholder={t('library.manual_path')} class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
+											<input type="text" bind:value={newItemTitle} placeholder={t('library.display_name_placeholder')} class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
 											<div class="flex gap-2 justify-end">
 												<button onclick={() => (showAddItem = false)} class="text-xs text-text-muted">{t('general.cancel')}</button>
 												<button onclick={addPlaylistItem} disabled={!newItemPath.trim()} class="px-3 py-1 bg-primary disabled:opacity-30 text-white rounded text-xs">{t('general.save')}</button>
 											</div>
 										</div>
 									{:else}
-										<button onclick={() => (showAddItem = true)} class="text-xs text-primary font-medium">+ Eintrag hinzufügen</button>
+										<button onclick={() => (showAddItem = true)} class="text-xs text-primary font-medium">{t('library.add_entry')}</button>
 									{/if}
 								</div>
 								{#if expandedPlaylist && expandedPlaylist.items.length > 0}
@@ -490,10 +506,10 @@
 										{/each}
 									</div>
 								{:else}
-									<p class="text-xs text-text-muted py-1">Noch keine Einträge.</p>
+									<p class="text-xs text-text-muted py-1">{t('library.no_entries')}</p>
 								{/if}
 								<div class="mt-2 pt-2 border-t border-surface-lighter">
-									<button onclick={() => removePlaylist(pl.id)} class="text-xs text-red-400 hover:text-red-300">Playlist löschen</button>
+									<button onclick={() => removePlaylist(pl.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_playlist')}</button>
 								</div>
 							</div>
 						{/if}

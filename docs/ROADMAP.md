@@ -1,10 +1,12 @@
 # Tonado — Roadmap
 
-## Meilenstein 1: Funktionsfähige Musikbox
+## Meilenstein 1: Funktionsfähige Musikbox ✓
 
 **Ziel:** Karte auflegen → Musik spielt. Eltern steuern vom Smartphone. Hardware-Wizard konfiguriert alles.
 
-### Phase 1: Kern-Backend
+**Status:** Alle 8 Phasen implementiert (2026-03-28). Läuft auf Pi Zero W mit RC522 RFID und HifiBerry MiniAmp.
+
+### Phase 1: Kern-Backend ✓
 > Nach dieser Phase: Tonado-Service läuft auf dem Pi, spielt Musik via MPD, erkennt RFID-Karten, reagiert auf Gyro-Gesten.
 
 - Player Service (MPD direkt via python-mpd2 async)
@@ -14,7 +16,7 @@
 - Event Bus (asyncio, in-process)
 - FastAPI Grundgerüst mit WebSocket Hub
 
-### Phase 2: Hardware-Wizard & Setup
+### Phase 2: Hardware-Wizard & Setup ✓
 > Nach dieser Phase: Pi bootet, öffnet Captive Portal, Wizard erkennt Hardware, WiFi verbunden, System bereit.
 
 - Captive Portal (hostapd + dnsmasq)
@@ -23,7 +25,7 @@
 - Erster-Boot-Erlebnis mit geführter Karten-Zuweisung
 - systemd Service-Integration
 
-### Phase 3: Web-App (Player & Bibliothek)
+### Phase 3: Web-App (Player & Bibliothek) ✓
 > Nach dieser Phase: Eltern öffnen App am Smartphone, sehen Player mit Cover Art, browsen Bibliothek, spielen Musik ab.
 
 - Svelte 5 + SvelteKit Projekt (adapter-static)
@@ -33,7 +35,7 @@
 - i18n (Deutsch default, Englisch vorbereitet)
 - Bundle-Budget: < 150 KB gzipped
 
-### Phase 4: Karten-Management
+### Phase 4: Karten-Management ✓
 > Nach dieser Phase: Eltern scannen Karte, wählen Inhalt, Karte ist sofort nutzbar. Card Wall zeigt alle Zuweisungen.
 
 - Karten-Wizard (Scan → Auswahl → Fertig)
@@ -41,7 +43,7 @@
 - Karte bearbeiten / löschen
 - Karte → Ordner, Stream-URL, oder System-Kommando
 
-### Phase 5: Content & Streams
+### Phase 5: Content & Streams ✓
 > Nach dieser Phase: Musik-Upload via Browser, Podcast-Feeds, Internetradio, ARD Audiothek-Streams nutzbar.
 
 - File-Upload (Chunked, resumierbar, mit Fortschritt)
@@ -51,7 +53,7 @@
 - Podcast-Feeds (RSS, Auto-Download)
 - Vorkonfigurierter Katalog (deutsche Kindersender)
 
-### Phase 6: Eltern-Einstellungen & Sicherheit
+### Phase 6: Eltern-Einstellungen & Sicherheit ✓
 > Nach dieser Phase: PIN-geschützte Bereiche, Lautstärke-Limit, Einschlaftimer, Zugriffssteuerung aktiv.
 
 - PIN-basierte Authentifizierung (Offen/Eltern/Experte)
@@ -61,7 +63,7 @@
 - Idle-Shutdown
 - Hörbuch-Fortschritt pro Karte (Resume)
 
-### Phase 7: System & Stabilität
+### Phase 7: System & Stabilität ✓
 > Nach dieser Phase: Updates via Web-App, Backup/Restore, Read-Only Filesystem, stabil im Dauerbetrieb.
 
 - Update-Mechanismus (via Web-App, kein SSH)
@@ -71,7 +73,7 @@
 - Watchdog (Auto-Recovery bei Abstürzen)
 - System-Info, Restart, Shutdown im Experten-Bereich
 
-### Phase 8: PWA & Polish
+### Phase 8: PWA & Polish ✓
 > Nach dieser Phase: App zum Homescreen hinzufügen, Offline-fähig, Performance optimiert.
 
 - Service Worker (Offline-Cache für App-Shell)

@@ -160,15 +160,26 @@ def detect_rfid() -> tuple[str, str]:
             logger.info("RFID: USB HID reader detected on %s", hidraw)
             return "usb", str(hidraw)
 
-    # Check SPI (RC522)
+    # Check SPI (RC522) — verify chip responds, not just SPI device exists
     spi_device = Path("/dev/spidev0.0")
     if spi_device.exists():
         try:
-            import spidev  # noqa: F401
-            logger.info("RFID: RC522 detected on SPI")
-            return "rc522", str(spi_device)
+            import spidev
+            spi = spidev.SpiDev()
+            spi.open(0, 0)
+            spi.max_speed_hz = 1000000
+            # Read RC522 version register (0x37) — should return 0x91 or 0x92
+            version = spi.xfer2([0x37 << 1 | 0x80, 0x00])[1]
+            spi.close()
+            if version in (0x91, 0x92, 0x88, 0x12):
+                logger.info("RFID: RC522 detected on SPI (version 0x%02x)", version)
+                return "rc522", str(spi_device)
+            else:
+                logger.debug("RFID: SPI device found but no RC522 chip (got 0x%02x)", version)
         except ImportError:
             logger.warning("RFID: SPI device found but spidev module not installed")
+        except Exception as e:
+            logger.debug("RFID: SPI probe failed: %s", e)
     else:
         logger.debug("RFID: SPI not available (enable with dtparam=spi=on in config.txt)")
 

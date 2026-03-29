@@ -14,10 +14,19 @@
 	let hasExisting = $state(false);
 	let error = $state('');
 	let expertMode = $state(false);
+	let autoRetryCountdown = $state(0);
+	let autoRetryTimer = $state<ReturnType<typeof setInterval> | null>(null);
 
 	let name = $state('');
 	let contentType = $state<ContentType>('folder');
 	let contentPath = $state('');
+
+	$effect(() => {
+		if (error) {
+			const timer = setTimeout(() => (error = ''), 5000);
+			return () => clearTimeout(timer);
+		}
+	});
 
 	onMount(async () => {
 		try {
@@ -50,10 +59,29 @@
 				startScan();
 				return;
 			}
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Fehler';
+		} catch {
+			error = t('error.scan_timeout');
 			scanning = false;
+			startAutoRetry();
 		}
+	}
+
+	function cancelAutoRetry() {
+		if (autoRetryTimer) { clearInterval(autoRetryTimer); autoRetryTimer = null; }
+		autoRetryCountdown = 0;
+	}
+
+	function startAutoRetry() {
+		cancelAutoRetry();
+		autoRetryCountdown = 3;
+		autoRetryTimer = setInterval(() => {
+			autoRetryCountdown -= 1;
+			if (autoRetryCountdown <= 0) {
+				cancelAutoRetry();
+				error = '';
+				startScan();
+			}
+		}, 1000);
 	}
 
 	function handleTypeChange(type: ContentType) {
@@ -83,8 +111,8 @@
 				await cards.create(data);
 			}
 			step = 'done';
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'Fehler';
+		} catch {
+			error = t('error.save_failed');
 		}
 	}
 
@@ -136,14 +164,22 @@
 			</div>
 			{#if error}
 				<p class="text-sm text-red-400">{error}</p>
+				{#if autoRetryCountdown > 0}
+					<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: autoRetryCountdown })}</p>
+				{/if}
+				<button onclick={() => { cancelAutoRetry(); error = ''; startScan(); }} class="text-sm text-primary font-medium">{t('general.retry')}</button>
+			{:else}
+				<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
 			{/if}
-			<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
 		</div>
 	{/if}
 
 	<!-- Step: Content selection -->
 	{#if step === 'content'}
 		<div class="flex-1 flex flex-col gap-4 overflow-hidden">
+			{#if scannedCardId}
+				<p class="text-xs text-text-muted">{t('wizard.card_id', { id: scannedCardId.toUpperCase() })}</p>
+			{/if}
 			{#if hasExisting}
 				<div class="px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg text-sm text-accent">
 					{t('wizard.already_assigned')}

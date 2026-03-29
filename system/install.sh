@@ -3,6 +3,7 @@
 # Usage: curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
 
 set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
 
 TONADO_DIR="/opt/tonado"
 TONADO_USER="${SUDO_USER:-pi}"
@@ -14,14 +15,30 @@ echo "User: $TONADO_USER"
 echo ""
 
 # Check if running as root
-if [ "$EUID" -ne 0 ]; then
-    echo "Bitte als root ausfuehren: sudo bash install.sh"
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Bitte als root ausführen: sudo bash install.sh"
     exit 1
+fi
+
+# Check if user exists
+if ! id "$TONADO_USER" &>/dev/null; then
+    echo "FEHLER: Benutzer '$TONADO_USER' existiert nicht."
+    echo "Bitte im Raspberry Pi Imager den Benutzernamen 'pi' setzen."
+    exit 1
+fi
+
+# Detect Pi model (warn if not a Pi, but continue)
+PI_MODEL="unbekannt"
+if [ -f /proc/device-tree/model ]; then
+    PI_MODEL=$(tr -d '\0' < /proc/device-tree/model)
+    echo "Pi-Modell: $PI_MODEL"
+else
+    echo "HINWEIS: Kein Raspberry Pi erkannt — Installation wird fortgesetzt (Test-Modus)."
 fi
 
 NEEDS_REBOOT=false
 
-echo "[1/9] System-Pakete installieren..."
+echo "[1/10] System-Pakete installieren..."
 apt-get update -qq
 apt-get install -y -qq \
     python3 python3-venv python3-pip \
@@ -29,16 +46,19 @@ apt-get install -y -qq \
     hostapd dnsmasq \
     nginx \
     git \
-    i2c-tools spi-tools
+    i2c-tools spi-tools \
+    avahi-daemon
 
-echo "[2/9] Verzeichnisse erstellen..."
+echo "[2/10] Verzeichnisse erstellen..."
 mkdir -p "$TONADO_DIR"
 mkdir -p "$MEDIA_DIR" "$MEDIA_DIR/.playlists" "$CONFIG_DIR"
 chown -R "$TONADO_USER:$TONADO_USER" "/home/${TONADO_USER}/tonado"
 
-echo "[3/9] Tonado installieren..."
+echo "[3/10] Tonado installieren..."
 if [ -d "${TONADO_DIR}/.git" ]; then
-    cd "$TONADO_DIR" && git pull
+    cd "$TONADO_DIR"
+    git fetch origin main
+    git reset --hard origin/main
 else
     git clone https://github.com/t13gazh/tonado.git "$TONADO_DIR"
 fi
@@ -51,23 +71,41 @@ python3 -m venv .venv
 # Add user to hardware groups
 usermod -aG audio,spi,i2c,gpio "$TONADO_USER" 2>/dev/null || true
 
-echo "[4/9] HifiBerry MiniAmp konfigurieren..."
+echo "[4/10] Audio konfigurieren..."
 BOOT_CONFIG="/boot/firmware/config.txt"
 [ ! -f "$BOOT_CONFIG" ] && BOOT_CONFIG="/boot/config.txt"
 
-# Disable onboard audio, enable HifiBerry MiniAmp
-if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
-    # Comment out onboard audio
-    sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$BOOT_CONFIG"
-    echo "" >> "$BOOT_CONFIG"
-    echo "# Tonado: HifiBerry MiniAmp" >> "$BOOT_CONFIG"
-    echo "dtoverlay=hifiberry-dac" >> "$BOOT_CONFIG"
-    echo "gpio=25=op,dh" >> "$BOOT_CONFIG"
-    echo "HINWEIS: HifiBerry MiniAmp Overlay hinzugefuegt."
-    NEEDS_REBOOT=true
+# Detect HifiBerry MiniAmp via I2S device tree
+HIFIBERRY_DETECTED=false
+if grep -q "hifiberry" /proc/device-tree/soc/sound/compatible 2>/dev/null; then
+    HIFIBERRY_DETECTED=true
+elif aplay -l 2>/dev/null | grep -qi "hifiberry"; then
+    HIFIBERRY_DETECTED=true
+elif grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG" 2>/dev/null; then
+    HIFIBERRY_DETECTED=true
 fi
 
-echo "[5/9] MPD konfigurieren..."
+if [ "$HIFIBERRY_DETECTED" = true ]; then
+    echo "  HifiBerry erkannt — I2S-Audio wird konfiguriert."
+    if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
+        sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$BOOT_CONFIG"
+        echo "" >> "$BOOT_CONFIG"
+        echo "# Tonado: HifiBerry MiniAmp" >> "$BOOT_CONFIG"
+        echo "dtoverlay=hifiberry-dac" >> "$BOOT_CONFIG"
+        echo "gpio=25=op,dh" >> "$BOOT_CONFIG"
+        NEEDS_REBOOT=true
+    fi
+else
+    echo "  Kein HifiBerry erkannt — Onboard-Audio wird verwendet."
+    echo "  (HifiBerry kann später über die Einstellungen aktiviert werden.)"
+    # Ensure onboard audio is enabled
+    if grep -q "^#dtparam=audio=on" "$BOOT_CONFIG"; then
+        sed -i 's/^#dtparam=audio=on/dtparam=audio=on/' "$BOOT_CONFIG"
+        NEEDS_REBOOT=true
+    fi
+fi
+
+echo "[5/10] MPD konfigurieren..."
 cat > /etc/mpd.conf <<MPD
 music_directory     "$MEDIA_DIR"
 playlist_directory  "$MEDIA_DIR/.playlists"
@@ -88,13 +126,27 @@ audio_output {
     device          "default"
     mixer_type      "software"
 }
+
+audio_output {
+    type            "httpd"
+    name            "Browser"
+    encoder         "lame"
+    port            "8090"
+    bitrate         "128"
+    format          "44100:16:2"
+    always_on       "no"
+    tags            "yes"
+}
 MPD
 
 chown -R mpd:audio /var/lib/mpd
+# Allow MPD to read media files
+usermod -aG "$TONADO_USER" mpd 2>/dev/null || true
+chmod 750 "$MEDIA_DIR"
 systemctl enable mpd
 systemctl restart mpd || true
 
-echo "[6/9] Hardware-Interfaces pruefen..."
+echo "[6/10] Hardware-Interfaces prüfen..."
 
 # Check for USB RFID reader (works without SPI/I2C)
 USB_RFID=false
@@ -103,7 +155,7 @@ for hidraw in /dev/hidraw*; do
 done
 
 if [ "$USB_RFID" = true ]; then
-    echo "  USB RFID-Reader erkannt — SPI/I2C fuer RFID nicht noetig."
+    echo "  USB RFID-Reader erkannt — SPI/I2C für RFID nicht nötig."
 else
     echo "  Kein USB RFID-Reader erkannt — SPI + I2C werden aktiviert."
 fi
@@ -117,7 +169,7 @@ elif grep -q "^#dtparam=spi=on" "$BOOT_CONFIG"; then
     NEEDS_REBOOT=true
 else
     echo "dtparam=spi=on" >> "$BOOT_CONFIG"
-    echo "  SPI: aktiviert (hinzugefuegt)."
+    echo "  SPI: aktiviert (hinzugefügt)."
     NEEDS_REBOOT=true
 fi
 
@@ -130,7 +182,7 @@ elif grep -q "^#dtparam=i2c_arm=on" "$BOOT_CONFIG"; then
     NEEDS_REBOOT=true
 else
     echo "dtparam=i2c_arm=on" >> "$BOOT_CONFIG"
-    echo "  I2C: aktiviert (hinzugefuegt)."
+    echo "  I2C: aktiviert (hinzugefügt)."
     NEEDS_REBOOT=true
 fi
 
@@ -140,7 +192,7 @@ if [ "$NEEDS_REBOOT" = false ]; then
     modprobe i2c-dev 2>/dev/null && echo "  I2C-Modul: geladen." || true
 fi
 
-echo "[7/9] systemd-Service installieren..."
+echo "[7/10] systemd-Service installieren..."
 cat > /etc/systemd/system/tonado.service <<SERVICE
 [Unit]
 Description=Tonado Music Box
@@ -167,22 +219,22 @@ systemctl daemon-reload
 systemctl enable tonado.service
 systemctl start tonado.service || true
 
-echo "[8/9] Frontend pruefen..."
-# Frontend is built on the dev machine and deployed via scp.
+echo "[8/11] Frontend prüfen..."
+# Frontend is pre-built and committed to the repository.
 # Node.js is NOT installed on the Pi to save disk space (~500 MB).
-# Build locally: cd web && npm run build
-# Deploy: scp -r web/build/ pi@<ip>:/opt/tonado/web/build/
 if [ -d "$TONADO_DIR/web/build" ] && [ -f "$TONADO_DIR/web/build/index.html" ]; then
     echo "  Frontend-Build gefunden."
 else
     echo "  HINWEIS: Kein Frontend-Build gefunden!"
-    echo "  Auf dem Entwicklungs-PC ausfuehren:"
-    echo "    cd web && npm run build"
-    echo "    scp -r web/build/ ${TONADO_USER}@$(hostname -I | awk '{print $1}'):/opt/tonado/web/build/"
+    echo "  Möglicherweise ist das Repository nicht vollständig geklont."
+    echo "  Versuche: cd $TONADO_DIR && git checkout main -- web/build/"
 fi
-chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR"
 
-echo "[9/9] Nginx Reverse Proxy konfigurieren..."
+# Prepare dnsmasq lease file for captive portal
+touch /var/lib/misc/dnsmasq.leases 2>/dev/null || true
+chown dnsmasq:nogroup /var/lib/misc/dnsmasq.leases 2>/dev/null || true
+
+echo "[9/11] Nginx Reverse Proxy konfigurieren..."
 cat > /etc/nginx/sites-available/tonado <<'NGINX'
 server {
     listen 80 default_server;
@@ -218,16 +270,65 @@ ln -sf /etc/nginx/sites-available/tonado /etc/nginx/sites-enabled/tonado
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl restart nginx
 
+echo "[10/11] System optimieren..."
+
+# Disable unnecessary services to save RAM and CPU
+systemctl disable --now bluetooth 2>/dev/null || true
+systemctl disable --now triggerhappy 2>/dev/null || true
+systemctl disable --now ModemManager 2>/dev/null || true
+
+# Limit journal size (saves SD card writes)
+if [ -d /etc/systemd/journald.conf.d ]; then
+    true
+else
+    mkdir -p /etc/systemd/journald.conf.d
+fi
+cat > /etc/systemd/journald.conf.d/tonado.conf <<JOURNAL
+[Journal]
+SystemMaxUse=30M
+MaxRetentionSec=7day
+JOURNAL
+systemctl restart systemd-journald 2>/dev/null || true
+
+# Disable IPv6 (saves RAM on Pi Zero W)
+if ! grep -q "ipv6.disable=1" /boot/firmware/cmdline.txt 2>/dev/null; then
+    sed -i 's/$/ ipv6.disable=1/' /boot/firmware/cmdline.txt 2>/dev/null || true
+    NEEDS_REBOOT=true
+fi
+
+echo "  Bluetooth, Triggerhappy, ModemManager deaktiviert."
+echo "  Journal-Limit: 30 MB / 7 Tage."
+echo "  IPv6 deaktiviert."
+
+echo "[11/11] Hardware-Erkennung..."
+
+# Keep user-chosen hostname from Raspberry Pi Imager
+CURRENT_HOSTNAME=$(cat /etc/hostname 2>/dev/null || echo "raspberrypi")
+echo "  Hostname: ${CURRENT_HOSTNAME} (erreichbar als ${CURRENT_HOSTNAME}.local)"
+
+# Run hardware detection
+if [ -f "$TONADO_DIR/core/hardware/detect.py" ]; then
+    echo "  Hardware-Erkennung wird ausgeführt..."
+    sudo -u "$TONADO_USER" "$TONADO_DIR/.venv/bin/python" -c \
+        "from core.hardware.detect import detect_all; r = detect_all(); print(f'  Erkannt: {r}')" \
+        2>/dev/null || echo "  Hardware-Erkennung übersprungen (wird beim ersten Start nachgeholt)."
+fi
+
+# Final permissions fix — must run LAST, after all files are in place
+chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR"
+chmod -R 755 "$TONADO_DIR/web/build" 2>/dev/null || true
+
 IP=$(hostname -I | awk '{print $1}')
 echo ""
 echo "=== Installation abgeschlossen ==="
 echo ""
-echo "Tonado laeuft auf http://${IP}"
-echo "(API auf Port 8080, Nginx auf Port 80)"
+echo "Tonado läuft auf:"
+echo "  http://${IP} (Nginx, Port 80)"
+echo "  http://${CURRENT_HOSTNAME}.local"
+echo ""
 
 if [ "$NEEDS_REBOOT" = true ]; then
-    echo ""
-    echo "WICHTIG: Hardware-Konfiguration geaendert (SPI/I2C/Audio)."
+    echo "WICHTIG: Hardware-Konfiguration geändert (SPI/I2C/Audio/Hostname)."
     echo "Neustart erforderlich:"
     echo "  sudo reboot"
 fi

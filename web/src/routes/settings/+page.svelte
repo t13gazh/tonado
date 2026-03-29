@@ -2,6 +2,8 @@
 	import { t } from '$lib/i18n';
 	import { config, authApi, type AuthStatus } from '$lib/api';
 	import { onMount } from 'svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
 
 	let authStatus = $state<AuthStatus | null>(null);
 	let allConfig = $state<Record<string, unknown>>({});
@@ -54,7 +56,7 @@
 			sleepActive = timer.active;
 			sleepRemaining = timer.remaining_seconds;
 		} catch (e) {
-			error = String(e);
+			if (!isBackendOffline()) error = String(e);
 		}
 	}
 
@@ -91,6 +93,8 @@
 		if (!authStatus.parent_pin_set && !authStatus.expert_pin_set) return 2; // No PINs = full access
 		if (!authStatus.authenticated) return 0;
 		if (authStatus.tier === 'expert') return 2;
+		// Parent gets full access when no expert PIN exists (otherwise can never set one)
+		if (authStatus.tier === 'parent' && !authStatus.expert_pin_set) return 2;
 		if (authStatus.tier === 'parent') return 1;
 		return 0;
 	});
@@ -119,6 +123,26 @@
 		try {
 			await authApi.setPin('expert', expertPinValue);
 			expertPinValue = '';
+			await loadAll();
+			flashToast();
+		} catch {
+			error = t('settings.login_required_change');
+		}
+	}
+
+	async function removeParentPin() {
+		try {
+			await authApi.removePin('parent');
+			await loadAll();
+			flashToast();
+		} catch {
+			error = t('settings.login_required_change');
+		}
+	}
+
+	async function removeExpertPin() {
+		try {
+			await authApi.removePin('expert');
 			await loadAll();
 			flashToast();
 		} catch {
@@ -249,49 +273,35 @@
 
 		<!-- Gyro settings -->
 		<div class="bg-surface-light rounded-xl p-4">
-			<div class="flex items-center justify-between mb-3">
-				<h2 class="text-sm font-semibold">{t('settings.gyro')}</h2>
-				<button
-					onclick={() => { gyroEnabled = !gyroEnabled; saveSetting('gyro.enabled', gyroEnabled); }}
-					class="px-3 py-1 rounded-full text-xs font-medium transition-colors {gyroEnabled ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
-				>
-					{gyroEnabled ? t('settings.gyro_enabled') : t('settings.gyro_disabled')}
-				</button>
-			</div>
-			{#if gyroEnabled}
-				<div class="flex gap-2">
-					{#each ['gentle', 'normal', 'wild'] as level}
-						{@const label = level === 'gentle' ? t('settings.gyro_gentle') : level === 'normal' ? t('settings.gyro_normal') : t('settings.gyro_wild')}
-						<button
-							onclick={() => { gyroSensitivity = level; saveSetting('gyro.sensitivity', level); }}
-							class="flex-1 px-3 py-2 rounded-lg text-sm transition-colors {gyroSensitivity === level ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
-						>
-							{label}
-						</button>
-					{/each}
+			{#if isGyroAvailable() === false}
+				<HealthBanner type="info" message={t('health.gyro_unavailable')} />
+			{:else}
+				<div class="flex items-center justify-between mb-3">
+					<h2 class="text-sm font-semibold">{t('settings.gyro')}</h2>
+					<button
+						onclick={() => { gyroEnabled = !gyroEnabled; saveSetting('gyro.enabled', gyroEnabled); }}
+						class="px-3 py-1 rounded-full text-xs font-medium transition-colors {gyroEnabled ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+					>
+						{gyroEnabled ? t('settings.gyro_enabled') : t('settings.gyro_disabled')}
+					</button>
 				</div>
+				{#if gyroEnabled}
+					<div class="flex gap-2">
+						{#each ['gentle', 'normal', 'wild'] as level}
+							{@const label = level === 'gentle' ? t('settings.gyro_gentle') : level === 'normal' ? t('settings.gyro_normal') : t('settings.gyro_wild')}
+							<button
+								onclick={() => { gyroSensitivity = level; saveSetting('gyro.sensitivity', level); }}
+								class="flex-1 px-3 py-2 rounded-lg text-sm transition-colors {gyroSensitivity === level ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 		</div>
 
-		{/if}
-
-		{#if isExpert}
-		<!-- Idle shutdown (expert) -->
-		<div class="bg-surface-light rounded-xl p-4">
-			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
-			<select
-				bind:value={idleMinutes}
-				onchange={() => saveSetting('system.idle_shutdown_minutes', idleMinutes)}
-				class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
-			>
-				<option value={0}>{t('settings.idle_off')}</option>
-				<option value={15}>{t('settings.idle_minutes', { minutes: 15 })}</option>
-				<option value={30}>{t('settings.idle_minutes', { minutes: 30 })}</option>
-				<option value={60}>{t('settings.idle_minutes', { minutes: 60 })}</option>
-			</select>
-		</div>
-
-		<!-- PIN management -->
+		<!-- PIN management: parent sees own PIN, expert sees both -->
 		<div class="bg-surface-light rounded-xl p-4">
 			{#if !canChangePin}
 				<p class="text-xs text-text-muted">{t('settings.login_required_pin')}</p>
@@ -315,8 +325,17 @@
 					>
 						{t('settings.pin_set')}
 					</button>
+					{#if authStatus?.parent_pin_set}
+						<button
+							onclick={removeParentPin}
+							class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30"
+						>
+							{t('settings.pin_remove')}
+						</button>
+					{/if}
 				</div>
 
+			{#if isExpert}
 			<h2 class="text-sm font-semibold mt-4 mb-3">{t('settings.pin_expert')}</h2>
 			<p class="text-xs text-text-muted mb-2">
 				{authStatus?.expert_pin_set ? t('settings.pin_active') : t('settings.pin_not_set')}
@@ -336,8 +355,35 @@
 				>
 					{t('settings.pin_set')}
 				</button>
+				{#if authStatus?.expert_pin_set}
+					<button
+						onclick={removeExpertPin}
+						class="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-sm hover:bg-red-500/30"
+					>
+						{t('settings.pin_remove')}
+					</button>
+				{/if}
 			</div>
 			{/if}
+			{/if}
+		</div>
+
+		{/if}
+
+		{#if isExpert}
+		<!-- Idle shutdown (expert) -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
+			<select
+				bind:value={idleMinutes}
+				onchange={() => saveSetting('system.idle_shutdown_minutes', idleMinutes)}
+				class="w-full px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+			>
+				<option value={0}>{t('settings.idle_off')}</option>
+				<option value={15}>{t('settings.idle_minutes', { minutes: 15 })}</option>
+				<option value={30}>{t('settings.idle_minutes', { minutes: 30 })}</option>
+				<option value={60}>{t('settings.idle_minutes', { minutes: 60 })}</option>
+			</select>
 		</div>
 
 		<!-- Expert mode toggle -->

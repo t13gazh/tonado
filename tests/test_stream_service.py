@@ -22,7 +22,7 @@ async def stream_service(tmp_path: Path):
 async def test_default_stations_seeded(stream_service: StreamService) -> None:
     stations = await stream_service.list_stations()
     assert len(stations) > 0
-    assert any("KiRaKa" in s.name for s in stations)
+    assert any("Die Maus" in s.name for s in stations)
 
 
 @pytest.mark.asyncio
@@ -51,7 +51,8 @@ async def test_add_podcast(stream_service: StreamService) -> None:
     assert podcast.id > 0
 
     podcasts = await stream_service.list_podcasts()
-    assert len(podcasts) == 1
+    # Default podcasts are seeded, so count includes those + the new one
+    assert any(p.name == "Test Pod" for p in podcasts)
 
 
 @pytest.mark.asyncio
@@ -60,4 +61,4 @@ async def test_delete_podcast(stream_service: StreamService) -> None:
     assert await stream_service.delete_podcast(podcast.id) is True
 
     podcasts = await stream_service.list_podcasts()
-    assert len(podcasts) == 0
+    assert not any(p.name == "To Delete" for p in podcasts)

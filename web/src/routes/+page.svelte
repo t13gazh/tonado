@@ -2,12 +2,16 @@
 	import { t } from '$lib/i18n';
 	import { player } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
 	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio } from '$lib/stores/browser-audio.svelte';
+	import { isMpdConnected } from '$lib/stores/health.svelte';
 	import { tick, onMount } from 'svelte';
 
+	const mpdOk = $derived(isMpdConnected());
 	const state = $derived(getPlayerState());
 	const isPlaying = $derived(state.state === 'playing');
+	const isStopped = $derived(state.state === 'stopped');
 	const hasTrack = $derived(state.current_track !== '');
 	const isLastTrack = $derived(state.playlist_position >= state.playlist_length - 1);
 	const canPlay = $derived(hasTrack || state.playlist_length > 0);
@@ -162,9 +166,14 @@
 			player.toggle();
 		}
 	}
+
+	function handlePlayAgain() {
+		player.seek(0).then(() => player.play());
+	}
 </script>
 
 <div class="flex flex-col items-center justify-center h-full px-6 py-8 gap-6">
+
 	<!-- Cover Art -->
 	<div class="w-64 h-64 sm:w-72 sm:h-72 rounded-2xl bg-surface-light flex items-center justify-center shadow-xl overflow-hidden">
 		{#if hasTrack}
@@ -198,10 +207,10 @@
 	<div class="w-full max-w-sm">
 		{#if state.loading}
 			<div class="w-full h-2 bg-surface-lighter rounded-full overflow-hidden">
-				<div class="h-full w-1/3 bg-primary rounded-full animate-pulse"></div>
+				<div class="h-full w-1/3 bg-primary rounded-full animate-indeterminate"></div>
 			</div>
 			<div class="flex justify-center mt-1">
-				<span class="text-xs text-text-muted">Lädt...</span>
+				<span class="text-xs text-text-muted">{t('player.loading')}</span>
 			</div>
 		{:else}
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -215,7 +224,7 @@
 			>
 				<div
 					class="h-full bg-primary rounded-full pointer-events-none"
-					style="width: {progress}%"
+					style="width: {progress}%; transition: width {seekDragging ? '0s' : '1s'} linear"
 				></div>
 				{#if canSeek && (seekThumbVisible || seekDragging)}
 					<div
@@ -294,7 +303,7 @@
 		<button
 			onclick={() => player.repeat()}
 			class="p-2 transition-colors active:scale-95 {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
-			aria-label="Wiederholung"
+			aria-label={t('player.repeat_aria')}
 		>
 			{#if state.repeat_mode === 'single'}
 				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
@@ -315,6 +324,16 @@
 			{/if}
 		</button>
 	</div>
+
+	<!-- Play again -->
+	{#if isStopped && hasTrack}
+		<button
+			onclick={handlePlayAgain}
+			class="px-4 py-2 rounded-full text-sm font-medium bg-surface-light text-text hover:bg-surface-lighter transition-colors active:scale-95"
+		>
+			{t('player.play_again')}
+		</button>
+	{/if}
 
 	<!-- Volume with mute -->
 	<div class="w-full max-w-sm flex items-center gap-3">
@@ -363,7 +382,7 @@
 			>
 				{#if browserLoading}
 					<div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-					Verbinde...
+					{t('player.connecting')}
 				{:else}
 					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						{#if browserPlaying}
@@ -374,7 +393,7 @@
 							<line x1="12" y1="9" x2="12" y2="15"/>
 						{/if}
 					</svg>
-					{browserPlaying ? 'Browser-Audio an' : 'Auf diesem Gerät hören'}
+					{browserPlaying ? t('player.browser_audio_on') : t('player.browser_audio_off')}
 				{/if}
 			</button>
 		</div>

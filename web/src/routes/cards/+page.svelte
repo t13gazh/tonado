@@ -3,6 +3,8 @@
 	import { cards, config, type CardMapping } from '$lib/api';
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
+	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import { isBackendOffline, isRfidAvailable } from '$lib/stores/health.svelte';
 
 	type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
@@ -10,6 +12,13 @@
 	let loading = $state(true);
 	let error = $state('');
 	let expertMode = $state(false);
+
+	$effect(() => {
+		if (error) {
+			const timer = setTimeout(() => (error = ''), 5000);
+			return () => clearTimeout(timer);
+		}
+	});
 
 	// Edit state
 	let editingCard = $state<CardMapping | null>(null);
@@ -42,7 +51,7 @@
 		try {
 			allCards = await cards.list();
 		} catch (e) {
-			error = e instanceof Error ? e.message : t('general.error');
+			if (!isBackendOffline()) error = e instanceof Error ? e.message : t('general.error');
 		} finally {
 			loading = false;
 		}
@@ -76,8 +85,8 @@
 			});
 			editingCard = null;
 			await loadCards();
-		} catch (e) {
-			error = e instanceof Error ? e.message : t('general.error');
+		} catch {
+			error = t('error.save_failed');
 		}
 	}
 
@@ -87,8 +96,8 @@
 			await cards.delete(deletingCard.card_id);
 			deletingCard = null;
 			await loadCards();
-		} catch (e) {
-			error = e instanceof Error ? e.message : t('general.error');
+		} catch {
+			error = t('error.delete_failed');
 		}
 	}
 </script>
@@ -97,16 +106,33 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between mb-4">
 		<h1 class="text-xl font-bold text-text">{t('card.title')}</h1>
-		<a
-			href="/cards/wizard"
-			class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors"
-		>
-			<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-				<path d="M12 5v14M5 12h14"/>
-			</svg>
-			{t('card.add')}
-		</a>
+		{#if isRfidAvailable()}
+			<a
+				href="/cards/wizard"
+				class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors"
+			>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+					<path d="M12 5v14M5 12h14"/>
+				</svg>
+				{t('card.add')}
+			</a>
+		{:else}
+			<span
+				class="flex items-center gap-2 px-4 py-2 bg-surface-lighter text-text-muted rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
+			>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+					<path d="M12 5v14M5 12h14"/>
+				</svg>
+				{t('card.add')}
+			</span>
+		{/if}
 	</div>
+
+	{#if isRfidAvailable() === false}
+		<div class="mb-4">
+			<HealthBanner type="warning" message={t('health.rfid_unavailable')} />
+		</div>
+	{/if}
 
 	{#if loading}
 		<div class="flex items-center justify-center py-20">

@@ -12,8 +12,8 @@ let _active = $state(false);
 let _loading = $state(false);
 let _retryTimer: ReturnType<typeof setTimeout> | null = null;
 let _retryCount = 0;
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 1500;
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 2000;
 
 export function getBrowserAudioActive(): boolean {
 	return _active;
@@ -82,6 +82,10 @@ export function startBrowserAudio(): void {
 
 export function stopBrowserAudio(): void {
 	clearRetry();
+	if (_reloadTimer) {
+		clearTimeout(_reloadTimer);
+		_reloadTimer = null;
+	}
 	if (audioElement) {
 		audioElement.pause();
 		audioElement.src = '';
@@ -93,11 +97,25 @@ export function stopBrowserAudio(): void {
 /**
  * Reload the stream (e.g. after track change).
  * Only acts if browser audio is currently active.
+ * Waits briefly so MPD has time to buffer the new track
+ * on its httpd output before the browser requests the proxy.
  */
+let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
+const RELOAD_DELAY_MS = 1500;
+
 export function reloadBrowserAudio(): void {
 	if (!_active || !audioElement) return;
 	clearRetry();
-	audioElement.src = streamUrl();
-	audioElement.load();
-	audioElement.play().catch(() => { _loading = false; });
+	// Cancel any pending reload (rapid track changes)
+	if (_reloadTimer) {
+		clearTimeout(_reloadTimer);
+	}
+	_loading = true;
+	_reloadTimer = setTimeout(() => {
+		_reloadTimer = null;
+		if (!_active || !audioElement) return;
+		audioElement.src = streamUrl();
+		audioElement.load();
+		audioElement.play().catch(() => { _loading = false; });
+	}, RELOAD_DELAY_MS);
 }

@@ -1,5 +1,6 @@
 """Player API routes."""
 
+import asyncio
 import logging
 
 import httpx
@@ -101,25 +102,53 @@ async def toggle_output(output_id: int, req: OutputToggle, player: PlayerService
 
 @router.get("/stream")
 async def audio_stream():
-    """Proxy MPD HTTP stream to browser (avoids CORS issues)."""
-    try:
-        client = httpx.AsyncClient(timeout=None)
-        resp = await client.send(
-            client.build_request("GET", "http://localhost:8090/"),
-            stream=True,
-        )
+    """Proxy MPD HTTP stream to browser (avoids CORS issues).
 
-        async def generate():
-            try:
-                async for chunk in resp.aiter_bytes(chunk_size=4096):
-                    yield chunk
-            finally:
+    MPD's httpd output returns an empty reply when playback is stopped
+    or during track transitions.  This endpoint retries a few times so
+    the browser doesn't immediately receive a 503 on every track change.
+    """
+    max_attempts = 5
+    delay = 0.6  # seconds between retries
+
+    for attempt in range(max_attempts):
+        client = httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=None))
+        resp = None
+        try:
+            resp = await client.send(
+                client.build_request("GET", "http://localhost:8090/"),
+                stream=True,
+            )
+            # MPD returns 200 with data when playing, but may also return
+            # 200 with an immediate close when idle.  Read the first chunk
+            # to verify we're actually getting audio data.
+            first_chunk = await resp.aiter_bytes(chunk_size=4096).__anext__()
+
+            async def generate():
+                try:
+                    yield first_chunk
+                    async for chunk in resp.aiter_bytes(chunk_size=4096):
+                        yield chunk
+                finally:
+                    await resp.aclose()
+                    await client.aclose()
+
+            return StreamingResponse(generate(), media_type="audio/mpeg")
+        except (httpx.RemoteProtocolError, httpx.ConnectError, StopAsyncIteration) as e:
+            # Empty reply or connection refused — MPD not streaming yet
+            if resp:
                 await resp.aclose()
-                await client.aclose()
-
-        return StreamingResponse(generate(), media_type="audio/mpeg")
-    except Exception as e:
-        raise HTTPException(503, f"Stream not available: {e}")
+            await client.aclose()
+            if attempt < max_attempts - 1:
+                logger.debug("Stream attempt %d failed (%s), retrying in %.1fs", attempt + 1, e, delay)
+                await asyncio.sleep(delay)
+            else:
+                raise HTTPException(503, f"Stream not available after {max_attempts} attempts: {e}")
+        except Exception as e:
+            if resp:
+                await resp.aclose()
+            await client.aclose()
+            raise HTTPException(503, f"Stream not available: {e}")
 
 
 class PlayUrlsRequest(BaseModel):

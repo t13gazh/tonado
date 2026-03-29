@@ -1,29 +1,38 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards, config, type ContentType } from '$lib/api';
+	import { config, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
+	import { createCardScan } from '$lib/card-scan.svelte';
 
 	type Step = 'scan' | 'content' | 'done';
 
 	let step = $state<Step>('scan');
-	let scanning = $state(false);
-	let scannedCardId = $state('');
-	let hasExisting = $state(false);
-	let error = $state('');
 	let expertMode = $state(false);
-	let autoRetryCountdown = $state(0);
-	let autoRetryTimer = $state<ReturnType<typeof setInterval> | null>(null);
+	let waitForNewCard = $state(false);
 
-	let name = $state('');
-	let contentType = $state<ContentType>('folder');
-	let contentPath = $state('');
+	const scan = createCardScan();
 
+	// Auto-dismiss errors
 	$effect(() => {
-		if (error) {
-			const timer = setTimeout(() => (error = ''), 5000);
+		if (scan.error) {
+			const timer = setTimeout(() => (scan.error = ''), 5000);
 			return () => clearTimeout(timer);
+		}
+	});
+
+	// Advance to content step when scan completes
+	$effect(() => {
+		if (scan.scanComplete && step === 'scan') {
+			step = 'content';
+		}
+	});
+
+	// Advance to done step when save completes
+	$effect(() => {
+		if (scan.saveComplete && step === 'content') {
+			step = 'done';
 		}
 	});
 
@@ -32,98 +41,22 @@
 			const cfg = await config.getAll();
 			expertMode = cfg['wizard.expert_mode'] === true;
 		} catch {}
-		startScan();
+		scan.startScan(false);
 	});
 
-	let waitForNewCard = $state(false);
-
-	async function startScan() {
-		scanning = true;
-		error = '';
-		try {
-			const result = await cards.waitForScan(30, waitForNewCard);
-			if (result.scanned && result.card_id) {
-				scannedCardId = result.card_id;
-				hasExisting = result.has_mapping ?? false;
-				name = '';
-				contentPath = '';
-				contentType = 'folder';
-				if (result.mapping) {
-					name = result.mapping.name;
-					contentType = result.mapping.content_type as ContentType;
-					contentPath = result.mapping.content_path;
-				}
-				step = 'content';
-			} else {
-				startScan();
-				return;
-			}
-		} catch {
-			error = t('error.scan_timeout');
-			scanning = false;
-			startAutoRetry();
-		}
-	}
-
-	function cancelAutoRetry() {
-		if (autoRetryTimer) { clearInterval(autoRetryTimer); autoRetryTimer = null; }
-		autoRetryCountdown = 0;
-	}
-
-	function startAutoRetry() {
-		cancelAutoRetry();
-		autoRetryCountdown = 3;
-		autoRetryTimer = setInterval(() => {
-			autoRetryCountdown -= 1;
-			if (autoRetryCountdown <= 0) {
-				cancelAutoRetry();
-				error = '';
-				startScan();
-			}
-		}, 1000);
-	}
-
 	function handleTypeChange(type: ContentType) {
-		contentType = type;
-		contentPath = '';
-		name = '';
+		scan.handleTypeChange(type);
 	}
 
 	function handleSelect(path: string, autoName: string) {
-		contentPath = path;
-		name = autoName;
-	}
-
-	async function saveCard() {
-		if (!name.trim() || !contentPath.trim()) return;
-		error = '';
-		try {
-			const data = {
-				card_id: scannedCardId,
-				name: name.trim(),
-				content_type: contentType as string,
-				content_path: contentPath.trim(),
-			};
-			if (hasExisting) {
-				await cards.update(scannedCardId, data);
-			} else {
-				await cards.create(data);
-			}
-			step = 'done';
-		} catch {
-			error = t('error.save_failed');
-		}
+		scan.handleSelect(path, autoName);
 	}
 
 	function resetAndScanNext() {
 		waitForNewCard = true;
 		step = 'scan';
-		scannedCardId = '';
-		name = '';
-		contentPath = '';
-		contentType = 'folder';
-		hasExisting = false;
-		startScan();
+		scan.reset();
+		scan.startScan(true);
 	}
 </script>
 
@@ -161,12 +94,12 @@
 				<h2 class="text-lg font-semibold mb-1">{t('wizard.step_scan')}</h2>
 				<p class="text-sm text-text-muted">{t('wizard.step_scan_desc')}</p>
 			</div>
-			{#if error}
-				<p class="text-sm text-red-400">{error}</p>
-				{#if autoRetryCountdown > 0}
-					<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: autoRetryCountdown })}</p>
+			{#if scan.error}
+				<p class="text-sm text-red-400">{scan.error}</p>
+				{#if scan.autoRetryCountdown > 0}
+					<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: scan.autoRetryCountdown })}</p>
 				{/if}
-				<button onclick={() => { cancelAutoRetry(); error = ''; startScan(); }} class="text-sm text-primary font-medium">{t('general.retry')}</button>
+				<button onclick={() => { scan.cancelAutoRetry(); scan.clearError(); scan.startScan(waitForNewCard); }} class="text-sm text-primary font-medium">{t('general.retry')}</button>
 			{:else}
 				<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
 			{/if}
@@ -176,19 +109,19 @@
 	<!-- Step: Content selection -->
 	{#if step === 'content'}
 		<div class="flex-1 flex flex-col gap-4 overflow-hidden">
-			{#if scannedCardId}
-				<p class="text-xs text-text-muted">{t('wizard.card_id', { id: scannedCardId.toUpperCase() })}</p>
+			{#if scan.scannedCardId}
+				<p class="text-xs text-text-muted">{t('wizard.card_id', { id: scan.scannedCardId.toUpperCase() })}</p>
 			{/if}
-			{#if hasExisting}
+			{#if scan.hasExisting}
 				<div class="px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg text-sm text-accent">
 					{t('wizard.already_assigned')}
 				</div>
 			{/if}
 
 			<ContentPicker
-				{contentType}
-				{contentPath}
-				{name}
+				contentType={scan.contentType}
+				contentPath={scan.contentPath}
+				name={scan.cardName}
 				{expertMode}
 				onTypeChange={handleTypeChange}
 				onSelect={handleSelect}
@@ -199,29 +132,29 @@
 				<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
 				<input
 					type="text"
-					bind:value={name}
+					bind:value={scan.cardName}
 					placeholder="Die drei ???, Folge 1"
 					class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50"
 				/>
 			</label>
 
-			{#if error}
-				<p class="text-sm text-red-400">{error}</p>
+			{#if scan.error}
+				<p class="text-sm text-red-400">{scan.error}</p>
 			{/if}
 
 			<div class="flex gap-3 pt-2">
 				<button
-					onclick={() => { waitForNewCard = true; step = 'scan'; startScan(); }}
+					onclick={() => { waitForNewCard = true; step = 'scan'; scan.reset(); scan.startScan(true); }}
 					class="flex-1 px-4 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text-muted text-sm font-medium"
 				>
 					{t('general.back')}
 				</button>
 				<button
-					onclick={saveCard}
-					disabled={!name.trim() || !contentPath.trim()}
+					onclick={() => scan.saveCard()}
+					disabled={!scan.canSave()}
 					class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light disabled:opacity-50 rounded-lg text-white text-sm font-medium transition-colors"
 				>
-					{hasExisting ? t('wizard.reassign') : t('wizard.next')}
+					{scan.hasExisting ? t('wizard.reassign') : t('wizard.next')}
 				</button>
 			</div>
 		</div>

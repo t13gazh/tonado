@@ -1,10 +1,13 @@
+<script lang="ts" module>
+	export type CardStepType = 'intro' | 'scan' | 'content' | 'done';
+</script>
+
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { cards, type ContentType } from '$lib/api';
+	import { type ContentType } from '$lib/api';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
-
-	export type CardStepType = 'intro' | 'scan' | 'content' | 'done';
+	import { createCardScan } from '$lib/card-scan.svelte';
 
 	interface Props {
 		hasRfid: boolean;
@@ -17,71 +20,49 @@
 
 	let { hasRfid, expertMode, error, cardStep = $bindable('intro'), onError, onClearError }: Props = $props();
 
-	let scanning = $state(false);
-	let scannedCardId = $state('');
-	let hasExisting = $state(false);
-	let cardName = $state('');
-	let contentType = $state<ContentType>('folder');
-	let contentPath = $state('');
-	let autoRetryCountdown = $state(0);
-	let autoRetryTimer = $state<ReturnType<typeof setInterval> | null>(null);
+	const scan = createCardScan();
 
-	function cancelAutoRetry() {
-		if (autoRetryTimer) { clearInterval(autoRetryTimer); autoRetryTimer = null; }
-		autoRetryCountdown = 0;
-	}
+	// Sync scan errors to parent
+	$effect(() => {
+		if (scan.error) onError(scan.error);
+	});
 
-	function startAutoRetry() {
-		cancelAutoRetry();
-		autoRetryCountdown = 3;
-		autoRetryTimer = setInterval(() => {
-			autoRetryCountdown -= 1;
-			if (autoRetryCountdown <= 0) { cancelAutoRetry(); onClearError(); startCardScan(); }
-		}, 1000);
-	}
+	// Advance to content step when scan completes
+	$effect(() => {
+		if (scan.scanComplete && cardStep === 'scan') {
+			cardStep = 'content';
+		}
+	});
+
+	// Advance to done step when save completes
+	$effect(() => {
+		if (scan.saveComplete && cardStep === 'content') {
+			cardStep = 'done';
+		}
+	});
 
 	export async function startCardScan() {
-		cardStep = 'scan'; scanning = true; onClearError();
-		try {
-			const result = await cards.waitForScan(30, false);
-			if (result.scanned && result.card_id) {
-				scannedCardId = result.card_id;
-				hasExisting = result.has_mapping ?? false;
-				cardName = result.mapping?.name ?? '';
-				contentType = (result.mapping?.content_type as ContentType) ?? 'folder';
-				contentPath = result.mapping?.content_path ?? '';
-				cardStep = 'content';
-			} else { startCardScan(); return; }
-		} catch {
-			onError(t('error.scan_timeout')); scanning = false; startAutoRetry();
-		}
+		cardStep = 'scan';
+		onClearError();
+		await scan.startScan(false);
 	}
 
 	export function cancelScan() {
-		cancelAutoRetry();
+		scan.cancelAutoRetry();
 		cardStep = 'intro';
 	}
 
-	function handleCardTypeChange(type: ContentType) { contentType = type; contentPath = ''; cardName = ''; }
-	function handleCardSelect(path: string, autoName: string) { contentPath = path; cardName = autoName; }
-
 	export async function saveCard() {
-		if (!cardName.trim() || !contentPath.trim()) return;
 		onClearError();
-		try {
-			const data = { card_id: scannedCardId, name: cardName.trim(), content_type: contentType as string, content_path: contentPath.trim() };
-			if (hasExisting) await cards.update(scannedCardId, data);
-			else await cards.create(data);
-			cardStep = 'done';
-		} catch { onError(t('error.save_failed')); }
+		await scan.saveCard();
 	}
 
 	export function canSave(): boolean {
-		return !!(cardName.trim() && contentPath.trim());
+		return scan.canSave();
 	}
 
 	export function resetForNewCard() {
-		scannedCardId = ''; cardName = ''; contentPath = ''; contentType = 'folder'; hasExisting = false;
+		scan.reset();
 		startCardScan();
 	}
 </script>
@@ -121,10 +102,10 @@
 		</div>
 		{#if error}
 			<p class="text-sm text-red-400">{error}</p>
-			{#if autoRetryCountdown > 0}
-				<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: autoRetryCountdown })}</p>
+			{#if scan.autoRetryCountdown > 0}
+				<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: scan.autoRetryCountdown })}</p>
 			{/if}
-			<button onclick={() => { cancelAutoRetry(); onClearError(); startCardScan(); }} class="text-sm text-primary font-medium">{t('general.retry')}</button>
+			<button onclick={() => { scan.cancelAutoRetry(); onClearError(); scan.startScan(false); }} class="text-sm text-primary font-medium">{t('general.retry')}</button>
 		{:else}
 			<p class="text-sm text-text-muted animate-pulse">{t('wizard.scanning')}</p>
 		{/if}
@@ -134,27 +115,27 @@
 {#if cardStep === 'content'}
 	<div class="flex flex-col gap-4">
 		<h2 class="text-lg font-semibold text-text text-center">{t('wizard.select_content')}</h2>
-		{#if scannedCardId}
-			<p class="text-xs text-text-muted text-center">{t('wizard.card_id', { id: scannedCardId.toUpperCase() })}</p>
+		{#if scan.scannedCardId}
+			<p class="text-xs text-text-muted text-center">{t('wizard.card_id', { id: scan.scannedCardId.toUpperCase() })}</p>
 		{/if}
-		{#if hasExisting}
+		{#if scan.hasExisting}
 			<div class="px-3 py-2 bg-accent/10 border border-accent/20 rounded-lg text-sm text-accent text-center">
 				{t('wizard.already_assigned')}
 			</div>
 		{/if}
 
 		<ContentPicker
-			{contentType}
-			{contentPath}
-			name={cardName}
+			contentType={scan.contentType}
+			contentPath={scan.contentPath}
+			name={scan.cardName}
 			{expertMode}
-			onTypeChange={handleCardTypeChange}
-			onSelect={handleCardSelect}
+			onTypeChange={(type: ContentType) => scan.handleTypeChange(type)}
+			onSelect={(path: string, autoName: string) => scan.handleSelect(path, autoName)}
 		/>
 
 		<label class="block">
 			<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
-			<input type="text" bind:value={cardName} placeholder="Die drei ???, Folge 1"
+			<input type="text" bind:value={scan.cardName} placeholder="Die drei ???, Folge 1"
 				class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
 		</label>
 

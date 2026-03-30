@@ -88,6 +88,10 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 - **Hardware testen:** Wir suchen Tester mit Pi 3B+/4/5, PN532 (I2C) und USB-RFID-Readern
 - **Übersetzen:** Tonado ist auf Deutsch — Hilfe bei weiteren Sprachen willkommen (`web/src/lib/i18n/`)
 
+## Inspiration
+
+*Inspiriert von großartigen Open-Source-Projekten wie [Phoniebox](https://github.com/MiczFlor/RPi-Jukebox-RFID) und [TonUINO](https://www.voss.earth/tonuino/) — und der Idee, dass Kinderzimmer keine Cloud-Anbindung brauchen.*
+
 ## Lizenz
 
 MIT License — siehe [LICENSE](LICENSE)

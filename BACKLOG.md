@@ -24,11 +24,11 @@
 
 ### MITTEL
 - [x] Security-Header Middleware (nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy)
-- [ ] JWT iss/aud Claims (`auth_service.py:148`)
+- [x] JWT iss/aud Claims (iss=tonado, aud=tonado-api, validiert bei Decode)
 - [ ] Backup-Import Schema-Validierung
 - [x] Error-Details nicht an Client zurückgeben (generischer 500-Handler)
 - [x] WebSocket Origin-Prüfung (LAN-only, private IPs + .local)
-- [ ] Auth-Failure Logging
+- [x] Auth-Failure Logging (IP + Versuchszähler)
 
 ## E2E Flow-Audit (2026-03-29) — HOCH-Prio Fixes
 
@@ -81,12 +81,12 @@
 - [x] 1Hz EventBus-Spam: `_elapsed_loop` prüft `has_listeners`, max_volume gecached + Event-Invalidierung
 
 ### WARNUNG
-- [ ] Sync Library-IO: `list_folders()` blockiert Event-Loop, Durations in DB cachen (`library_service.py`)
+- [x] Sync Library-IO: `list_folders()` läuft via `run_in_executor` im Thread-Pool
 - [x] Unvollständiger Shutdown: Alle 17 Services werden in korrekter Reihenfolge gestoppt (`main.py`)
-- [ ] urllib statt httpx in RSS-Parsing: Konvention-Verletzung + Thread-Pool (`stream_service.py`)
-- [ ] PlaylistItem.content_type raw str statt ContentType Enum (`playlist_service.py`)
+- [x] RSS-Parsing nutzt httpx (nicht urllib)
+- [x] PlaylistItem.content_type nutzt ContentType Enum
 - [x] WebSocket-Disconnect Cleanup: `try/finally` mit `hub.disconnect()` (`main.py`)
-- [ ] Config-API ohne Auth: PUT/DELETE braucht mindestens Parent-Tier (`config.py`)
+- [x] Config-API mit Auth: PUT/DELETE erfordert PARENT-Tier (`config.py`)
 
 ### VERBESSERUNG
 - [ ] Loading-Heuristik fragil: Explizites Flag statt duration/elapsed Berechnung (`player_service.py`)

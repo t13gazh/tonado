@@ -1,5 +1,6 @@
 """Authentication and settings API routes."""
 
+import logging
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -8,6 +9,8 @@ from pydantic import BaseModel, Field
 from core.dependencies import get_auth_service, get_timer_service, get_token, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.timer_service import TimerService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -75,9 +78,12 @@ async def login(
     result = await auth.login(req.pin)
     if result is None:
         _record_failure(client_ip)
+        attempts = _login_attempts.get(client_ip, (0, 0))[0]
+        logger.warning("Auth failure from %s (attempt %d/%d)", client_ip, attempts, _MAX_ATTEMPTS)
         raise HTTPException(401, "Invalid PIN")
 
     _reset_attempts(client_ip)
+    logger.info("Auth success from %s (tier=%s)", client_ip, result.get("tier", "?"))
     return result
 
 

@@ -150,17 +150,24 @@ def detect_rfid() -> tuple[str, str]:
     if spi_device.exists():
         try:
             import spidev
+            import time
             spi = spidev.SpiDev()
             spi.open(0, 0)
             spi.max_speed_hz = 1000000
-            # Read RC522 version register (0x37) — should return 0x91 or 0x92
+            spi.mode = 0
+            # Soft reset (command 0x0F to register 0x01) to init chip state
+            spi.xfer2([0x01 << 1, 0x0F])
+            time.sleep(0.05)
+            # Read RC522 version register (0x37) twice for stability
             version = spi.xfer2([0x37 << 1 | 0x80, 0x00])[1]
+            version2 = spi.xfer2([0x37 << 1 | 0x80, 0x00])[1]
             spi.close()
-            if version in (0x91, 0x92, 0x88, 0x12):
+            # Only accept official MFRC522 versions, require stable read
+            if version == version2 and version in (0x91, 0x92):
                 logger.info("RFID: RC522 detected on SPI (version 0x%02x)", version)
                 return "rc522", str(spi_device)
             else:
-                logger.debug("RFID: SPI device found but no RC522 chip (got 0x%02x)", version)
+                logger.debug("RFID: SPI device found but no RC522 chip (got 0x%02x/0x%02x)", version, version2)
         except ImportError:
             logger.warning("RFID: SPI device found but spidev module not installed")
         except Exception as e:

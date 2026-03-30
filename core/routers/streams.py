@@ -109,6 +109,12 @@ async def list_episodes(podcast_id: int, svc: StreamService = Depends(get_stream
 
 
 @router.post("/podcasts/{podcast_id}/refresh")
-async def refresh_podcast(podcast_id: int, svc: StreamService = Depends(get_stream_service)) -> dict:
+async def refresh_podcast(
+    podcast_id: int,
+    request: Request,
+    svc: StreamService = Depends(get_stream_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     new_count = await svc.refresh_podcast(podcast_id)
     return {"status": "ok", "new_episodes": new_count}

@@ -3,6 +3,7 @@
 import json
 import logging
 import shutil
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse
@@ -86,7 +87,19 @@ async def system_health(
         except Exception:
             health["audio"] = {"status": "no_output", "detail": "Audio-Status unbekannt"}
     else:
-        health["audio"] = {"status": "no_output", "detail": "MPD nicht verbunden"}
+        # MPD offline — check ALSA hardware directly
+        try:
+            cards_path = Path("/proc/asound/cards")
+            if cards_path.exists():
+                content = cards_path.read_text()
+                if content.strip() and "no soundcards" not in content.lower():
+                    health["audio"] = {"status": "ok", "detail": "Audio-Hardware verfügbar (Musikserver offline)"}
+                else:
+                    health["audio"] = {"status": "no_output", "detail": "Keine Audio-Hardware gefunden"}
+            else:
+                health["audio"] = {"status": "unknown", "detail": "Audio-Status unbekannt"}
+        except Exception:
+            health["audio"] = {"status": "unknown", "detail": "Audio-Status unbekannt"}
 
     # Storage
     try:

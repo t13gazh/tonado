@@ -58,9 +58,10 @@
 - [x] ~20 unbenutzte Keys identifiziert (player.now_playing, library.search, wizard.select_track etc.) — behalten für geplante Features (Suche, Track-Auswahl, OverlayFS-UI)
 
 ## Test-Coverage (2026-03-29)
-- [ ] MockMPDClient erstellen (Blocker für PlayerService/PlaybackDispatcher/TimerService Tests)
-- [ ] PlayerService Tests (370 LOC, 0 Tests — KRITISCH)
-- [ ] PlaybackDispatcher Tests (128 LOC, reine Logik — einfach testbar)
+- [x] MockMPDClient erstellt (`tests/mock_mpd.py`) — simuliert python-mpd2 async Interface
+- [x] PlayerService Tests: 21 Tests (Playback, Volume, Seek, Shuffle, Repeat, Outputs, Disconnected)
+- [x] PlaybackDispatcher Tests: 10 Tests (Folder, Stream, Podcast, Playlist, Command, Gestures, Resume)
+- [ ] TimerService Tests (Sleep-Countdown, Volume-Enforcement, Idle-Shutdown)
 - [ ] Router-Integrationstests (Path Traversal, Auth-Middleware, Upload-Limits)
 
 ## v0.2.0-beta — Nächste Schritte

@@ -74,11 +74,13 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 
 ## Status
 
-> **Alpha (v0.1.0)** — Tonado funktioniert, ist aber noch nicht für Endnutzer verpackt.
+> **Alpha (v0.1.0)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet.
 
-**Was funktioniert:** Player, Bibliothek, Figuren-Wizard, Eltern-Einstellungen, Hardware-Erkennung, Browser-Audio, automatische Updates.
+**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer), Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, Setup-Wizard, Browser-Audio, automatische Updates, Backup/Restore.
 
-**Was noch kommt:** Fertiges Image zum Flashen, weitere Hardware testen, bessere Fehlermeldungen, Mehrsprachigkeit.
+**Getestet auf:** Raspberry Pi Zero W mit HifiBerry MiniAmp + RC522 (SPI). Andere Konfigurationen sollten funktionieren, sind aber noch nicht verifiziert.
+
+**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), Tests auf Pi 3B+/4/5, PN532- und USB-RFID-Reader-Tests, Performance-Profiling, Mehrsprachigkeit (Englisch vorbereitet).
 
 ## Mitmachen
 

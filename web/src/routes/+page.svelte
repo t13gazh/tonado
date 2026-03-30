@@ -94,7 +94,7 @@
 			const ratio = seekLocalProgress / 100;
 			seekDragging = false;
 			seekOverride = true;
-			player.seek(ratio * state.duration).then(() => { seekOverride = false; });
+			player.seek(ratio * state.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
 		}
 		showSeekThumb();
 	}
@@ -106,7 +106,7 @@
 		const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 		seekLocalProgress = ratio * 100;
 		seekOverride = true;
-		player.seek(ratio * state.duration).then(() => { seekOverride = false; });
+		player.seek(ratio * state.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
 		showSeekThumb();
 	}
 
@@ -231,14 +231,24 @@
 				<span class="text-xs text-text-muted">{t('player.loading')}</span>
 			</div>
 		{:else}
-			<!-- svelte-ignore a11y_click_events_have_key_events -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
+				role="slider"
+				tabindex={canSeek ? 0 : -1}
+				aria-label={t('player.seek')}
+				aria-valuemin={0}
+				aria-valuemax={Math.round(state.duration)}
+				aria-valuenow={Math.round(state.elapsed)}
+				aria-valuetext={`${formatTime(state.elapsed)} / ${formatTime(state.duration)}`}
 				class="w-full h-2 bg-surface-lighter rounded-full relative {canSeek ? 'cursor-pointer' : 'cursor-default opacity-50'}"
 				onclick={canSeek ? handleSeekClick : undefined}
 				onpointerdown={canSeek ? handleSeekDragStart : undefined}
 				onpointermove={canSeek ? handleSeekDragMove : undefined}
 				onpointerup={canSeek ? handleSeekDragEnd : undefined}
+				onkeydown={canSeek ? (e) => {
+					const step = e.shiftKey ? 30 : 5;
+					if (e.key === 'ArrowRight') { e.preventDefault(); player.seek(Math.min(state.duration, state.elapsed + step)); }
+					else if (e.key === 'ArrowLeft') { e.preventDefault(); player.seek(Math.max(0, state.elapsed - step)); }
+				} : undefined}
 			>
 				<div
 					class="h-full bg-primary rounded-full pointer-events-none"

@@ -9,7 +9,7 @@
 	--color-surface-light: #2a2a3e;
 	--color-surface-lighter: #363650;
 	--color-text: #e2e2f0;
-	--color-text-muted: #9393a8;
+	--color-text-muted: #a0a0b8;
 	--color-accent: #f59e0b;
 
 	/* Fonts */
@@ -78,6 +78,13 @@ body {
 }
 .animate-indeterminate {
 	animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+/* Focus-visible ring for keyboard navigation */
+:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+	border-radius: 4px;
 }
 
 /* Touch feedback for interactive elements */

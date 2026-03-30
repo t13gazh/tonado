@@ -15,6 +15,7 @@ export function createCardScan() {
 	let error = $state('');
 	let autoRetryCountdown = $state(0);
 	let autoRetryTimer = $state<ReturnType<typeof setInterval> | null>(null);
+	let abortController = $state<AbortController | null>(null);
 	let scanComplete = $state(false);
 	let saveComplete = $state(false);
 
@@ -37,11 +38,14 @@ export function createCardScan() {
 	}
 
 	async function startScan(newOnly = false) {
+		if (abortController) abortController.abort();
+		abortController = new AbortController();
 		scanning = true;
 		scanComplete = false;
 		error = '';
 		try {
 			const result = await cards.waitForScan(30, newOnly);
+			if (abortController?.signal.aborted) return;
 			if (result.scanned && result.card_id) {
 				scannedCardId = result.card_id;
 				hasExisting = result.has_mapping ?? false;
@@ -61,6 +65,7 @@ export function createCardScan() {
 				return;
 			}
 		} catch {
+			if (abortController?.signal.aborted) return;
 			error = t('error.scan_timeout');
 			scanning = false;
 			startAutoRetry(() => startScan(newOnly));
@@ -104,6 +109,9 @@ export function createCardScan() {
 	}
 
 	function reset() {
+		if (abortController) { abortController.abort(); abortController = null; }
+		cancelAutoRetry();
+		scanning = false;
 		scannedCardId = '';
 		cardName = '';
 		contentPath = '';

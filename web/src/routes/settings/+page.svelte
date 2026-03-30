@@ -85,8 +85,12 @@
 	}
 
 	async function saveSetting(key: string, value: unknown) {
-		await config.set(key, value);
-		flashToast();
+		try {
+			await config.set(key, value);
+			flashToast();
+		} catch {
+			error = t('general.error');
+		}
 	}
 
 	function flashToast() {
@@ -164,24 +168,34 @@
 	}
 
 	async function startSleep() {
-		await authApi.startSleepTimer(sleepMinutes);
-		sleepActive = true;
-		sleepRemaining = sleepMinutes * 60;
+		try {
+			await authApi.startSleepTimer(sleepMinutes);
+			sleepActive = true;
+			sleepRemaining = sleepMinutes * 60;
+		} catch {
+			error = t('general.error');
+		}
 	}
 
 	async function cancelSleep() {
-		await authApi.cancelSleepTimer();
-		sleepActive = false;
-		sleepRemaining = 0;
+		try {
+			await authApi.cancelSleepTimer();
+			sleepActive = false;
+			sleepRemaining = 0;
+		} catch {
+			error = t('general.error');
+		}
 	}
 </script>
 
 <!-- Fixed toast (does not affect layout) -->
 <div
+	role="status"
+	aria-live="polite"
 	class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-500/90 text-white text-sm rounded-xl shadow-lg transition-all duration-300 pointer-events-none
 		{showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}"
 >
-	{t('settings.saved')}
+	{showToast ? t('settings.saved') : ''}
 </div>
 
 <div class="p-4">

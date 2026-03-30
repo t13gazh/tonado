@@ -35,6 +35,7 @@
 	}
 
 	async function removePlaylist(id: number) {
+		if (!confirm(t('general.confirm_delete'))) return;
 		try {
 			await playlistsApi.delete(id);
 			if (expandedPlaylist?.id === id) expandedPlaylist = null;

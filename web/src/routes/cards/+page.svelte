@@ -2,10 +2,32 @@
 	import { t } from '$lib/i18n';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { cards, config, type CardMapping, type ContentType } from '$lib/api';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { isBackendOffline, isRfidAvailable } from '$lib/stores/health.svelte';
+
+	function trapFocus(node: HTMLElement) {
+		function handleKeydown(e: KeyboardEvent) {
+			if (e.key === 'Escape') { editingCard = null; deletingCard = null; return; }
+			if (e.key !== 'Tab') return;
+			const focusable = node.querySelectorAll<HTMLElement>(
+				'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+			);
+			if (focusable.length === 0) return;
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+			else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+		}
+		node.addEventListener('keydown', handleKeydown);
+		// Auto-focus first focusable element
+		tick().then(() => {
+			const first = node.querySelector<HTMLElement>('input:not([disabled]), button:not([disabled])');
+			first?.focus();
+		});
+		return { destroy() { node.removeEventListener('keydown', handleKeydown); } };
+	}
 
 	let allCards = $state<CardMapping[]>([]);
 	let loading = $state(true);
@@ -179,7 +201,7 @@
 					<div class="absolute top-2 right-2 flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
 						<button
 							onclick={() => startEdit(card)}
-							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-text"
+							class="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-text"
 							aria-label={t('card.edit')}
 						>
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -189,7 +211,7 @@
 						</button>
 						<button
 							onclick={() => (deletingCard = card)}
-							class="p-1.5 bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-red-400"
+							class="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-red-400"
 							aria-label={t('general.delete')}
 						>
 							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -208,9 +230,11 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" onclick={() => (editingCard = null)}>
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
+			role="dialog"
+			aria-modal="true"
+			aria-label={t('card.edit')}
+			use:trapFocus
 			class="bg-surface-light w-full sm:w-[28rem] max-h-[85vh] rounded-t-2xl sm:rounded-2xl p-5 flex flex-col overflow-hidden"
 			onclick={(e) => e.stopPropagation()}
 		>
@@ -262,9 +286,14 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50" onclick={() => (deletingCard = null)}>
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="bg-surface-light w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6" onclick={(e) => e.stopPropagation()}>
+		<div
+			role="dialog"
+			aria-modal="true"
+			aria-label={t('general.delete')}
+			use:trapFocus
+			class="bg-surface-light w-full sm:w-96 rounded-t-2xl sm:rounded-2xl p-6"
+			onclick={(e) => e.stopPropagation()}
+		>
 			<h2 class="text-lg font-bold mb-2">{t('general.delete')}</h2>
 			<p class="text-sm text-text-muted mb-4">{t('card.delete_confirm', { name: deletingCard.name })}</p>
 

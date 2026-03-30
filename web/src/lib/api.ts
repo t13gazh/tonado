@@ -87,7 +87,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 		...rest,
 	});
 	if (!res.ok) {
-		throw new Error(`API error: ${res.status} ${res.statusText}`);
+		let detail = res.statusText;
+		try {
+			const body = await res.json();
+			if (body.detail) detail = body.detail;
+		} catch { /* no JSON body */ }
+		const err = new Error(detail);
+		(err as any).status = res.status;
+		throw err;
 	}
 	return res.json();
 }

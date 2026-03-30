@@ -100,7 +100,7 @@
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(async () => {
 						if (expandedPodcast !== podcast.id) await togglePodcast(podcast.id);
-						playPodcastEpisode(0);
+						if (podcastEpisodes.length > 0) await playPodcastEpisode(0);
 					})}
 					{@render thumbnail(podcast.logo_url, 'podcast')}
 					<button onclick={() => togglePodcast(podcast.id)} class="flex-1 min-w-0 text-left">

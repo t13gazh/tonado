@@ -55,7 +55,7 @@
 
 ## i18n-Audit (2026-03-29) — Minimal
 - [ ] Placeholder "Die drei ???, Folge 1" als i18n-Key (`wizard:145`, `CardStep:139`)
-- [ ] 27 unbenutzte Keys aufräumen
+- [x] ~20 unbenutzte Keys identifiziert (player.now_playing, library.search, wizard.select_track etc.) — behalten für geplante Features (Suche, Track-Auswahl, OverlayFS-UI)
 
 ## Test-Coverage (2026-03-29)
 - [ ] MockMPDClient erstellen (Blocker für PlayerService/PlaybackDispatcher/TimerService Tests)

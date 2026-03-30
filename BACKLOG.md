@@ -11,47 +11,47 @@
 ### KRITISCH
 - [x] XXE in RSS-Parsing: `defusedxml.ElementTree.fromstring()` statt `xml.etree` (`stream_service.py:290`)
 - [x] SSRF-Schutz: `validate_url()` Utility blockt interne IPs + prüft DNS (`core/utils/url.py`)
-- [ ] Rate-Limiting auf Login: 5 Fehlversuche → 60s Lockout (`auth.py:21`)
-- [ ] Backup-Export filtert keine Secrets + keine Auth nötig (`backup_service.py:32`, `system.py:239`)
+- [x] Rate-Limiting auf Login: 5 Fehlversuche → 60s Lockout (`auth.py:21`)
+- [x] Backup-Export filtert Secrets + Auth nötig (PARENT für Export, EXPERT für Import)
 
-### HOCH — Fehlende Auth auf schreibenden Endpoints
-- [ ] Library PUT/POST/DELETE: `require_tier(PARENT)` (`library.py:72-103`)
-- [ ] Cards POST/PUT/DELETE: `require_tier(PARENT)` (`cards.py:28-65`)
-- [ ] Streams POST/DELETE: `require_tier(PARENT)` (`streams.py:32-67`)
-- [ ] Playlists POST/PUT/DELETE: `require_tier(PARENT)` (`playlists.py:32-69`)
-- [ ] Setup-Endpoints nach Completion sperren (`setup.py:27-88`)
-- [ ] SSRF: URL-Whitelist http/https, Blacklist interne IPs (`stream_service.py`, `player_service.py`)
+### HOCH — Auth auf schreibenden Endpoints
+- [x] Library PUT/POST/DELETE: `require_tier(PARENT)` (`library.py:72-103`)
+- [x] Cards POST/PUT/DELETE: `require_tier(PARENT)` (`cards.py:28-65`)
+- [x] Streams POST/DELETE + Refresh: `require_tier(PARENT)` (`streams.py:32-67, 111`)
+- [x] Playlists POST/PUT/DELETE: `require_tier(PARENT)` (`playlists.py:32-69`)
+- [x] Setup-Endpoints nach Completion gesperrt (`setup.py:27-88`)
+- [x] SSRF: URL-Whitelist http/https, Blacklist interne IPs (`stream_service.py`, `player_service.py`)
 
 ### MITTEL
-- [ ] Security-Header Middleware (nosniff, X-Frame-Options, Referrer-Policy)
+- [x] Security-Header Middleware (nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy)
 - [ ] JWT iss/aud Claims (`auth_service.py:148`)
 - [ ] Backup-Import Schema-Validierung
-- [ ] Error-Details nicht an Client zurückgeben
-- [ ] WebSocket Origin-Prüfung
+- [x] Error-Details nicht an Client zurückgeben (generischer 500-Handler)
+- [x] WebSocket Origin-Prüfung (LAN-only, private IPs + .local)
 - [ ] Auth-Failure Logging
 
 ## E2E Flow-Audit (2026-03-29) — HOCH-Prio Fixes
 
-- [ ] API-Client: Backend-Fehlermeldungen aus JSON-Body lesen statt generisch (`api.ts:89`)
-- [ ] Card-Scan-Loop: AbortController bei Navigation (`card-scan.svelte.ts:39`)
-- [ ] Podcast-Play Race Condition: await togglePodcast() vor playEpisode (`PodcastTab.svelte:101`)
-- [ ] Settings saveSetting/sleepTimer ohne try/catch (`settings/+page.svelte:87, 166`)
-- [ ] Playlist-Löschung ohne Bestätigung (`PlaylistTab.svelte:37`)
-- [ ] Seek-Promise Error-Handling (seekOverride friert ein) (`+page.svelte:97`)
+- [x] API-Client: Backend-Fehlermeldungen aus JSON-Body lesen statt generisch (`api.ts:89`)
+- [x] Card-Scan-Loop: AbortController bei Navigation (`card-scan.svelte.ts:39`)
+- [x] Podcast-Play Race Condition: await togglePodcast() vor playEpisode (`PodcastTab.svelte:101`)
+- [x] Settings saveSetting/sleepTimer ohne try/catch (`settings/+page.svelte:87, 166`)
+- [x] Playlist-Löschung ohne Bestätigung (`PlaylistTab.svelte:37`)
+- [x] Seek-Promise Error-Handling (seekOverride friert ein) (`+page.svelte:97`)
 - [ ] Audio-Setup sendet falsche Device-Kennung (`AudioStep.svelte:21`)
 
 ## Accessibility-Audit (2026-03-29)
 
 ### KRITISCH
-- [ ] Modal Focus-Trapping + `role="dialog"` + Escape-Handler (`cards/+page.svelte:210, 265`)
-- [ ] Seek-Bar als Slider mit Keyboard-Support (`+page.svelte:228`)
+- [x] Modal Focus-Trapping + `role="dialog"` + Escape-Handler (`cards/+page.svelte`)
+- [x] Seek-Bar als Slider mit Keyboard-Support + ARIA-Attribute (`+page.svelte`)
 
 ### HOCH
-- [ ] Globaler Focus-visible Style in `app.css`
-- [ ] Toast `aria-live="polite"` (`settings/+page.svelte:179`)
-- [ ] Kontrast text-muted aufhellen (#9393a8 → #a0a0b8)
-- [ ] Touch-Targets vergrößern (Edit/Delete Buttons min 44px)
-- [ ] SVGs in Navigation `aria-hidden="true"`
+- [x] Globaler Focus-visible Style in `app.css`
+- [x] Toast `aria-live="polite"` (`settings/+page.svelte`)
+- [x] Kontrast text-muted aufgehellt (#9393a8 → #a0a0b8)
+- [x] Touch-Targets vergrößert (Edit/Delete Buttons min 44px)
+- [x] SVGs in Navigation `aria-hidden="true"`
 
 ## i18n-Audit (2026-03-29) — Minimal
 - [ ] Placeholder "Die drei ???, Folge 1" als i18n-Key (`wizard:145`, `CardStep:139`)
@@ -77,15 +77,15 @@
 ## Architektur-Audit (2026-03-29)
 
 ### KRITISCH
-- [ ] Sequentieller Startup: Services mit `asyncio.gather()` parallel starten, Podcast-Seed als Background-Task (`main.py`, `stream_service.py`)
-- [ ] 1Hz EventBus-Spam: `_elapsed_loop` nur bei WebSocket-Clients publishen, TimerService max_volume cachen statt DB-Read pro Sekunde (`player_service.py`, `timer_service.py`)
+- [x] Sequentieller Startup: Services mit `asyncio.gather()` in 4 Gruppen parallel (`main.py`)
+- [x] 1Hz EventBus-Spam: `_elapsed_loop` prüft `has_listeners`, max_volume gecached + Event-Invalidierung
 
 ### WARNUNG
 - [ ] Sync Library-IO: `list_folders()` blockiert Event-Loop, Durations in DB cachen (`library_service.py`)
-- [ ] Unvollständiger Shutdown: 7 von 14 Services werden gestoppt, Rest hängt (`main.py`)
+- [x] Unvollständiger Shutdown: Alle 17 Services werden in korrekter Reihenfolge gestoppt (`main.py`)
 - [ ] urllib statt httpx in RSS-Parsing: Konvention-Verletzung + Thread-Pool (`stream_service.py`)
 - [ ] PlaylistItem.content_type raw str statt ContentType Enum (`playlist_service.py`)
-- [ ] WebSocket-Disconnect Cleanup: `try/finally` statt nur `WebSocketDisconnect` (`main.py`)
+- [x] WebSocket-Disconnect Cleanup: `try/finally` mit `hub.disconnect()` (`main.py`)
 - [ ] Config-API ohne Auth: PUT/DELETE braucht mindestens Parent-Tier (`config.py`)
 
 ### VERBESSERUNG

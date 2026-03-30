@@ -284,5 +284,8 @@ async def import_backup(
     if "version" not in data:
         raise HTTPException(400, "Not a valid Tonado backup")
 
-    counts = await svc.import_backup(data)
+    try:
+        counts = await svc.import_backup(data)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"status": "ok", "imported": counts}

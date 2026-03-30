@@ -25,7 +25,7 @@
 ### MITTEL
 - [x] Security-Header Middleware (nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy)
 - [x] JWT iss/aud Claims (iss=tonado, aud=tonado-api, validiert bei Decode)
-- [ ] Backup-Import Schema-Validierung
+- [x] Backup-Import Schema-Validierung (Pflichtfelder, Typen, max 5 Fehler gemeldet)
 - [x] Error-Details nicht an Client zurückgeben (generischer 500-Handler)
 - [x] WebSocket Origin-Prüfung (LAN-only, private IPs + .local)
 - [x] Auth-Failure Logging (IP + Versuchszähler)
@@ -89,8 +89,8 @@
 - [x] Config-API mit Auth: PUT/DELETE erfordert PARENT-Tier (`config.py`)
 
 ### VERBESSERUNG
-- [ ] Loading-Heuristik fragil: Explizites Flag statt duration/elapsed Berechnung (`player_service.py`)
-- [ ] scan_waiters Leak: finally-Block für Future-Cleanup bei Request-Abbruch (`card_service.py`)
+- [ ] Loading-Heuristik fragil: Explizites Flag statt duration/elapsed Berechnung (`player_service.py`) — funktioniert aktuell für normale Fälle, explizites Flag wäre robuster
+- [x] scan_waiters Leak: finally-Block für Future-Cleanup bei Request-Abbruch (`card_service.py:260`)
 
 ## Setup-Wizard
 - [ ] Audio Test-Button (Sound abspielen zum Prüfen)

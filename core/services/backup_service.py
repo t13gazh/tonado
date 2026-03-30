@@ -109,17 +109,53 @@ class BackupService(BaseService):
         logger.info("Backup written to %s", path)
         return path
 
+    @staticmethod
+    def _validate_backup(data: dict[str, Any]) -> list[str]:
+        """Validate backup structure. Returns list of errors (empty = valid)."""
+        errors: list[str] = []
+        if not isinstance(data.get("version"), str):
+            errors.append("Missing or invalid 'version' field")
+        for i, card in enumerate(data.get("cards", [])):
+            if not isinstance(card, dict):
+                errors.append(f"cards[{i}]: not a dict")
+                continue
+            for field in ("card_id", "name", "content_type", "content_path"):
+                if not isinstance(card.get(field), str) or not card[field].strip():
+                    errors.append(f"cards[{i}]: missing or empty '{field}'")
+        for i, station in enumerate(data.get("radio_stations", [])):
+            if not isinstance(station, dict):
+                errors.append(f"radio_stations[{i}]: not a dict")
+                continue
+            for field in ("name", "url"):
+                if not isinstance(station.get(field), str) or not station[field].strip():
+                    errors.append(f"radio_stations[{i}]: missing or empty '{field}'")
+        for i, podcast in enumerate(data.get("podcasts", [])):
+            if not isinstance(podcast, dict):
+                errors.append(f"podcasts[{i}]: not a dict")
+                continue
+            for field in ("name", "feed_url"):
+                if not isinstance(podcast.get(field), str) or not podcast[field].strip():
+                    errors.append(f"podcasts[{i}]: missing or empty '{field}'")
+        if not isinstance(data.get("config", {}), dict):
+            errors.append("'config' must be a dict")
+        return errors
+
     async def import_backup(self, data: dict[str, Any]) -> dict[str, int]:
         """Import a backup, restoring config, cards, stations, and podcasts.
 
-        Returns counts of imported items.
+        Validates structure before importing. Returns counts of imported items.
+        Raises ValueError if backup is malformed.
         """
+        errors = self._validate_backup(data)
+        if errors:
+            raise ValueError(f"Invalid backup: {'; '.join(errors[:5])}")
+
         counts = {"config": 0, "cards": 0, "stations": 0, "podcasts": 0}
 
         # Restore config (skip auth secrets)
         config_data = data.get("config", {})
         for key, value in config_data.items():
-            if key.startswith("auth."):
+            if not isinstance(key, str) or key.startswith("auth."):
                 continue  # Don't overwrite auth settings
             await self._config.set(key, value)
             counts["config"] += 1

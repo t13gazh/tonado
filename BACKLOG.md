@@ -61,8 +61,8 @@
 - [x] MockMPDClient erstellt (`tests/mock_mpd.py`) — simuliert python-mpd2 async Interface
 - [x] PlayerService Tests: 21 Tests (Playback, Volume, Seek, Shuffle, Repeat, Outputs, Disconnected)
 - [x] PlaybackDispatcher Tests: 10 Tests (Folder, Stream, Podcast, Playlist, Command, Gestures, Resume)
-- [ ] TimerService Tests (Sleep-Countdown, Volume-Enforcement, Idle-Shutdown)
-- [ ] Router-Integrationstests (Path Traversal, Auth-Middleware, Upload-Limits)
+- [x] TimerService Tests: 6 Tests (Sleep Timer, Volume Enforcement, Resume)
+- [x] Router-Integrationstests: 12 Tests (Auth-Middleware, Path Traversal, Rate Limiting, Validation, Sensitive Keys)
 
 ## v0.2.0-beta — Nächste Schritte
 - [ ] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch

@@ -136,7 +136,7 @@
 
 		<label class="block">
 			<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
-			<input type="text" bind:value={scan.cardName} placeholder="Die drei ???, Folge 1"
+			<input type="text" bind:value={scan.cardName} placeholder={t('wizard.name_placeholder')}
 				class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
 		</label>
 

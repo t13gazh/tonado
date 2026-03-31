@@ -298,6 +298,7 @@ export default {
 	'player.browser_audio_off': 'Listen on this device',
 	'player.play_again': 'Play again',
 	'player.seek': 'Seek position',
+	'wizard.name_placeholder': 'My Favorite Album',
 
 	// Content picker (additional)
 	'content_picker.no_stations': 'No radio stations available',

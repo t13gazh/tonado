@@ -298,6 +298,7 @@ export default {
 	'player.browser_audio_off': 'Auf diesem Gerät hören',
 	'player.play_again': 'Nochmal abspielen',
 	'player.seek': 'Position',
+	'wizard.name_placeholder': 'Die drei ???, Folge 1',
 
 	// Content picker (additional)
 	'content_picker.no_stations': 'Keine Radiosender vorhanden',

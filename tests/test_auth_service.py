@@ -102,6 +102,8 @@ async def test_expert_has_parent_access(auth_service: AuthService) -> None:
 @pytest.mark.asyncio
 async def test_invalid_token(auth_service: AuthService) -> None:
     assert auth_service.verify_token("garbage.token.here") is None
+    # check_access with garbage token only fails when a PIN is set
+    await auth_service.set_pin(AuthTier.PARENT, "1234")
     assert not auth_service.check_access("garbage", AuthTier.PARENT)
 
 

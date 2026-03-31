@@ -57,25 +57,32 @@ async def test_wizard_step_progression(config_service: ConfigService, wifi_servi
 
 @pytest.mark.asyncio
 async def test_wizard_persists_state(tmp_path: Path) -> None:
-    db_path = tmp_path / "config.db"
+    from core.database import DatabaseManager
+
+    mgr = DatabaseManager(tmp_path / "persist.db")
+    await mgr.start()
+    db = mgr.connection
 
     # First run: advance to WiFi step
-    config1 = ConfigService(db_path)
+    config1 = ConfigService(db)
     await config1.start()
     wifi = WifiService()
     wizard1 = SetupWizard(config1, wifi)
     await wizard1.start()
     await wizard1.detect_hardware()
     assert wizard1.current_step == SetupStep.HARDWARE_DETECTION
-    await config1.stop()
+    await mgr.stop()
 
     # Second run: should resume from saved state
-    config2 = ConfigService(db_path)
+    mgr2 = DatabaseManager(tmp_path / "persist.db")
+    await mgr2.start()
+    db2 = mgr2.connection
+    config2 = ConfigService(db2)
     await config2.start()
     wizard2 = SetupWizard(config2, wifi)
     await wizard2.start()
     assert wizard2.current_step == SetupStep.HARDWARE_DETECTION
-    await config2.stop()
+    await mgr2.stop()
 
 
 @pytest.mark.asyncio

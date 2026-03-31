@@ -1,6 +1,5 @@
 """Shared test fixtures."""
 
-import asyncio
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -8,6 +7,7 @@ import aiosqlite
 import pytest
 import pytest_asyncio
 
+from core.database import DatabaseManager
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 
@@ -18,18 +18,24 @@ def event_bus() -> EventBus:
 
 
 @pytest_asyncio.fixture
-async def tmp_db(tmp_path: Path) -> AsyncGenerator[aiosqlite.Connection, None]:
-    db_path = tmp_path / "test.db"
-    db = await aiosqlite.connect(str(db_path))
-    await db.execute("PRAGMA journal_mode=WAL")
-    yield db
-    await db.close()
+async def db_manager(tmp_path: Path) -> AsyncGenerator[DatabaseManager, None]:
+    """Provide a DatabaseManager with all tables created."""
+    mgr = DatabaseManager(tmp_path / "test.db")
+    await mgr.start()
+    yield mgr
+    await mgr.stop()
 
 
 @pytest_asyncio.fixture
-async def config_service(tmp_path: Path) -> AsyncGenerator[ConfigService, None]:
-    db_path = tmp_path / "config.db"
-    service = ConfigService(db_path)
+async def tmp_db(db_manager: DatabaseManager) -> aiosqlite.Connection:
+    """Provide a raw DB connection with schema already applied."""
+    return db_manager.connection
+
+
+@pytest_asyncio.fixture
+async def config_service(tmp_db: aiosqlite.Connection) -> AsyncGenerator[ConfigService, None]:
+    """Provide a ConfigService backed by the shared test DB."""
+    service = ConfigService(tmp_db)
     await service.start()
     yield service
     await service.stop()

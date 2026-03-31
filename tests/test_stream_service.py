@@ -9,13 +9,10 @@ from core.services.stream_service import StreamService
 
 
 @pytest.fixture
-async def stream_service(tmp_path: Path):
-    db = await aiosqlite.connect(str(tmp_path / "test.db"))
-    await db.execute("PRAGMA journal_mode=WAL")
-    service = StreamService(db, podcast_dir=tmp_path / "podcasts")
+async def stream_service(tmp_db: aiosqlite.Connection, tmp_path: Path):
+    service = StreamService(tmp_db, podcast_dir=tmp_path / "podcasts")
     await service.start()
     yield service
-    await db.close()
 
 
 @pytest.mark.asyncio

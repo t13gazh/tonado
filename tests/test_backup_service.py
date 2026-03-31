@@ -1,7 +1,5 @@
 """Tests for the backup service."""
 
-from pathlib import Path
-
 import aiosqlite
 import pytest
 
@@ -10,48 +8,15 @@ from core.services.config_service import ConfigService
 
 
 @pytest.fixture
-async def backup_service(tmp_path: Path):
-    db_path = tmp_path / "test.db"
-    config = ConfigService(db_path)
-    await config.start()
-
-    db = await aiosqlite.connect(str(db_path))
-    await db.execute("PRAGMA journal_mode=WAL")
-
-    # Create cards table
-    await db.execute("""
-        CREATE TABLE IF NOT EXISTS cards (
-            card_id TEXT PRIMARY KEY, name TEXT, content_type TEXT NOT NULL,
-            content_path TEXT NOT NULL, cover_path TEXT, resume_position REAL DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    await db.execute("""
-        CREATE TABLE IF NOT EXISTS radio_stations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
-            url TEXT NOT NULL UNIQUE, category TEXT DEFAULT 'custom', logo_url TEXT
-        )
-    """)
-    await db.execute("""
-        CREATE TABLE IF NOT EXISTS podcasts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
-            feed_url TEXT NOT NULL UNIQUE, last_checked TIMESTAMP,
-            auto_download INTEGER DEFAULT 1, logo_url TEXT
-        )
-    """)
-    await db.commit()
-
-    service = BackupService(db, config)
-    yield service, config, db
-    await db.close()
-    await config.stop()
+async def backup_service(tmp_db: aiosqlite.Connection, config_service: ConfigService):
+    service = BackupService(tmp_db, config_service)
+    yield service, config_service, tmp_db
 
 
 @pytest.mark.asyncio
 async def test_export_backup(backup_service) -> None:
     service, config, db = backup_service
 
-    # Add some data
     await config.set("test.key", "value")
     await db.execute(
         "INSERT INTO cards (card_id, name, content_type, content_path) VALUES (?, ?, ?, ?)",
@@ -84,7 +49,6 @@ async def test_import_backup(backup_service) -> None:
     assert counts["config"] == 2
     assert counts["cards"] == 1
 
-    # Verify data was imported
     assert await config.get("test.imported") == "yes"
     cursor = await db.execute("SELECT name FROM cards WHERE card_id = 'imported1'")
     row = await cursor.fetchone()
@@ -103,15 +67,12 @@ async def test_roundtrip(backup_service) -> None:
     )
     await db.commit()
 
-    # Export
     backup = await service.export_backup()
 
-    # Clear
     await db.execute("DELETE FROM cards")
     await db.execute("DELETE FROM config WHERE key = 'round.trip'")
     await db.commit()
 
-    # Import
     counts = await service.import_backup(backup)
     assert counts["cards"] >= 1
 
@@ -135,6 +96,24 @@ async def test_auth_not_overwritten(backup_service) -> None:
     }
 
     await service.import_backup(data)
-    # Auth secret should NOT be overwritten
     assert await config.get("auth.jwt_secret") == "original_secret"
     assert await config.get("normal.key") == "ok"
+
+
+@pytest.mark.asyncio
+async def test_import_validates_schema(backup_service) -> None:
+    service, _, _ = backup_service
+
+    # Missing required fields
+    with pytest.raises(ValueError, match="Invalid backup"):
+        await service.import_backup({
+            "version": "1",
+            "cards": [{"card_id": "x"}],  # missing name, content_type, content_path
+        })
+
+    # Not a dict
+    with pytest.raises(ValueError, match="Invalid backup"):
+        await service.import_backup({
+            "version": "1",
+            "cards": ["not a dict"],
+        })

@@ -29,10 +29,11 @@ async def test_status_mock() -> None:
 
 
 @pytest.mark.asyncio
-async def test_network_to_dict() -> None:
+async def test_network_fields() -> None:
+    from dataclasses import asdict
     service = WifiService()
     networks = await service.scan()
-    d = networks[0].to_dict()
+    d = asdict(networks[0])
     assert "ssid" in d
     assert "signal" in d
     assert "security" in d

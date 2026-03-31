@@ -1,7 +1,6 @@
 """Tests for the card service."""
 
 import asyncio
-import time
 
 import aiosqlite
 import pytest
@@ -16,15 +15,9 @@ def mock_reader() -> MockRfidReader:
     return MockRfidReader()
 
 
-@pytest.fixture
-def event_bus() -> EventBus:
-    return EventBus()
-
-
 @pytest.mark.asyncio
-async def test_crud_mapping(tmp_path, mock_reader, event_bus) -> None:
-    db = await aiosqlite.connect(str(tmp_path / "test.db"))
-    service = CardService(mock_reader, event_bus, db)
+async def test_crud_mapping(tmp_db: aiosqlite.Connection, mock_reader, event_bus) -> None:
+    service = CardService(mock_reader, event_bus, tmp_db)
     await service.start()
 
     # Create
@@ -56,21 +49,14 @@ async def test_crud_mapping(tmp_path, mock_reader, event_bus) -> None:
     assert await service.delete_mapping("aabbccdd") is True
     assert await service.get_mapping("aabbccdd") is None
 
-    service._scan_task.cancel()
-    try:
-        await service._scan_task
-    except asyncio.CancelledError:
-        pass
-    await db.close()
+    await service.stop()
 
 
 @pytest.mark.asyncio
-async def test_card_scanned_event(tmp_path, mock_reader, event_bus) -> None:
-    db = await aiosqlite.connect(str(tmp_path / "test.db"))
-    service = CardService(mock_reader, event_bus, db, rescan_cooldown=0.1)
+async def test_card_scanned_event(tmp_db: aiosqlite.Connection, mock_reader, event_bus) -> None:
+    service = CardService(mock_reader, event_bus, tmp_db, rescan_cooldown=0.1)
     await service.start()
 
-    # Set up a mapping
     mapping = CardMapping(
         card_id="11223344",
         name="Bibi Blocksberg",
@@ -79,7 +65,6 @@ async def test_card_scanned_event(tmp_path, mock_reader, event_bus) -> None:
     )
     await service.set_mapping(mapping)
 
-    # Track events
     events = []
 
     async def on_scanned(**kwargs):
@@ -87,25 +72,18 @@ async def test_card_scanned_event(tmp_path, mock_reader, event_bus) -> None:
 
     event_bus.subscribe("card_scanned", on_scanned)
 
-    # Simulate card placement
     mock_reader.simulate_card("11223344")
     await asyncio.sleep(0.5)
 
     assert len(events) >= 1
     assert events[0]["card_id"] == "11223344"
 
-    service._scan_task.cancel()
-    try:
-        await service._scan_task
-    except asyncio.CancelledError:
-        pass
-    await db.close()
+    await service.stop()
 
 
 @pytest.mark.asyncio
-async def test_unknown_card_ignored(tmp_path, mock_reader, event_bus) -> None:
-    db = await aiosqlite.connect(str(tmp_path / "test.db"))
-    service = CardService(mock_reader, event_bus, db)
+async def test_unknown_card_ignored(tmp_db: aiosqlite.Connection, mock_reader, event_bus) -> None:
+    service = CardService(mock_reader, event_bus, tmp_db)
     await service.start()
 
     scanned_events = []
@@ -126,18 +104,12 @@ async def test_unknown_card_ignored(tmp_path, mock_reader, event_bus) -> None:
     assert len(scanned_events) == 0
     assert len(unknown_events) >= 1
 
-    service._scan_task.cancel()
-    try:
-        await service._scan_task
-    except asyncio.CancelledError:
-        pass
-    await db.close()
+    await service.stop()
 
 
 @pytest.mark.asyncio
-async def test_resume_position(tmp_path, mock_reader, event_bus) -> None:
-    db = await aiosqlite.connect(str(tmp_path / "test.db"))
-    service = CardService(mock_reader, event_bus, db)
+async def test_resume_position(tmp_db: aiosqlite.Connection, mock_reader, event_bus) -> None:
+    service = CardService(mock_reader, event_bus, tmp_db)
     await service.start()
 
     mapping = CardMapping(
@@ -152,9 +124,4 @@ async def test_resume_position(tmp_path, mock_reader, event_bus) -> None:
     result = await service.get_mapping("aabb")
     assert result.resume_position == 123.5
 
-    service._scan_task.cancel()
-    try:
-        await service._scan_task
-    except asyncio.CancelledError:
-        pass
-    await db.close()
+    await service.stop()

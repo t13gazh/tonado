@@ -41,6 +41,7 @@ class PlayerState:
     playlist_position: int = -1
     repeat_mode: RepeatMode = RepeatMode.OFF
     shuffle: bool = False
+    loading: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -52,7 +53,7 @@ class PlayerState:
             "is_stream": self.current_uri.startswith(("http://", "https://")) and self.duration == 0,
             "elapsed": self.elapsed,
             "duration": self.duration,
-            "loading": self.state == PlaybackState.PLAYING and self.duration == 0 and self.elapsed == 0 and self.current_uri != "",
+            "loading": self.loading,
             "playlist_length": len(self.playlist),
             "playlist_position": self.playlist_position,
             "repeat_mode": self.repeat_mode.value,
@@ -122,6 +123,7 @@ class PlayerService(BaseService):
         """Clear queue, load folder, and start playback at given track index."""
         if not self._connected:
             return
+        self._state.loading = True
         await self._client.stop()
         await self._client.clear()
         await self._client.add(folder_path)
@@ -134,6 +136,7 @@ class PlayerService(BaseService):
         """Clear queue, add URLs from start_index onward, play immediately."""
         if not self._connected:
             return
+        self._state.loading = True
         await self._client.stop()
         await asyncio.sleep(0.3)
         await self._client.clear()
@@ -151,6 +154,7 @@ class PlayerService(BaseService):
         """Clear queue, add stream URL, and start playback."""
         if not self._connected:
             return
+        self._state.loading = True
         await self._client.stop()
         await asyncio.sleep(0.3)
         await self._client.clear()
@@ -294,6 +298,10 @@ class PlayerService(BaseService):
             self._state.volume = int(status.get("volume", 50))
             self._state.elapsed = float(status.get("elapsed", 0))
             self._state.duration = float(status.get("duration", 0))
+
+            # Clear loading flag once MPD reports actual playback
+            if self._state.loading and mpd_state == "play" and (self._state.elapsed > 0 or self._state.duration > 0):
+                self._state.loading = False
 
             # Sync shuffle (random) mode from MPD
             self._state.shuffle = status.get("random", "0") == "1"

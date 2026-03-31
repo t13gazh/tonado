@@ -38,7 +38,7 @@
 - [x] Settings saveSetting/sleepTimer ohne try/catch (`settings/+page.svelte:87, 166`)
 - [x] Playlist-Löschung ohne Bestätigung (`PlaylistTab.svelte:37`)
 - [x] Seek-Promise Error-Handling (seekOverride friert ein) (`+page.svelte:97`)
-- [ ] Audio-Setup sendet falsche Device-Kennung (`AudioStep.svelte:21`)
+- [x] Audio-Setup sendet MPD-Output-Namen statt falschem `hw:${id}` (`AudioStep.svelte:21`)
 
 ## Accessibility-Audit (2026-03-29)
 
@@ -90,7 +90,7 @@
 - [x] Config-API mit Auth: PUT/DELETE erfordert PARENT-Tier (`config.py`)
 
 ### VERBESSERUNG
-- [ ] Loading-Heuristik fragil: Explizites Flag statt duration/elapsed Berechnung (`player_service.py`) — funktioniert aktuell für normale Fälle, explizites Flag wäre robuster
+- [x] Loading-Heuristik: Explizites `loading`-Flag statt fragiler Heuristik — gesetzt bei Track-Wechsel, gelöscht bei erstem MPD-Play-Status
 - [x] scan_waiters Leak: finally-Block für Future-Cleanup bei Request-Abbruch (`card_service.py:260`)
 
 ## Setup-Wizard

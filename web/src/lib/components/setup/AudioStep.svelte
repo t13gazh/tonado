@@ -18,7 +18,8 @@
 				if (output.id === id && !output.enabled) await player.toggleOutput(output.id, true);
 				else if (output.id !== id && output.enabled) await player.toggleOutput(output.id, false);
 			}
-			await setupApi.setupAudio(`hw:${id}`);
+			const selected = audioOutputs.find(o => o.id === id);
+			await setupApi.setupAudio(selected?.name ?? `output:${id}`);
 			const updated = await player.outputs();
 			onAudioChange(updated, id);
 		} catch (e) { onError(e instanceof Error ? e.message : 'Audio setup failed'); }

@@ -67,7 +67,8 @@ async def system_health(
     health: dict = {}
 
     # MPD / Player
-    health["mpd"] = player.health()
+    mpd_health = player.health()
+    health["mpd"] = mpd_health
 
     # RFID reader
     health["rfid"] = card.health()
@@ -76,7 +77,7 @@ async def system_health(
     health["gyro"] = gyro.health()
 
     # Audio output — delegate to MPD outputs if available
-    if player.health()["status"] == "connected":
+    if mpd_health["status"] == "connected":
         try:
             outputs = await player.list_outputs()
             if outputs:

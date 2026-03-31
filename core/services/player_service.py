@@ -336,6 +336,7 @@ class PlayerService(BaseService):
                 self._state.playlist = [t.get("file", "") for t in playlist_info]
         except Exception as e:
             logger.error("Failed to sync MPD state: %s", e)
+            self._state.loading = False
 
         await self._publish_state()
 

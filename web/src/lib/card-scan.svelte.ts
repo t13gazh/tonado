@@ -60,8 +60,8 @@ export function createCardScan() {
 				}
 				scanComplete = true;
 			} else {
-				// No card detected, retry
-				startScan(newOnly);
+				// No card detected, retry (unless aborted)
+				if (!abortController?.signal.aborted) startScan(newOnly);
 				return;
 			}
 		} catch {

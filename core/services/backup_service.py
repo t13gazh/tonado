@@ -18,7 +18,6 @@ from core.services.config_service import ConfigService
 logger = logging.getLogger(__name__)
 
 
-_SENSITIVE_KEY_PREFIXES = ("auth.", "jwt_secret")
 _SENSITIVE_KEY_EXACT = {"auth.jwt_secret", "auth.pin_hash.parent", "auth.pin_hash.expert"}
 
 
@@ -122,6 +121,9 @@ class BackupService(BaseService):
             for field in ("card_id", "name", "content_type", "content_path"):
                 if not isinstance(card.get(field), str) or not card[field].strip():
                     errors.append(f"cards[{i}]: missing or empty '{field}'")
+            path = card.get("content_path", "")
+            if isinstance(path, str) and ".." in path:
+                errors.append(f"cards[{i}]: content_path contains path traversal")
         for i, station in enumerate(data.get("radio_stations", [])):
             if not isinstance(station, dict):
                 errors.append(f"radio_stations[{i}]: not a dict")

@@ -400,10 +400,7 @@
 			{/if}
 		</div>
 
-		{/if}
-
-		{#if isExpert}
-		<!-- Idle shutdown (expert) -->
+		<!-- Idle shutdown (parent+) -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
 			<select
@@ -418,6 +415,9 @@
 			</select>
 		</div>
 
+		{/if}
+
+		{#if isExpert}
 		<!-- Expert mode toggle -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<div class="flex items-center justify-between">

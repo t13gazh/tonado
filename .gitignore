@@ -63,3 +63,4 @@ agents/
 
 # Junk file fragments (accidental shell/editor artifacts)
 # Cleaned by junk-file-detector hook at session start
+.carl/

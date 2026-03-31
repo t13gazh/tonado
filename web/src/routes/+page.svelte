@@ -16,6 +16,8 @@
 	const isLastTrack = $derived(state.playlist_position >= state.playlist_length - 1);
 	const canPlay = $derived(hasTrack || state.playlist_length > 0);
 	const canSeek = $derived(!state.is_stream && state.duration > 0);
+	const hasQueue = $derived(state.playlist_length > 1);
+	const isLiveStream = $derived(state.is_stream && state.playlist_length <= 1);
 	const trackInfo = $derived(parseTrackName(state.current_track));
 
 	let volumeChanging = $state(false);
@@ -185,9 +187,7 @@
 		}
 	}
 
-	function handlePlayAgain() {
-		player.seek(0).then(() => player.play());
-	}
+
 </script>
 
 <div class="flex flex-col items-center justify-center h-full px-6 py-8 gap-6">
@@ -270,32 +270,36 @@
 
 	<!-- Controls -->
 	<div class="flex items-center gap-4">
-		<!-- Shuffle -->
-		<button
-			onclick={toggleShuffle}
-			class="p-2 transition-colors active:scale-95 {shuffleOn ? 'text-primary' : 'text-text-muted hover:text-text'}"
-			aria-label={shuffleOn ? t('player.shuffle_off') : t('player.shuffle_on')}
-		>
-			<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<polyline points="16 3 21 3 21 8"/>
-				<line x1="4" y1="20" x2="21" y2="3"/>
-				<polyline points="21 16 21 21 16 21"/>
-				<line x1="15" y1="15" x2="21" y2="21"/>
-				<line x1="4" y1="4" x2="9" y2="9"/>
-			</svg>
-		</button>
+		<!-- Shuffle: only with multiple tracks in queue -->
+		{#if hasQueue}
+			<button
+				onclick={toggleShuffle}
+				class="p-2 transition-colors active:scale-95 {shuffleOn ? 'text-primary' : 'text-text-muted hover:text-text'}"
+				aria-label={shuffleOn ? t('player.shuffle_off') : t('player.shuffle_on')}
+			>
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<polyline points="16 3 21 3 21 8"/>
+					<line x1="4" y1="20" x2="21" y2="3"/>
+					<polyline points="21 16 21 21 16 21"/>
+					<line x1="15" y1="15" x2="21" y2="21"/>
+					<line x1="4" y1="4" x2="9" y2="9"/>
+				</svg>
+			</button>
+		{/if}
 
-		<!-- Previous -->
-		<button
-			onclick={() => player.previous()}
-			disabled={state.playlist_position <= 0 && state.repeat_mode === 'off'}
-			class="p-3 text-text-muted hover:text-text transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-			aria-label={t('player.previous')}
-		>
-			<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
-			</svg>
-		</button>
+		<!-- Previous: hidden for live streams -->
+		{#if !isLiveStream}
+			<button
+				onclick={() => player.previous()}
+				disabled={state.playlist_position <= 0 && state.repeat_mode === 'off'}
+				class="p-3 text-text-muted hover:text-text transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+				aria-label={t('player.previous')}
+			>
+				<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+				</svg>
+			</button>
+		{/if}
 
 		<!-- Play/Pause -->
 		<button
@@ -315,53 +319,48 @@
 			{/if}
 		</button>
 
-		<!-- Next -->
-		<button
-			onclick={() => player.next()}
-			disabled={isLastTrack && state.repeat_mode === 'off'}
-			class="p-3 text-text-muted hover:text-text transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-			aria-label={t('player.next')}
-		>
-			<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M6 18l8.5-6L6 6zm10 0V6h2v12z"/>
-			</svg>
-		</button>
+		<!-- Next: hidden for live streams -->
+		{#if !isLiveStream}
+			<button
+				onclick={() => player.next()}
+				disabled={isLastTrack && state.repeat_mode === 'off'}
+				class="p-3 text-text-muted hover:text-text transition-colors active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+				aria-label={t('player.next')}
+			>
+				<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M6 18l8.5-6L6 6zm10 0V6h2v12z"/>
+				</svg>
+			</button>
+		{/if}
 
-		<!-- Repeat -->
-		<button
-			onclick={() => player.repeat()}
-			class="p-2 transition-colors active:scale-95 {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
-			aria-label={t('player.repeat_aria')}
-		>
-			{#if state.repeat_mode === 'single'}
-				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-					<text x="12" y="15" text-anchor="middle" font-size="7" font-weight="bold">1</text>
-				</svg>
-			{:else if state.repeat_mode === 'all'}
-				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-				</svg>
-			{:else}
-				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-					<polyline points="17 1 21 5 17 9"/>
-					<path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-					<polyline points="7 23 3 19 7 15"/>
-					<path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-				</svg>
-			{/if}
-		</button>
+		<!-- Repeat: hidden for live streams, always available otherwise -->
+		{#if !isLiveStream}
+			<button
+				onclick={() => player.repeat()}
+				class="p-2 transition-colors active:scale-95 {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
+				aria-label={t('player.repeat_aria')}
+			>
+				{#if state.repeat_mode === 'single'}
+					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+						<text x="12" y="15" text-anchor="middle" font-size="7" font-weight="bold">1</text>
+					</svg>
+				{:else if state.repeat_mode === 'all'}
+					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+					</svg>
+				{:else}
+					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polyline points="17 1 21 5 17 9"/>
+						<path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+						<polyline points="7 23 3 19 7 15"/>
+						<path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+					</svg>
+				{/if}
+			</button>
+		{/if}
 	</div>
 
-	<!-- Play again -->
-	{#if isStopped && hasTrack}
-		<button
-			onclick={handlePlayAgain}
-			class="px-4 py-2 rounded-full text-sm font-medium bg-surface-light text-text hover:bg-surface-lighter transition-colors active:scale-95"
-		>
-			{t('player.play_again')}
-		</button>
-	{/if}
 
 	<!-- Volume with mute -->
 	<div class="w-full max-w-sm flex items-center gap-3">

@@ -26,8 +26,33 @@
 	let newPodcastUrl = $state('');
 	let urlError = $state('');
 	let expandedPodcast = $state<number | null>(null);
-	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null }[]>([]);
+	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null; duration: string | null }[]>([]);
 	let loadingEpisodes = $state(false);
+
+	function formatDate(dateStr: string): string {
+		const d = new Date(dateStr);
+		if (isNaN(d.getTime())) return dateStr;
+		return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+	}
+
+	function formatDuration(dur: string | null): string | null {
+		if (!dur) return null;
+		// Already "HH:MM:SS" or "MM:SS"
+		if (dur.includes(':')) {
+			const parts = dur.split(':').map(Number);
+			if (parts.length === 3) {
+				const [h, m] = parts;
+				return h > 0 ? `${h} Std. ${m} Min.` : `${m} Min.`;
+			}
+			return `${parts[0]} Min.`;
+		}
+		// Seconds as string
+		const sec = parseInt(dur, 10);
+		if (isNaN(sec)) return null;
+		const m = Math.floor(sec / 60);
+		const h = Math.floor(m / 60);
+		return h > 0 ? `${h} Std. ${m % 60} Min.` : `${m} Min.`;
+	}
 
 	function isNowPlaying(path: string): boolean {
 		return nowPlayingUri === path;
@@ -129,9 +154,9 @@
 										</span>
 										<span class="flex-1 min-w-0">
 											<span class="text-xs block truncate {isNowPlaying(ep.audio_url) ? 'text-primary font-medium' : 'text-text'}">{ep.title}</span>
-											{#if ep.published}
-												<span class="text-[10px] text-text-muted">{new Date(ep.published).toLocaleDateString('de-DE')}</span>
-											{/if}
+											<span class="text-[10px] text-text-muted">
+												{#if ep.published}{formatDate(ep.published)}{/if}{#if ep.published && formatDuration(ep.duration)}{' · '}{/if}{#if formatDuration(ep.duration)}{formatDuration(ep.duration)}{/if}
+											</span>
 										</span>
 									</button>
 								{/each}

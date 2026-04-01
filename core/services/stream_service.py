@@ -42,7 +42,7 @@ _DEFAULT_PODCASTS = [
     ("Anna und die wilden Tiere", "https://feeds.br.de/anna-und-die-wilden-tiere/feed.xml"),
     ("Lachlabor", "https://feeds.br.de/lachlabor/feed.xml"),
     ("Do Re Mikro", "https://feeds.br.de/do-re-mikro-die-musiksendung-fuer-kinder/feed.xml"),
-    ("Die Sendung mit der Maus — Podcast", "https://kinder.wdr.de/radio/diemaus/audio/diemaus-60/diemaus-60-702.podcast"),
+    ("Die Maus zum Hören", "https://kinder.wdr.de/radio/diemaus/audio/diemaus-60/diemaus-60-106.podcast"),
 ]
 
 

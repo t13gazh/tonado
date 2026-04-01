@@ -177,11 +177,19 @@ class PlayerService(BaseService):
         await self._sync_state()
 
     async def toggle(self) -> None:
-        """Toggle play/pause."""
+        """Toggle play/pause. Re-loads stream URLs since MPD drops them on pause."""
         if self._state.state == PlaybackState.PLAYING:
             await self.pause()
+        elif self._is_stream and self._state.current_uri:
+            # Streams lose connection on pause — reload instead of bare resume
+            await self.play_url(self._state.current_uri)
         else:
             await self.play()
+
+    @property
+    def _is_stream(self) -> bool:
+        """Check if current track is a network stream (not a local file)."""
+        return self._state.current_uri.startswith(("http://", "https://"))
 
     async def stop_playback(self) -> None:
         """Stop playback entirely."""

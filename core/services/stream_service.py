@@ -207,6 +207,10 @@ class StreamService(BaseService):
 
     async def add_podcast(self, name: str, feed_url: str, auto_download: bool = True) -> Podcast:
         validate_url(feed_url)  # Full validation with DNS check before fetching
+
+        # Validate feed is reachable and parseable BEFORE inserting into DB
+        await self._parse_rss(feed_url)
+
         cursor = await self._db.execute(
             "INSERT INTO podcasts (name, feed_url, auto_download) VALUES (?, ?, ?)",
             (name, feed_url, int(auto_download)),
@@ -214,7 +218,7 @@ class StreamService(BaseService):
         await self._db.commit()
         podcast = Podcast(id=cursor.lastrowid or 0, name=name, feed_url=feed_url, auto_download=auto_download)
 
-        # Immediately fetch episodes
+        # Fetch episodes (feed already validated, this should succeed)
         await self.refresh_podcast(podcast.id)
         return podcast
 

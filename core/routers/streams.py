@@ -86,6 +86,8 @@ async def add_podcast(
         podcast = await svc.add_podcast(req.name, req.feed_url, req.auto_download)
     except SSRFError as e:
         raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(422, f"Feed konnte nicht geladen werden: {e}")
     return podcast.to_dict()
 
 

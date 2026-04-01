@@ -245,6 +245,22 @@ app = FastAPI(
 )
 
 
+# --- HEAD support middleware ---
+# StaticFiles mount at "/" causes HEAD requests to bypass API routes.
+# Convert HEAD to GET so API handlers match, then strip the body.
+
+@app.middleware("http")
+async def head_method_support(request: Request, call_next) -> Response:
+    if request.method == "HEAD" and request.url.path.startswith("/api/"):
+        request.scope["method"] = "GET"
+        response = await call_next(request)
+        response.body = b""
+        if hasattr(response, "content_length"):
+            response.headers["content-length"] = "0"
+        return response
+    return await call_next(request)
+
+
 # --- Security header middleware ---
 
 @app.middleware("http")
@@ -359,7 +375,7 @@ if _build_dir.is_dir():
         response = await call_next(request)
         # SPA fallback: return index.html for non-API 404s
         path = request.url.path
-        if response.status_code == 404 and not path.startswith(("/api/", "/ws")):
+        if response.status_code == 404 and not path.startswith(("/api/", "/ws", "/_app/")):
             return FileResponse(_index_html)
         return response
 

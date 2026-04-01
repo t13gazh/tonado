@@ -122,6 +122,8 @@
 		parentPinLoading = true;
 		try {
 			await authApi.setPin('parent', parentPinValue);
+			// Auto-login so the user isn't locked out after setting their first PIN
+			try { await authApi.login(parentPinValue); } catch {}
 			parentPinValue = '';
 			await loadAll();
 			flashToast();
@@ -137,6 +139,8 @@
 		expertPinLoading = true;
 		try {
 			await authApi.setPin('expert', expertPinValue);
+			// Auto-login with the new expert PIN to stay at expert tier
+			try { await authApi.login(expertPinValue); } catch {}
 			expertPinValue = '';
 			await loadAll();
 			flashToast();
@@ -400,7 +404,10 @@
 			{/if}
 		</div>
 
-		<!-- Idle shutdown (parent+) -->
+		{/if}
+
+		{#if isExpert}
+		<!-- Idle shutdown (expert) -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<h2 class="text-sm font-semibold mb-3">{t('settings.idle_shutdown')}</h2>
 			<select
@@ -414,10 +421,6 @@
 				<option value={60}>{t('settings.idle_minutes', { minutes: 60 })}</option>
 			</select>
 		</div>
-
-		{/if}
-
-		{#if isExpert}
 		<!-- Expert mode toggle -->
 		<div class="bg-surface-light rounded-xl p-4">
 			<div class="flex items-center justify-between">

@@ -65,7 +65,7 @@
 - [x] Router-Integrationstests: 12 Tests (Auth-Middleware, Path Traversal, Rate Limiting, Validation, Sensitive Keys)
 
 ## v0.2.0-beta — Nächste Schritte
-- [ ] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch
+- [x] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch
 - [ ] Figuren-UI + Einstellungen + System-Seite testen und fixen
 - [ ] Captive Portal / Setup-Wizard Ersteinrichtungs-Flow
 - [ ] SD-Karte >= 16 GB, Install-Script End-to-End testen
@@ -95,7 +95,7 @@
 
 ## Setup-Wizard
 - [ ] Audio Test-Button (Sound abspielen zum Prüfen)
-- [ ] WiFi Passwort-Toggle (Auge-Icon)
+- [x] WiFi Passwort-Toggle (Auge-Icon)
 - [x] GPIO-Button-Erkennung (interaktiver Scan im Wizard)
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error)
 - [ ] Gyro-Gesten Zuverlässigkeit: Sensitivity-Profile testen, Debounce/Threshold tunen, evtl. Kalibrierung im Wizard
@@ -103,7 +103,7 @@
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden
 
 ## Prio 1 — Kernfunktionen
-- [ ] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
+- [x] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
 - [ ] Auto-Fallback auf AP-Modus: Wenn bekanntes WLAN nicht erreichbar (z.B. Box bei Oma, im Auto), nach Timeout automatisch eigenen AP aufspannen. Handy kann sich verbinden und Box wieder steuern/neues WLAN konfigurieren. Musik spielt offline weiter, nur App-Zugriff wäre sonst verloren
 
 ## Prio 2 — Differenzierung

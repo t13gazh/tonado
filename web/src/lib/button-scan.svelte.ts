@@ -34,6 +34,8 @@ export function createButtonScan() {
 	let testEvents = $state<ButtonTestEvent[]>([]);
 	let testPollTimer = $state<ReturnType<typeof setInterval> | null>(null);
 	let abortController = $state<AbortController | null>(null);
+	let existingConfig = $state<ButtonConfigItem[]>([]);
+	let dirty = $state(false);
 
 	const selectedButtons = $derived(buttons.filter((b) => b.selected));
 	const assignedButtons = $derived(buttons.filter((b) => b.gpio !== null));
@@ -44,6 +46,16 @@ export function createButtonScan() {
 	);
 	const scanProgress = $derived({ current: currentIndex, total: selectedButtons.length });
 	const assignedCount = $derived(assignedButtons.length);
+	const hasExistingConfig = $derived(existingConfig.length > 0);
+
+	async function loadExisting(): Promise<void> {
+		try {
+			existingConfig = await buttonsApi.getConfig();
+		} catch {
+			existingConfig = [];
+		}
+		dirty = false;
+	}
 
 	function toggleButton(action: ButtonAction) {
 		const btn = buttons.find((b) => b.action === action);
@@ -62,6 +74,7 @@ export function createButtonScan() {
 		phase = 'scanning';
 		currentIndex = 0;
 		error = '';
+		dirty = true;
 		// Reset all assignments
 		for (const btn of buttons) {
 			btn.gpio = null;
@@ -202,6 +215,10 @@ export function createButtonScan() {
 		set error(v: string) { error = v; },
 		get saving() { return saving; },
 		get testEvents() { return testEvents; },
+		get hasExistingConfig() { return hasExistingConfig; },
+		get existingConfig() { return existingConfig; },
+		get dirty() { return dirty; },
+		loadExisting,
 		toggleButton,
 		startSelect,
 		startScan,

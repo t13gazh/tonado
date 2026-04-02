@@ -2,7 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { setupApi, systemApi, config, buttonsApi, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { isBackendOffline } from '$lib/stores/health.svelte';
 	import HardwareStep from '$lib/components/setup/HardwareStep.svelte';
@@ -116,7 +116,7 @@
 		if (step === 'hardware' && !hardware) await detectHardware();
 		else if (step === 'wifi') await loadWifiStatus();
 		else if (step === 'audio') await loadAudioOutputs();
-		else if (step === 'buttons') await loadFreeGpios();
+		else if (step === 'buttons') { await loadFreeGpios(); await loadExistingButtons(); }
 		else if (step === 'card') cardStep = 'intro';
 		else if (step === 'complete') await loadSavedButtons();
 	}
@@ -142,6 +142,11 @@
 
 	async function loadFreeGpios() {
 		try { freeGpios = await buttonsApi.freeGpios(); } catch { freeGpios = []; }
+	}
+
+	async function loadExistingButtons() {
+		await tick();
+		if (buttonStepRef) await buttonStepRef.loadExisting();
 	}
 
 	const BUTTON_ACTION_LABELS: Record<string, string> = {
@@ -299,8 +304,8 @@
 				<div class="flex flex-col gap-2">
 					{#if freeGpios.length > 0}
 						<button onclick={() => buttonStepRef.startSelect()} disabled={backendDown}
-							class="w-full py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
-							{t('buttons.setup')}
+							class="w-full py-3 {buttonStepRef?.hasExistingConfig() ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-medium transition-colors">
+							{buttonStepRef?.hasExistingConfig() ? t('buttons.rescan') : t('buttons.setup')}
 						</button>
 					{/if}
 					<div class="flex gap-3">
@@ -309,8 +314,8 @@
 							{t('general.back')}
 						</button>
 						<button onclick={nextStep}
-							class="flex-1 py-3 {freeGpios.length > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
-							{t('buttons.skip')}
+							class="flex-1 py-3 {buttonStepRef?.hasExistingConfig() ? 'bg-primary hover:bg-primary-light text-white' : freeGpios.length > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
+							{buttonStepRef?.hasExistingConfig() ? t('setup.next') : t('buttons.skip')}
 						</button>
 					</div>
 				</div>
@@ -344,7 +349,7 @@
 						class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
 						{t('general.back')}
 					</button>
-					<button onclick={async () => { await buttonStepRef.save(); await nextStep(); }} disabled={backendDown}
+					<button onclick={async () => { if (buttonStepRef.isDirty()) await buttonStepRef.save(); await nextStep(); }} disabled={backendDown}
 						class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
 						{t('setup.next')}
 					</button>

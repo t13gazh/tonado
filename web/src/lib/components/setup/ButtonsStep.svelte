@@ -37,6 +37,18 @@
 		buttonStep = scan.phase as ButtonStepType;
 	});
 
+	export async function loadExisting() {
+		await scan.loadExisting();
+	}
+
+	export function isDirty(): boolean {
+		return scan.dirty;
+	}
+
+	export function hasExistingConfig(): boolean {
+		return scan.hasExistingConfig;
+	}
+
 	export function startSelect() {
 		onClearError();
 		scan.startSelect();
@@ -99,20 +111,31 @@
 
 {#if buttonStep === 'idle'}
 	<div class="flex flex-col items-center gap-6 text-center">
-		<div class="w-24 h-24 rounded-2xl bg-surface-light flex items-center justify-center">
-			<!-- Button/GPIO icon -->
-			<svg class="w-12 h-12 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-				<circle cx="12" cy="12" r="9"/>
-				<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>
-				<path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
-			</svg>
-		</div>
-		<h2 class="text-lg font-semibold text-text">{t('buttons.title')}</h2>
-		<p class="text-sm text-text-muted max-w-xs">{t('buttons.intro')}</p>
-		{#if freeGpios.length === 0}
-			<p class="text-sm text-text-muted">{t('buttons.no_gpios')}</p>
+		{#if scan.hasExistingConfig}
+			<!-- Existing config detected -->
+			<div class="w-24 h-24 rounded-2xl bg-green-500/20 flex items-center justify-center">
+				<Icon name="check" size={48} class="text-green-500" strokeWidth={1.5} />
+			</div>
+			<h2 class="text-lg font-semibold text-text">{t('buttons.already_configured_title')}</h2>
+			<p class="text-sm text-text-muted max-w-xs">
+				{t('buttons.already_configured_desc', { count: String(scan.existingConfig.length), labels: scan.existingConfig.map((b) => t(`buttons.${b.action}`)).join(', ') })}
+			</p>
 		{:else}
-			<p class="text-xs text-text-muted">{t('buttons.free_gpios', { count: String(freeGpios.length) })}</p>
+			<div class="w-24 h-24 rounded-2xl bg-surface-light flex items-center justify-center">
+				<!-- Button/GPIO icon -->
+				<svg class="w-12 h-12 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<circle cx="12" cy="12" r="9"/>
+					<circle cx="12" cy="12" r="4" fill="currentColor" stroke="none"/>
+					<path d="M12 3v2M12 19v2M3 12h2M19 12h2"/>
+				</svg>
+			</div>
+			<h2 class="text-lg font-semibold text-text">{t('buttons.title')}</h2>
+			<p class="text-sm text-text-muted max-w-xs">{t('buttons.intro')}</p>
+			{#if freeGpios.length === 0}
+				<p class="text-sm text-text-muted">{t('buttons.no_gpios')}</p>
+			{:else}
+				<p class="text-xs text-text-muted">{t('buttons.free_gpios', { count: String(freeGpios.length) })}</p>
+			{/if}
 		{/if}
 	</div>
 {/if}

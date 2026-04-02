@@ -362,6 +362,9 @@ export default {
 	'buttons.skip': 'Continue without buttons',
 	'buttons.start_scan': 'Start scan',
 	'buttons.summary': '{count} buttons',
+	'buttons.already_configured_title': 'Buttons already configured',
+	'buttons.already_configured_desc': 'Already configured: {count} buttons ({labels})',
+	'buttons.rescan': 'Set up again',
 	'setup.step_buttons': 'Buttons',
 
 	// General

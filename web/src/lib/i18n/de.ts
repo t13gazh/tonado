@@ -362,6 +362,9 @@ export default {
 	'buttons.skip': 'Ohne Tasten fortfahren',
 	'buttons.start_scan': 'Scan starten',
 	'buttons.summary': '{count} Tasten',
+	'buttons.already_configured_title': 'Tasten bereits eingerichtet',
+	'buttons.already_configured_desc': 'Bereits konfiguriert: {count} Tasten ({labels})',
+	'buttons.rescan': 'Neu einrichten',
 	'setup.step_buttons': 'Tasten',
 
 	// General

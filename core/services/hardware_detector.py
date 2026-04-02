@@ -64,15 +64,23 @@ class HardwareDetector(BaseService):
             "gyro": self._profile.gyro_detected,
         }
 
-    async def redetect(self, component: str | None = None) -> HardwareProfile:
+    async def redetect(self, component: str | None = None, skip_rfid: bool = False) -> HardwareProfile:
         """Re-run hardware detection.
 
         Args:
             component: Optional — currently unused, reserved for future
                        partial re-detection (e.g. "rfid" only).
+            skip_rfid: If True, skip RFID SPI probe to avoid disrupting
+                       a running card scan loop. Uses cached RFID result.
         """
-        logger.info("Re-detecting hardware (component=%s)...", component or "all")
-        self._profile = detect_all()
+        logger.info("Re-detecting hardware (component=%s, skip_rfid=%s)...", component or "all", skip_rfid)
+        old_rfid = self._profile.rfid_reader if self._profile else None
+        old_rfid_dev = self._profile.rfid_device if self._profile else None
+        self._profile = detect_all(skip_rfid=skip_rfid)
+        # Preserve cached RFID result when skipping probe
+        if skip_rfid and old_rfid:
+            self._profile.rfid_reader = old_rfid
+            self._profile.rfid_device = old_rfid_dev
         self._detected_at = time.monotonic()
         logger.info(
             "Re-detection complete: RFID=%s, Gyro=%s",

@@ -339,8 +339,13 @@ def get_free_gpios(profile: HardwareProfile) -> list[int]:
     return sorted(free)
 
 
-def detect_all() -> HardwareProfile:
-    """Run full hardware detection and return a complete profile."""
+def detect_all(skip_rfid: bool = False) -> HardwareProfile:
+    """Run full hardware detection and return a complete profile.
+
+    Args:
+        skip_rfid: If True, skip RFID SPI probe to avoid disrupting
+                   a running card scan loop. RFID fields will be None.
+    """
     logger.info("Starting hardware detection...")
 
     pi = detect_pi_model()
@@ -349,7 +354,11 @@ def detect_all() -> HardwareProfile:
         logger.info("Not running on Raspberry Pi, returning mock profile")
         return HardwareProfile(is_mock=True)
 
-    rfid_type, rfid_device = detect_rfid()
+    if skip_rfid:
+        rfid_type, rfid_device = None, None
+        logger.info("RFID: skipped (reader already running)")
+    else:
+        rfid_type, rfid_device = detect_rfid()
     audio = detect_audio()
     gyro = is_gyro_present()
     gpio = detect_gpio()

@@ -94,7 +94,7 @@
 	{/if}
 
 	{#if selectedDevice}
-		<div class="flex items-center justify-center gap-3">
+		<div class="flex flex-col items-center gap-2">
 			<button
 				onclick={testAudio}
 				disabled={testing}
@@ -107,7 +107,7 @@
 						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
 					</svg>
 				{:else}
-					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
 						<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
 					</svg>

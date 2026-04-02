@@ -143,7 +143,8 @@ class SetupWizard(BaseService):
         fresh results during wizard flow.
         """
         if self._detector is not None:
-            self._hardware = await self._detector.redetect()
+            # Skip RFID SPI probe to avoid disrupting a running scan loop
+            self._hardware = await self._detector.redetect(skip_rfid=True)
         else:
             self._hardware = HardwareProfile(is_mock=True)
         await self._save_step(SetupStep.HARDWARE_DETECTION)

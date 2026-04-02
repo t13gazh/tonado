@@ -161,7 +161,7 @@ async def hardware_redetect(
     """Re-run hardware detection (expert only)."""
     require_tier(request, AuthTier.EXPERT, auth)
     try:
-        profile = await detector.redetect()
+        profile = await detector.redetect(skip_rfid=True)
         return profile.to_dict()
     except Exception as e:
         logger.error("Hardware re-detection failed: %s", e)

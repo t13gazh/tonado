@@ -96,7 +96,9 @@
 ## Setup-Wizard
 - [ ] Audio Test-Button (Sound abspielen zum Prüfen)
 - [ ] WiFi Passwort-Toggle (Auge-Icon)
-- [ ] OnOffShim-Erkennung, GPIO-Buttons (Lautstärke, An/Aus)
+- [x] GPIO-Button-Erkennung (interaktiver Scan im Wizard)
+- [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error)
+- [ ] OnOff SHIM Erkennung (DT-Overlay `gpio-shutdown` prüfen)
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden
 
 ## Prio 1 — Kernfunktionen

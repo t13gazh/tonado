@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { setupApi, systemApi, config, player, buttonsApi, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
+	import { setupApi, systemApi, config, buttonsApi, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
@@ -40,9 +40,9 @@
 	let wifiStatus = $state<WifiStatus | null>(null);
 	let wifiLoading = $state(false);
 
-	// Audio
-	let audioOutputs = $state<{ id: number; name: string; enabled: boolean }[]>([]);
-	let selectedAudioId = $state<number | null>(null);
+	// Audio (hardware-detected outputs, not MPD outputs)
+	let hardwareAudio = $state<import('$lib/api').HardwareAudioOutput[]>([]);
+	let selectedAudioDevice = $state<string | null>(null);
 
 	// Buttons
 	let buttonStep = $state<ButtonStepType>('idle');
@@ -145,11 +145,20 @@
 
 	async function loadAudioOutputs() {
 		try {
-			audioOutputs = await player.outputs();
-			const enabled = audioOutputs.find((o) => o.enabled);
-			if (enabled) selectedAudioId = enabled.id;
-			else if (audioOutputs.length > 0) selectedAudioId = audioOutputs[0].id;
-		} catch { audioOutputs = []; }
+			// Use hardware-detected audio outputs instead of MPD outputs
+			if (hardware?.audio && hardware.audio.length > 0) {
+				hardwareAudio = hardware.audio;
+			} else {
+				// Fallback: re-detect hardware if audio info is missing
+				const hw = await setupApi.detectHardware();
+				hardware = hw;
+				hardwareAudio = hw.audio ?? [];
+			}
+			// Pre-select recommended output, or first available
+			const recommended = hardwareAudio.find((o) => o.recommended);
+			if (recommended) selectedAudioDevice = recommended.device;
+			else if (hardwareAudio.length > 0) selectedAudioDevice = hardwareAudio[0].device;
+		} catch { hardwareAudio = []; }
 	}
 
 	function onError(msg: string) { error = msg; }
@@ -210,9 +219,9 @@
 			/>
 		{:else if currentStep === 'audio'}
 			<AudioStep
-				{audioOutputs} {selectedAudioId} {error}
+				{hardwareAudio} selectedDevice={selectedAudioDevice} {error}
 				{onError}
-				onAudioChange={(outputs, id) => { audioOutputs = outputs; selectedAudioId = id; }}
+				onAudioChange={(device) => { selectedAudioDevice = device; }}
 			/>
 		{:else if currentStep === 'buttons'}
 			<ButtonsStep

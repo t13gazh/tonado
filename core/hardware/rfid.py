@@ -160,6 +160,11 @@ class Rc522Reader(RfidReader):
         if not self._spi:
             return None
         try:
+            # Ensure clean state: idle command + antenna on
+            self._write_register(self._CMD_REG, self._CMD_IDLE)
+            self._write_register(self._COMIRQ_REG, 0x7F)       # Clear pending IRQs
+            self._set_bitmask(self._TX_CONTROL_REG, 0x03)      # Antenna on (TX1+TX2)
+
             # Step 1: REQA — request any card in field
             self._write_register(self._BIT_FRAMING_REG, 0x07)  # 7 bits for REQA
             result, bits = self._transceive([self._PICC_REQA])
@@ -212,6 +217,8 @@ class Rc522Reader(RfidReader):
         assert self._spi is not None
 
         self._write_register(self._CMD_REG, self._CMD_IDLE)
+        # Enable IRQs: TimerIEn + RxIEn + IdleIEn + ErrIEn + LoAlertIEn
+        self._write_register(self._COMIEN_REG, 0xF7)
         self._write_register(self._COMIRQ_REG, 0x7F)          # Clear all IRQ flags
         self._set_bitmask(self._FIFO_LEVEL_REG, 0x80)         # Flush FIFO
 
@@ -219,6 +226,12 @@ class Rc522Reader(RfidReader):
             self._write_register(self._FIFO_DATA_REG, byte)
 
         self._write_register(self._CMD_REG, self._CMD_TRANSCEIVE)
+
+        # Clear StartSend first, then set it — ensures a rising edge
+        # that the MFRC522 detects as a new transmission trigger.
+        # Without this, consecutive transceive calls may not re-trigger
+        # because StartSend was still high from the previous call.
+        self._clear_bitmask(self._BIT_FRAMING_REG, 0x80)
         self._set_bitmask(self._BIT_FRAMING_REG, 0x80)        # StartSend
 
         # Wait for completion with timeout
@@ -231,7 +244,11 @@ class Rc522Reader(RfidReader):
         else:
             return None, 0
 
-        # Check for errors (BufferOvfl, CollErr, ParityErr, ProtocolErr)
+        # Clear StartSend after transceive completes
+        self._clear_bitmask(self._BIT_FRAMING_REG, 0x80)
+
+        # Check for errors (BufferOvfl, ParityErr, ProtocolErr)
+        # Note: CollErr (0x08) is NOT checked — expected during anti-collision
         error = self._read_register(self._ERROR_REG)
         if error & 0x13:  # Buffer overflow, parity, protocol
             return None, 0

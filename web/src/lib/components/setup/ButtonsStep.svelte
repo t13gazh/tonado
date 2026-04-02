@@ -18,6 +18,14 @@
 	let { freeGpios, error, buttonStep = $bindable('idle'), onError, onClearError }: Props = $props();
 
 	const scan = createButtonScan();
+	let testFeedEl: HTMLDivElement;
+
+	// Auto-scroll test feed to bottom
+	$effect(() => {
+		if (scan.testEvents.length > 0 && testFeedEl) {
+			testFeedEl.scrollTop = testFeedEl.scrollHeight;
+		}
+	});
 
 	// Sync scan errors to parent
 	$effect(() => {
@@ -237,7 +245,7 @@
 			{#if scan.testEvents.length === 0}
 				<p class="text-sm text-text-muted text-center py-4 animate-pulse">{t('buttons.test_waiting')}</p>
 			{:else}
-				<div class="space-y-1 max-h-48 overflow-y-auto">
+				<div bind:this={testFeedEl} class="space-y-1 max-h-48 overflow-y-auto">
 					{#each scan.testEvents as event, i}
 						<div class="flex items-center gap-2 py-1 px-2 text-sm {i === scan.testEvents.length - 1 ? 'text-primary font-medium' : 'text-text-muted'}">
 							<span class="w-2 h-2 rounded-full {i === scan.testEvents.length - 1 ? 'bg-primary' : 'bg-surface-lighter'}"></span>

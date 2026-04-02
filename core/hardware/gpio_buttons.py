@@ -100,6 +100,11 @@ class GpiodButtonScanner(GpioButtonScanner):
         import gpiod
         from gpiod.line import Bias, Edge
 
+        # Release previous scan if still active
+        if self._request:
+            self._request.release()
+            self._request = None
+
         chip = gpiod.Chip(self._chip_path)
         settings = gpiod.LineSettings(
             direction=gpiod.line.Direction.INPUT,

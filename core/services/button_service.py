@@ -143,10 +143,26 @@ class ButtonService(BaseService):
 
     # --- Test mode (live feedback in wizard) ---
 
-    async def start_test(self) -> None:
-        """Start test mode — button presses are recorded for polling."""
+    async def start_test(self, buttons: list[ButtonConfig] | None = None) -> None:
+        """Start test mode — button presses are recorded for polling.
+
+        If buttons are provided (from wizard, before save), start a
+        temporary listener for those pins.
+        """
         self._test_mode = True
         self._test_events = []
+
+        # Stop scanner so its GPIO lines are free for the listener
+        await self._scanner.stop_scan()
+
+        # Start temporary listener if buttons provided and listener not running
+        if buttons and not self._buttons:
+            self._listener.set_callback(self._on_button_press)
+            try:
+                await self._listener.start(buttons)
+                logger.info("Test mode: temporary listener for %d buttons", len(buttons))
+            except RuntimeError as e:
+                logger.error("Could not start test listener: %s", e)
 
     def get_test_events(self) -> list[dict]:
         """Get and clear pending test events."""
@@ -155,9 +171,12 @@ class ButtonService(BaseService):
         return events
 
     async def stop_test(self) -> None:
-        """Stop test mode."""
+        """Stop test mode and temporary listener."""
         self._test_mode = False
         self._test_events = []
+        # Stop temporary listener if no permanent buttons configured
+        if not self._buttons:
+            await self._listener.stop()
 
     # --- Runtime callback ---
 

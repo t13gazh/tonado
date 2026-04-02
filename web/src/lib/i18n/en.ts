@@ -319,7 +319,7 @@ export default {
 	'buttons.no_gpios': 'All connections are already used by other hardware.',
 	'buttons.free_gpios': 'Buttons can be set up',
 	'buttons.select_title': 'Which buttons do you want to set up?',
-	'buttons.select_desc': 'Volume buttons are always required. The others are optional.',
+	'buttons.select_desc': 'Select the buttons that are connected to your box.',
 	'buttons.required': 'Required',
 	'buttons.volume_up': 'Volume up',
 	'buttons.volume_down': 'Volume down',

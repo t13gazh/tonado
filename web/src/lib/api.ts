@@ -388,7 +388,11 @@ export const buttonsApi = {
 	scanStart: () => request<void>('/buttons/scan/start', { method: 'POST' }),
 	scanResult: (timeout = 15) => request<ButtonScanResult>(`/buttons/scan/result?timeout=${timeout}`),
 	scanStop: () => request<void>('/buttons/scan/stop', { method: 'POST' }),
-	testStart: () => request<void>('/buttons/test/start', { method: 'POST' }),
+	testStart: (buttons?: ButtonConfigItem[]) =>
+		request<void>('/buttons/test/start', {
+			method: 'POST',
+			body: buttons ? JSON.stringify({ buttons }) : undefined,
+		}),
 	testEvents: () => request<ButtonTestEvent[]>('/buttons/test/events'),
 	testStop: () => request<void>('/buttons/test/stop', { method: 'POST' }),
 };

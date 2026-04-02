@@ -319,7 +319,7 @@ export default {
 	'buttons.no_gpios': 'Alle Anschlüsse sind bereits durch andere Hardware belegt.',
 	'buttons.free_gpios': 'Tasten können eingerichtet werden',
 	'buttons.select_title': 'Welche Tasten möchtest du einrichten?',
-	'buttons.select_desc': 'Lautstärke-Tasten werden immer benötigt. Die anderen sind optional.',
+	'buttons.select_desc': 'Wähle die Tasten aus, die an deiner Box angeschlossen sind.',
 	'buttons.required': 'Pflicht',
 	'buttons.volume_up': 'Lauter',
 	'buttons.volume_down': 'Leiser',

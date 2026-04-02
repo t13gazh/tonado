@@ -144,10 +144,20 @@ async def scan_stop(
 
 @router.post("/test/start")
 async def test_start(
+    req: ButtonsConfigRequest | None = None,
     svc: ButtonService = Depends(get_button_service),
 ) -> dict:
-    """Start test mode — presses are recorded for polling."""
-    await svc.start_test()
+    """Start test mode — presses are recorded for polling.
+
+    Optionally accepts button config for testing before save (wizard flow).
+    """
+    buttons = None
+    if req and req.buttons:
+        buttons = [
+            ButtonConfig(action=ButtonAction(b.action), gpio=b.gpio)
+            for b in req.buttons
+        ]
+    await svc.start_test(buttons=buttons)
     return {"success": True}
 
 

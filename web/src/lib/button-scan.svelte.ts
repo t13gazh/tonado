@@ -18,8 +18,8 @@ export interface ButtonAssignment {
 export type ButtonScanPhase = 'idle' | 'select' | 'scanning' | 'testing' | 'done';
 
 const DEFAULT_BUTTONS: ButtonAssignment[] = [
-	{ action: 'volume_up', label: 'buttons.volume_up', gpio: null, required: true, selected: true, skipped: false },
-	{ action: 'volume_down', label: 'buttons.volume_down', gpio: null, required: true, selected: true, skipped: false },
+	{ action: 'volume_up', label: 'buttons.volume_up', gpio: null, required: false, selected: true, skipped: false },
+	{ action: 'volume_down', label: 'buttons.volume_down', gpio: null, required: false, selected: true, skipped: false },
 	{ action: 'play_pause', label: 'buttons.play_pause', gpio: null, required: false, selected: false, skipped: false },
 	{ action: 'next_track', label: 'buttons.next_track', gpio: null, required: false, selected: false, skipped: false },
 	{ action: 'previous_track', label: 'buttons.previous_track', gpio: null, required: false, selected: false, skipped: false },
@@ -131,7 +131,11 @@ export function createButtonScan() {
 		testEvents = [];
 		error = '';
 		try {
-			await buttonsApi.testStart();
+			// Send assigned buttons so backend can start a temporary listener
+			const assigned = buttons
+				.filter((b) => b.gpio !== null)
+				.map((b) => ({ action: b.action, gpio: b.gpio! }));
+			await buttonsApi.testStart(assigned.length > 0 ? assigned : undefined);
 			// Poll for test events every 500ms
 			testPollTimer = setInterval(async () => {
 				try {

@@ -1,6 +1,8 @@
 """Setup wizard and system management API routes."""
 
+import logging
 from dataclasses import asdict
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -8,14 +10,18 @@ from pydantic import BaseModel
 from core.dependencies import (
     get_auth_service,
     get_captive_portal,
+    get_player,
     get_setup_wizard,
     get_wifi_service,
     require_tier,
 )
 from core.services.auth_service import AuthService, AuthTier
 from core.services.captive_portal import CaptivePortalService
+from core.services.player_service import PlayerService
 from core.services.setup_wizard import SetupWizard
 from core.services.wifi_service import WifiService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/setup", tags=["setup"])
 
@@ -85,6 +91,22 @@ async def setup_audio(
 ) -> dict:
     _require_setup_incomplete(wizard)
     return await wizard.setup_audio(req.device)
+
+
+@router.post("/test-audio")
+async def test_audio(
+    player: PlayerService = Depends(get_player),
+) -> dict:
+    """Play a short test tone through the current audio output."""
+    test_file = Path(__file__).resolve().parent.parent.parent / "assets" / "test-tone.wav"
+    if not test_file.exists():
+        raise HTTPException(404, "Test tone file not found")
+    try:
+        await player.play_url(f"file://{test_file}")
+        return {"success": True}
+    except Exception as e:
+        logger.warning("Test audio playback failed: %s", e)
+        raise HTTPException(500, f"Audio test failed: {e}")
 
 
 @router.post("/buttons-done")

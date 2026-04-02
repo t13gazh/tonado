@@ -2,7 +2,46 @@
  * Typed API client for the Tonado backend.
  */
 
+import { t } from '$lib/i18n';
+
 const BASE = '/api';
+const DEFAULT_TIMEOUT = 15_000; // 15s
+
+/** Structured API error with status code and user-friendly message. */
+export class ApiError extends Error {
+	status: number;
+	userMessage: string;
+
+	constructor(message: string, status: number, userMessage?: string) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+		this.userMessage = userMessage ?? message;
+	}
+}
+
+/**
+ * Map raw fetch errors and HTTP status codes to user-friendly messages.
+ */
+function toApiError(err: unknown, status?: number): ApiError {
+	// Network error (backend unreachable)
+	if (err instanceof TypeError && (err.message.includes('fetch') || err.message.includes('network') || err.message.includes('Failed'))) {
+		return new ApiError(err.message, 0, t('error.network'));
+	}
+	// AbortError from timeout
+	if (err instanceof DOMException && err.name === 'AbortError') {
+		return new ApiError('Request timed out', 408, t('error.timeout'));
+	}
+	// Already an ApiError
+	if (err instanceof ApiError) return err;
+	// HTTP status-based
+	if (status === 401) return new ApiError(String(err), 401, t('error.unauthorized'));
+	if (status === 403) return new ApiError(String(err), 403, t('error.forbidden'));
+	if (status === 404) return new ApiError(String(err), 404, t('error.not_found'));
+	if (status !== undefined && status >= 500) return new ApiError(String(err), status, t('error.server'));
+	// Generic
+	return new ApiError(String(err), status ?? 0, t('error.generic'));
+}
 
 export type ContentType = 'folder' | 'stream' | 'podcast' | 'playlist' | 'command';
 
@@ -73,28 +112,43 @@ export interface HardwareStatus extends HardwareDetection {
 	};
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-	const { headers: extraHeaders, ...rest } = options ?? {};
+async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
+	const { headers: extraHeaders, signal: existingSignal, timeoutMs, ...rest } = options ?? {};
 	const token = getAuthToken();
-	const res = await fetch(`${BASE}${path}`, {
-		headers: {
-			'Content-Type': 'application/json',
-			...(token ? { Authorization: `Bearer ${token}` } : {}),
-			...(extraHeaders instanceof Headers
-				? Object.fromEntries(extraHeaders.entries())
-				: (extraHeaders as Record<string, string>) ?? {}),
-		},
-		...rest,
-	});
+
+	// Timeout via AbortController (respects existing signal)
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? DEFAULT_TIMEOUT);
+	if (existingSignal) {
+		existingSignal.addEventListener('abort', () => controller.abort());
+	}
+
+	let res: Response;
+	try {
+		res = await fetch(`${BASE}${path}`, {
+			headers: {
+				'Content-Type': 'application/json',
+				...(token ? { Authorization: `Bearer ${token}` } : {}),
+				...(extraHeaders instanceof Headers
+					? Object.fromEntries(extraHeaders.entries())
+					: (extraHeaders as Record<string, string>) ?? {}),
+			},
+			signal: controller.signal,
+			...rest,
+		});
+	} catch (err) {
+		clearTimeout(timeoutId);
+		throw toApiError(err);
+	}
+	clearTimeout(timeoutId);
+
 	if (!res.ok) {
 		let detail = res.statusText;
 		try {
 			const body = await res.json();
 			if (body.detail) detail = body.detail;
 		} catch { /* no JSON body */ }
-		const err = new Error(detail);
-		(err as any).status = res.status;
-		throw err;
+		throw toApiError(new Error(detail), res.status);
 	}
 	return res.json();
 }
@@ -142,7 +196,7 @@ export const cards = {
 		request<CardMapping>(`/cards/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 	delete: (id: string) => request<void>(`/cards/${id}`, { method: 'DELETE' }),
 	waitForScan: (timeout = 30, newOnly = false) =>
-		request<ScanResult>(`/cards/scan/wait?timeout=${timeout}${newOnly ? '&new_only=true' : ''}`),
+		request<ScanResult>(`/cards/scan/wait?timeout=${timeout}${newOnly ? '&new_only=true' : ''}`, { timeoutMs: (timeout + 5) * 1000 }),
 };
 
 // Library API
@@ -386,7 +440,7 @@ export const buttonsApi = {
 		request<void>('/buttons/config', { method: 'POST', body: JSON.stringify({ buttons }) }),
 	clearConfig: () => request<void>('/buttons/config', { method: 'DELETE' }),
 	scanStart: () => request<void>('/buttons/scan/start', { method: 'POST' }),
-	scanResult: (timeout = 15) => request<ButtonScanResult>(`/buttons/scan/result?timeout=${timeout}`),
+	scanResult: (timeout = 15) => request<ButtonScanResult>(`/buttons/scan/result?timeout=${timeout}`, { timeoutMs: (timeout + 5) * 1000 }),
 	scanStop: () => request<void>('/buttons/scan/stop', { method: 'POST' }),
 	testStart: (buttons?: ButtonConfigItem[]) =>
 		request<void>('/buttons/test/start', {

@@ -232,8 +232,13 @@ export default {
 	// Error page
 	'error.title': 'Etwas ist schiefgelaufen',
 	'error.description': 'Die Seite konnte nicht geladen werden.',
+	'error.not_found_title': 'Seite nicht gefunden',
+	'error.not_found_description': 'Die gewünschte Seite existiert nicht.',
+	'error.offline_title': 'Keine Verbindung',
+	'error.offline_description': 'Dein Gerät ist nicht mit dem Netzwerk verbunden.',
 	'error.back': 'Zurück',
 	'error.reload': 'Neu laden',
+	'error.home': 'Zur Startseite',
 	'error.upload_failed': 'Upload fehlgeschlagen. Bitte erneut versuchen.',
 	'error.delete_failed': 'Löschen fehlgeschlagen.',
 	'error.save_failed': 'Speichern fehlgeschlagen.',
@@ -241,6 +246,13 @@ export default {
 	'error.connection_lost': 'Verbindung verloren. Prüfe die Netzwerkverbindung.',
 	'error.load_failed': 'Laden fehlgeschlagen.',
 	'error.create_failed': 'Erstellen fehlgeschlagen.',
+	'error.network': 'Verbindung zur Box verloren. Ist sie eingeschaltet?',
+	'error.timeout': 'Antwort dauert zu lange. Bitte erneut versuchen.',
+	'error.unauthorized': 'Bitte melde dich an.',
+	'error.forbidden': 'Keine Berechtigung für diese Aktion.',
+	'error.not_found': 'Die angeforderte Ressource wurde nicht gefunden.',
+	'error.server': 'Ein Serverfehler ist aufgetreten. Bitte versuche es später erneut.',
+	'error.generic': 'Ein Fehler ist aufgetreten.',
 
 	// Settings (additional)
 	'settings.login_required_pin': 'Bitte erst anmelden, um PINs zu verwalten.',

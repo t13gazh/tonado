@@ -5,6 +5,7 @@
 	import { setBrowserAudioElement } from '$lib/stores/browser-audio.svelte';
 	import { startHealthPolling, stopHealthPolling, isBackendOffline, isMpdConnected, isRfidAvailable, isGyroAvailable, isStorageCritical, isStorageLow, getHealth } from '$lib/stores/health.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -124,6 +125,9 @@
 			</div>
 		</nav>
 	{/if}
+
+	<!-- Global toast notifications -->
+	<ToastContainer />
 
 	<!-- Persistent audio element for browser streaming -->
 	<audio bind:this={audioEl} class="hidden"></audio>

@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { config, authApi, type AuthStatus } from '$lib/api';
+	import { config, authApi, type AuthStatus, ApiError } from '$lib/api';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
+	import { addToast } from '$lib/stores/toast.svelte';
 
 	let authStatus = $state<AuthStatus | null>(null);
 	let allConfig = $state<Record<string, unknown>>({});
 	let error = $state('');
 	let errorTimer: ReturnType<typeof setTimeout> | null = null;
-	let showToast = $state(false);
 
 	// PIN forms
 	let parentPinValue = $state('');
@@ -87,15 +87,10 @@
 	async function saveSetting(key: string, value: unknown) {
 		try {
 			await config.set(key, value);
-			flashToast();
-		} catch {
-			error = t('general.error');
+			addToast(t('settings.saved'), 'success');
+		} catch (e) {
+			addToast(e instanceof ApiError ? e.userMessage : t('error.save_failed'), 'error');
 		}
-	}
-
-	function flashToast() {
-		showToast = true;
-		setTimeout(() => (showToast = false), 2000);
 	}
 
 	// Determine current tier level: 0=open, 1=parent, 2=expert
@@ -126,7 +121,7 @@
 			try { await authApi.login(parentPinValue); } catch {}
 			parentPinValue = '';
 			await loadAll();
-			flashToast();
+			addToast(t('settings.saved'), 'success');
 		} catch (e) {
 			error = t('settings.login_required_change');
 		} finally {
@@ -143,7 +138,7 @@
 			try { await authApi.login(expertPinValue); } catch {}
 			expertPinValue = '';
 			await loadAll();
-			flashToast();
+			addToast(t('settings.saved'), 'success');
 		} catch {
 			error = t('settings.login_required_change');
 		} finally {
@@ -155,7 +150,7 @@
 		try {
 			await authApi.removePin('parent');
 			await loadAll();
-			flashToast();
+			addToast(t('settings.saved'), 'success');
 		} catch {
 			error = t('settings.login_required_change');
 		}
@@ -165,7 +160,7 @@
 		try {
 			await authApi.removePin('expert');
 			await loadAll();
-			flashToast();
+			addToast(t('settings.saved'), 'success');
 		} catch {
 			error = t('settings.login_required_change');
 		}
@@ -191,16 +186,6 @@
 		}
 	}
 </script>
-
-<!-- Fixed toast (does not affect layout) -->
-<div
-	role="status"
-	aria-live="polite"
-	class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-500/90 text-white text-sm rounded-xl shadow-lg transition-all duration-300 pointer-events-none
-		{showToast ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}"
->
-	{showToast ? t('settings.saved') : ''}
-</div>
 
 <div class="p-4">
 	<h1 class="text-xl font-bold mb-4">{t('settings.title')}</h1>

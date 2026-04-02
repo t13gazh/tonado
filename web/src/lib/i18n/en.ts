@@ -232,8 +232,13 @@ export default {
 	// Error page
 	'error.title': 'Something went wrong',
 	'error.description': 'The page could not be loaded.',
+	'error.not_found_title': 'Page not found',
+	'error.not_found_description': 'The requested page does not exist.',
+	'error.offline_title': 'No connection',
+	'error.offline_description': 'Your device is not connected to the network.',
 	'error.back': 'Back',
 	'error.reload': 'Reload',
+	'error.home': 'Go to start page',
 	'error.upload_failed': 'Upload failed. Please try again.',
 	'error.delete_failed': 'Delete failed.',
 	'error.save_failed': 'Save failed.',
@@ -241,6 +246,13 @@ export default {
 	'error.connection_lost': 'Connection lost. Check network.',
 	'error.load_failed': 'Loading failed.',
 	'error.create_failed': 'Create failed.',
+	'error.network': 'Connection to box lost. Is it turned on?',
+	'error.timeout': 'Response took too long. Please try again.',
+	'error.unauthorized': 'Please log in.',
+	'error.forbidden': 'No permission for this action.',
+	'error.not_found': 'The requested resource was not found.',
+	'error.server': 'A server error occurred. Please try again later.',
+	'error.generic': 'An error occurred.',
 
 	// Settings (additional)
 	'settings.login_required_pin': 'Please log in first to manage PINs.',

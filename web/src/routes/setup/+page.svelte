@@ -77,14 +77,13 @@
 				completed: 'complete',
 			};
 			const mapped = stepMap[status.current_step];
-			if (mapped && status.current_step !== 'not_started') {
-				currentStep = mapped;
-				highestStep = STEPS.indexOf(mapped);
-			}
 			if (!hardware) {
 				try { hardware = (await setupApi.detectHardware()); } catch {}
 			}
-			if (currentStep === 'wifi') await loadWifiStatus();
+			if (mapped && status.current_step !== 'not_started') {
+				highestStep = STEPS.indexOf(mapped);
+				await goToStep(mapped);
+			}
 		} catch {
 			currentStep = 'hardware';
 		}

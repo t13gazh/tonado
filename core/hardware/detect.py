@@ -228,8 +228,12 @@ def detect_audio() -> list[AudioOutput]:
                                 device=f"hw:{card_num}",
                             ))
                         elif "hifiberry" in card_id.lower() or "i2s" in card_name.lower():
+                            # Use friendly name for known DACs
+                            friendly = card_name
+                            if "hifiberry" in card_id.lower():
+                                friendly = "HifiBerry DAC"
                             outputs.append(AudioOutput(
-                                name=f"I2S DAC ({card_name})",
+                                name=friendly,
                                 type="i2s",
                                 device=f"hw:{card_num}",
                                 recommended=True,

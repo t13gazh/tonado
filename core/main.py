@@ -17,7 +17,14 @@ from core.database import DatabaseManager
 from core.hardware.gyro import detect_gyro
 from core.hardware.rfid import detect_reader
 from core.playback_dispatcher import PlaybackDispatcher
-from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
+from core.hardware.gpio_buttons import (
+    GpiodButtonListener,
+    GpiodButtonScanner,
+    MockGpioButtonListener,
+    MockGpioButtonScanner,
+)
+from core.routers import auth, buttons, cards, config, library, player, playlists, setup, streams, system
+from core.services.button_service import ButtonService
 from core.services.auth_service import AuthService
 from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
@@ -124,6 +131,21 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
     ws_hub = WebSocketHub(event_bus)
     player_service.set_listener_check(lambda: ws_hub.has_connections)
 
+    # GPIO Buttons
+    if hw_profile.is_mock or not hw_profile.gpio_available:
+        button_scanner = MockGpioButtonScanner()
+        button_listener = MockGpioButtonListener()
+    else:
+        button_scanner = GpiodButtonScanner()
+        button_listener = GpiodButtonListener()
+
+    button_service = ButtonService(
+        scanner=button_scanner,
+        listener=button_listener,
+        event_bus=event_bus,
+        config_service=config_service,
+    )
+
     await asyncio.gather(
         card_service.start(),
         gyro_service.start(),
@@ -133,6 +155,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         auth_service.start(),
         wifi_service.start(),
         ws_hub.start(),
+        button_service.start(),
     )
 
     # --- Group 3: Services that depend on Group 2 ---
@@ -174,6 +197,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         "wifi_service": wifi_service,
         "captive_portal": captive_portal,
         "gyro_service": gyro_service,
+        "button_service": button_service,
         "ws_hub": ws_hub,
         "settings": settings,
     }
@@ -219,6 +243,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "playlist_service",
         "stream_service",
         "library_service",
+        "button_service",
         "gyro_service",
         "card_service",
         "player_service",
@@ -298,6 +323,7 @@ app.include_router(playlists.router)
 app.include_router(auth.router)
 app.include_router(system.router)
 app.include_router(setup.router)
+app.include_router(buttons.router)
 
 
 @app.get("/api/health")

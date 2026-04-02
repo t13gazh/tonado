@@ -87,6 +87,12 @@ async def setup_audio(
     return await wizard.setup_audio(req.device)
 
 
+@router.post("/buttons-done")
+async def buttons_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
+    _require_setup_incomplete(wizard)
+    return await wizard.setup_buttons([])  # Buttons saved via /api/buttons/config
+
+
 @router.post("/first-card-done")
 async def first_card_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
     _require_setup_incomplete(wizard)

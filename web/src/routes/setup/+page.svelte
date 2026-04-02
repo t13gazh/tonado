@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { setupApi, systemApi, config, player, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
+	import { setupApi, systemApi, config, player, buttonsApi, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
@@ -8,17 +8,20 @@
 	import HardwareStep from '$lib/components/setup/HardwareStep.svelte';
 	import WifiStep from '$lib/components/setup/WifiStep.svelte';
 	import AudioStep from '$lib/components/setup/AudioStep.svelte';
+	import ButtonsStep from '$lib/components/setup/ButtonsStep.svelte';
 	import CardStep from '$lib/components/setup/CardStep.svelte';
 	import CompleteStep from '$lib/components/setup/CompleteStep.svelte';
 	import type { CardStepType } from '$lib/components/setup/CardStep.svelte';
+	import type { ButtonStepType } from '$lib/components/setup/ButtonsStep.svelte';
 
-	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'card' | 'complete';
+	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'buttons' | 'card' | 'complete';
 
-	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'card', 'complete'];
+	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'buttons', 'card', 'complete'];
 	const STEP_LABELS: Record<WizardStep, () => string> = {
 		hardware: () => t('setup.step_hardware'),
 		wifi: () => t('setup.step_wifi'),
 		audio: () => t('setup.step_audio'),
+		buttons: () => t('setup.step_buttons'),
 		card: () => t('setup.step_card'),
 		complete: () => t('setup.step_done'),
 	};
@@ -40,6 +43,11 @@
 	// Audio
 	let audioOutputs = $state<{ id: number; name: string; enabled: boolean }[]>([]);
 	let selectedAudioId = $state<number | null>(null);
+
+	// Buttons
+	let buttonStep = $state<ButtonStepType>('idle');
+	let freeGpios = $state<number[]>([]);
+	let buttonStepRef: ButtonsStep;
 
 	// Card
 	let cardStep = $state<CardStepType>('intro');
@@ -63,7 +71,8 @@
 				not_started: 'hardware',
 				hardware_detection: 'wifi',
 				wifi_setup: 'audio',
-				audio_setup: 'card',
+				audio_setup: 'buttons',
+				buttons_setup: 'card',
 				first_card: 'complete',
 				completed: 'complete',
 			};
@@ -107,6 +116,7 @@
 		if (step === 'hardware' && !hardware) await detectHardware();
 		else if (step === 'wifi') await loadWifiStatus();
 		else if (step === 'audio') await loadAudioOutputs();
+		else if (step === 'buttons') await loadFreeGpios();
 		else if (step === 'card') cardStep = 'intro';
 	}
 
@@ -127,6 +137,10 @@
 		wifiLoading = true;
 		try { wifiStatus = await setupApi.wifiStatus(); } catch { wifiStatus = null; }
 		finally { wifiLoading = false; }
+	}
+
+	async function loadFreeGpios() {
+		try { freeGpios = await buttonsApi.freeGpios(); } catch { freeGpios = []; }
 	}
 
 	async function loadAudioOutputs() {
@@ -200,6 +214,13 @@
 				{onError}
 				onAudioChange={(outputs, id) => { audioOutputs = outputs; selectedAudioId = id; }}
 			/>
+		{:else if currentStep === 'buttons'}
+			<ButtonsStep
+				bind:this={buttonStepRef}
+				bind:buttonStep
+				{freeGpios} {error}
+				{onError} {onClearError}
+			/>
 		{:else if currentStep === 'card'}
 			<CardStep
 				bind:this={cardStepRef}
@@ -208,7 +229,7 @@
 				{onError} {onClearError}
 			/>
 		{:else if currentStep === 'complete'}
-			<CompleteStep {hardware} {sysInfo} {wifiStatus} {error} />
+			<CompleteStep {hardware} {sysInfo} {wifiStatus} buttonCount={buttonStepRef?.getAssignedCount() ?? 0} {error} />
 		{/if}
 
 		</div>
@@ -247,6 +268,68 @@
 					{t('setup.next')}
 				</button>
 			</div>
+
+		{:else if currentStep === 'buttons'}
+			{#if buttonStep === 'idle'}
+				<div class="flex flex-col gap-2">
+					{#if freeGpios.length > 0}
+						<button onclick={() => buttonStepRef.startSelect()} disabled={backendDown}
+							class="w-full py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+							{t('buttons.setup')}
+						</button>
+					{/if}
+					<div class="flex gap-3">
+						<button onclick={prevStep}
+							class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+							{t('general.back')}
+						</button>
+						<button onclick={nextStep}
+							class="flex-1 py-3 {freeGpios.length > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
+							{t('buttons.skip')}
+						</button>
+					</div>
+				</div>
+			{:else if buttonStep === 'select'}
+				<div class="flex gap-3">
+					<button onclick={() => buttonStepRef.cancelScan()}
+						class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+						{t('general.back')}
+					</button>
+					<button onclick={() => buttonStepRef.startScan()} disabled={backendDown}
+						class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+						{t('buttons.start_scan')}
+					</button>
+				</div>
+			{:else if buttonStep === 'scanning'}
+				<div class="flex gap-3">
+					<button onclick={() => buttonStepRef.cancelScan()}
+						class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+						{t('general.cancel')}
+					</button>
+					{#if !error && buttonStepRef?.canSkipCurrent()}
+						<button onclick={() => buttonStepRef.skipCurrent()}
+							class="flex-1 py-3 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+							{t('setup.skip')}
+						</button>
+					{/if}
+				</div>
+			{:else if buttonStep === 'done'}
+				<div class="flex gap-3">
+					<button onclick={() => buttonStepRef.cancelScan()}
+						class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+						{t('general.back')}
+					</button>
+					<button onclick={async () => { await buttonStepRef.save(); await nextStep(); }} disabled={backendDown}
+						class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+						{t('setup.next')}
+					</button>
+				</div>
+			{:else if buttonStep === 'testing'}
+				<button onclick={() => buttonStepRef.stopTest()}
+					class="w-full py-3 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+					{t('buttons.test_stop')}
+				</button>
+			{/if}
 
 		{:else if currentStep === 'card'}
 			{#if cardStep === 'intro'}

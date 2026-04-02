@@ -38,6 +38,7 @@ class PlaybackDispatcher:
         event_bus.subscribe("card_scanned", self._on_card_scanned)
         event_bus.subscribe("card_removed", self._on_card_removed)
         event_bus.subscribe("gesture_detected", self._on_gesture)
+        event_bus.subscribe("button_pressed", self._on_button_pressed)
         event_bus.subscribe("resume_position_save", self._on_resume_save)
 
     async def _on_card_scanned(self, card_id: str, mapping: dict, **_) -> None:
@@ -111,7 +112,8 @@ class PlaybackDispatcher:
             await self._player.pause()
         self._current_card_id = None
 
-    async def _on_gesture(self, action: str, **_) -> None:
+    async def _dispatch_action(self, action: str) -> None:
+        """Shared dispatch logic for gesture and button actions."""
         match action:
             case "next_track":
                 await self._player.next_track()
@@ -123,6 +125,14 @@ class PlaybackDispatcher:
                 await self._player.adjust_volume(-5)
             case "shuffle":
                 await self._player.toggle_random()
+            case "play_pause":
+                await self._player.toggle()
+
+    async def _on_gesture(self, action: str, **_) -> None:
+        await self._dispatch_action(action)
+
+    async def _on_button_pressed(self, action: str, **_) -> None:
+        await self._dispatch_action(action)
 
     async def _on_resume_save(self, card_id: str, position: float, **_) -> None:
         await self._card_service.update_resume_position(card_id, position)

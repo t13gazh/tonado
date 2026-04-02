@@ -7,10 +7,11 @@
 		hardware: HardwareDetection | null;
 		sysInfo: SystemInfoData | null;
 		wifiStatus: WifiStatus | null;
+		buttonCount: number;
 		error: string;
 	}
 
-	let { hardware, sysInfo, wifiStatus, error }: Props = $props();
+	let { hardware, sysInfo, wifiStatus, buttonCount = 0, error }: Props = $props();
 </script>
 
 <div class="flex flex-col items-center gap-6 text-center">
@@ -38,6 +39,9 @@
 			{#if hardware.rfid.reader !== 'none'}
 				<div class="flex justify-between"><span class="text-text-muted">{t('setup.rfid_reader')}</span><span class="text-text">{hardware.rfid.reader.toUpperCase()}</span></div>
 			{/if}
+		{/if}
+		{#if buttonCount > 0}
+			<div class="flex justify-between"><span class="text-text-muted">{t('setup.step_buttons')}</span><span class="text-text">{t('buttons.summary', { count: String(buttonCount) })}</span></div>
 		{/if}
 		{#if wifiStatus?.connected}
 			<div class="flex justify-between"><span class="text-text-muted">{t('setup.step_wifi')}</span><span class="text-text">&bdquo;{wifiStatus.ssid}&ldquo;</span></div>

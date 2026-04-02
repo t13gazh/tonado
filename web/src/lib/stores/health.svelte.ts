@@ -92,3 +92,9 @@ export function isStorageLow(): boolean {
 	if (!health) return false;
 	return health.storage.status === 'low' || health.storage.status === 'critical';
 }
+
+/** True when GPIO buttons are available (hardware has GPIO). */
+export function isButtonsAvailable(): boolean {
+	// Buttons require GPIO — assume available unless health says otherwise
+	return true;
+}

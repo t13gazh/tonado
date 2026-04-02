@@ -4,6 +4,7 @@ from fastapi import HTTPException, Request
 
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
+from core.services.button_service import ButtonService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
@@ -105,6 +106,10 @@ def get_gyro_service(request: Request) -> GyroService:
 
 def get_hardware_detector(request: Request) -> HardwareDetector:
     return request.app.state.hardware_detector
+
+
+def get_button_service(request: Request) -> ButtonService:
+    return request.app.state.button_service
 
 
 def get_settings(request: Request) -> Settings:

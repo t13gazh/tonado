@@ -285,6 +285,56 @@ def detect_gpio() -> bool:
     return Path("/dev/gpiomem").exists() or Path("/dev/mem").exists()
 
 
+# ---------------------------------------------------------------------------
+# GPIO pin management for button feature
+# ---------------------------------------------------------------------------
+
+# GPIO pins occupied by known hardware
+OCCUPIED_GPIOS: dict[str, set[int]] = {
+    "hifiberry_i2s": {16, 18, 19, 20, 21, 26},
+    "spi_rfid": {7, 8, 9, 10, 11, 24, 25},
+    "i2c": {2, 3},
+    "onoff_shim": {4, 17},
+    "uart": {14, 15},
+    "eeprom": {0, 1},
+}
+
+# All usable BCM GPIO pins on the 40-pin header
+ALL_USER_GPIOS: set[int] = {
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13,
+    14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+    24, 25, 26, 27,
+}
+
+
+def get_occupied_gpios(profile: HardwareProfile) -> set[int]:
+    """Calculate which GPIOs are occupied based on detected hardware."""
+    occupied: set[int] = set()
+    occupied |= OCCUPIED_GPIOS["eeprom"]  # Always reserved
+    occupied |= OCCUPIED_GPIOS["uart"]  # Always reserved (console)
+
+    # I2S audio (HifiBerry etc.)
+    if any(a.type == "i2s" for a in profile.audio_outputs):
+        occupied |= OCCUPIED_GPIOS["hifiberry_i2s"]
+
+    # SPI RFID (RC522)
+    if profile.rfid_reader == "rc522":
+        occupied |= OCCUPIED_GPIOS["spi_rfid"]
+
+    # I2C (gyro, PN532)
+    if profile.gyro_detected or profile.rfid_reader == "pn532":
+        occupied |= OCCUPIED_GPIOS["i2c"]
+
+    return occupied
+
+
+def get_free_gpios(profile: HardwareProfile) -> list[int]:
+    """Return sorted list of GPIOs available for button use."""
+    occupied = get_occupied_gpios(profile)
+    free = ALL_USER_GPIOS - occupied
+    return sorted(free)
+
+
 def detect_all() -> HardwareProfile:
     """Run full hardware detection and return a complete profile."""
     logger.info("Starting hardware detection...")

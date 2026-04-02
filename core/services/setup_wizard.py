@@ -15,7 +15,7 @@ from dataclasses import asdict
 from enum import StrEnum
 from typing import Any
 
-from core.hardware.detect import HardwareProfile
+from core.hardware.detect import HardwareProfile, get_free_gpios
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.services.wifi_service import WifiService
@@ -28,6 +28,7 @@ class SetupStep(StrEnum):
     HARDWARE_DETECTION = "hardware_detection"
     WIFI_SETUP = "wifi_setup"
     AUDIO_SETUP = "audio_setup"
+    BUTTONS_SETUP = "buttons_setup"
     FIRST_CARD = "first_card"
     COMPLETED = "completed"
 
@@ -99,6 +100,7 @@ class SetupWizard(BaseService):
             f"rfid:{profile.rfid_reader}",
             f"gyro:{profile.gyro_detected}",
             f"pi:{profile.pi.model}",
+            f"free_gpios:{len(get_free_gpios(profile))}",
         ]
         for audio in sorted(profile.audio_outputs, key=lambda a: a.device):
             parts.append(f"audio:{audio.name}:{audio.device}")
@@ -186,8 +188,17 @@ class SetupWizard(BaseService):
         logger.info("Audio output set to: %s", device)
         return {"success": True, "device": device}
 
+    async def setup_buttons(self, buttons: list[dict] | None = None) -> dict[str, Any]:
+        """Step 4: Save GPIO button configuration."""
+        if buttons:
+            import json
+            await self._config.set("hardware.buttons", json.dumps(buttons))
+        await self._save_step(SetupStep.BUTTONS_SETUP)
+        logger.info("Button setup complete: %d buttons", len(buttons) if buttons else 0)
+        return {"success": True, "count": len(buttons) if buttons else 0}
+
     async def complete_first_card(self) -> dict[str, Any]:
-        """Step 4: Mark first card assignment as done."""
+        """Step 5: Mark first card assignment as done."""
         await self._save_step(SetupStep.FIRST_CARD)
         return {"success": True}
 

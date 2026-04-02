@@ -372,6 +372,27 @@ export const config = {
 		request<void>('/config/', { method: 'PUT', body: JSON.stringify({ key, value }) }),
 };
 
+// Button types
+export type ButtonAction = 'volume_up' | 'volume_down' | 'play_pause' | 'next_track' | 'previous_track';
+export interface ButtonConfigItem { action: ButtonAction; gpio: number; }
+export interface ButtonScanResult { gpio: number | null; detected: boolean; }
+export interface ButtonTestEvent { action: ButtonAction; gpio: number | null; }
+
+// Buttons API
+export const buttonsApi = {
+	freeGpios: () => request<{ gpios: number[] }>('/buttons/free-gpios').then(r => r.gpios),
+	getConfig: () => request<ButtonConfigItem[]>('/buttons/config'),
+	saveConfig: (buttons: ButtonConfigItem[]) =>
+		request<void>('/buttons/config', { method: 'POST', body: JSON.stringify({ buttons }) }),
+	clearConfig: () => request<void>('/buttons/config', { method: 'DELETE' }),
+	scanStart: () => request<void>('/buttons/scan/start', { method: 'POST' }),
+	scanResult: (timeout = 15) => request<ButtonScanResult>(`/buttons/scan/result?timeout=${timeout}`),
+	scanStop: () => request<void>('/buttons/scan/stop', { method: 'POST' }),
+	testStart: () => request<void>('/buttons/test/start', { method: 'POST' }),
+	testEvents: () => request<ButtonTestEvent[]>('/buttons/test/events'),
+	testStop: () => request<void>('/buttons/test/stop', { method: 'POST' }),
+};
+
 // Setup Wizard API
 export interface SetupStatus {
 	current_step: string;

@@ -13,13 +13,14 @@
 	interface Props {
 		hasRfid: boolean;
 		expertMode: boolean;
+		existingCardCount: number;
 		error: string;
 		cardStep: CardStepType;
 		onError: (msg: string) => void;
 		onClearError: () => void;
 	}
 
-	let { hasRfid, expertMode, error, cardStep = $bindable('intro'), onError, onClearError }: Props = $props();
+	let { hasRfid, expertMode, existingCardCount = 0, error, cardStep = $bindable('intro'), onError, onClearError }: Props = $props();
 
 	const scan = createCardScan();
 
@@ -77,13 +78,17 @@
 				<circle cx="9" cy="12" r="3" fill="currentColor" stroke="none"/>
 			</svg>
 		</div>
-		<h2 class="text-lg font-semibold text-text">{t('setup.first_card')}</h2>
+		<h2 class="text-lg font-semibold text-text">
+			{existingCardCount > 0 ? t('setup.card_count', { count: existingCardCount }) : t('setup.first_card')}
+		</h2>
 		{#if !hasRfid}
 			<div class="w-full max-w-sm">
 				<HealthBanner type="warning" message={t('setup.card_no_reader')} />
 			</div>
 		{:else}
-			<p class="text-sm text-text-muted max-w-xs">{t('setup.card_desc')}</p>
+			<p class="text-sm text-text-muted max-w-xs">
+				{existingCardCount > 0 ? t('setup.card_desc_existing') : t('setup.card_desc')}
+			</p>
 		{/if}
 	</div>
 {/if}

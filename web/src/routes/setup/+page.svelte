@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { setupApi, systemApi, config, buttonsApi, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
+	import { setupApi, systemApi, config, buttonsApi, cards, type HardwareDetection, type WifiStatus, type SystemInfoData, type ContentType } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
@@ -50,10 +50,14 @@
 	let buttonStepRef: ButtonsStep;
 	let savedButtonLabels = $state<string[]>([]);
 
+	// Buttons (page-level state for re-run awareness)
+	let hasExistingButtons = $state(false);
+
 	// Card
 	let cardStep = $state<CardStepType>('intro');
 	let expertMode = $state(false);
 	let cardStepRef: CardStep;
+	let existingCardCount = $state(0);
 
 	const backendDown = $derived(isBackendOffline());
 	const currentIdx = $derived(STEPS.indexOf(currentStep));
@@ -117,7 +121,7 @@
 		else if (step === 'wifi') await loadWifiStatus();
 		else if (step === 'audio') await loadAudioOutputs();
 		else if (step === 'buttons') { await loadFreeGpios(); await loadExistingButtons(); }
-		else if (step === 'card') cardStep = 'intro';
+		else if (step === 'card') { cardStep = 'intro'; await loadExistingCards(); }
 		else if (step === 'complete') await loadSavedButtons();
 	}
 
@@ -147,6 +151,10 @@
 	async function loadExistingButtons() {
 		await tick();
 		if (buttonStepRef) await buttonStepRef.loadExisting();
+		try {
+			const cfg = await buttonsApi.getConfig();
+			hasExistingButtons = cfg.length > 0;
+		} catch { hasExistingButtons = false; }
 	}
 
 	const BUTTON_ACTION_LABELS: Record<string, string> = {
@@ -180,6 +188,13 @@
 			if (recommended) selectedAudioDevice = recommended.device;
 			else if (hardwareAudio.length > 0) selectedAudioDevice = hardwareAudio[0].device;
 		} catch { hardwareAudio = []; }
+	}
+
+	async function loadExistingCards() {
+		try {
+			const list = await cards.list();
+			existingCardCount = list.length;
+		} catch { existingCardCount = 0; }
 	}
 
 	function onError(msg: string) { error = msg; }
@@ -255,7 +270,7 @@
 			<CardStep
 				bind:this={cardStepRef}
 				bind:cardStep
-				{hasRfid} {expertMode} {error}
+				{hasRfid} {expertMode} {existingCardCount} {error}
 				{onError} {onClearError}
 			/>
 		{:else if currentStep === 'complete'}
@@ -304,8 +319,8 @@
 				<div class="flex flex-col gap-2">
 					{#if freeGpios.length > 0}
 						<button onclick={() => buttonStepRef.startSelect()} disabled={backendDown}
-							class="w-full py-3 {buttonStepRef?.hasExistingConfig() ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-medium transition-colors">
-							{buttonStepRef?.hasExistingConfig() ? t('buttons.rescan') : t('buttons.setup')}
+							class="w-full py-3 {hasExistingButtons ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-medium transition-colors">
+							{hasExistingButtons ? t('buttons.rescan') : t('buttons.setup')}
 						</button>
 					{/if}
 					<div class="flex gap-3">
@@ -314,8 +329,8 @@
 							{t('general.back')}
 						</button>
 						<button onclick={nextStep}
-							class="flex-1 py-3 {buttonStepRef?.hasExistingConfig() ? 'bg-primary hover:bg-primary-light text-white' : freeGpios.length > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
-							{buttonStepRef?.hasExistingConfig() ? t('setup.next') : t('buttons.skip')}
+							class="flex-1 py-3 {hasExistingButtons ? 'bg-primary hover:bg-primary-light text-white' : freeGpios.length > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
+							{hasExistingButtons ? t('setup.next') : t('buttons.skip')}
 						</button>
 					</div>
 				</div>
@@ -366,8 +381,8 @@
 				<div class="flex flex-col gap-2">
 					{#if hasRfid}
 						<button onclick={() => cardStepRef.startCardScan()} disabled={backendDown}
-							class="w-full py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
-							{t('setup.card_setup')}
+							class="w-full py-3 {existingCardCount > 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} disabled:opacity-40 disabled:cursor-not-allowed rounded-lg font-medium transition-colors">
+							{existingCardCount > 0 ? t('setup.card_add_more') : t('setup.card_setup')}
 						</button>
 					{/if}
 					<div class="flex gap-3">
@@ -376,8 +391,8 @@
 							{t('general.back')}
 						</button>
 						<button onclick={async () => { try { await setupApi.firstCardDone(); } catch {} await goToStep('complete'); }}
-							class="flex-1 py-3 {hasRfid ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
-							{hasRfid ? t('setup.card_skip') : t('setup.next')}
+							class="flex-1 py-3 {hasRfid && existingCardCount === 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
+							{hasRfid && existingCardCount === 0 ? t('setup.card_skip') : t('setup.next')}
 						</button>
 					</div>
 				</div>
@@ -403,7 +418,7 @@
 						class="w-full py-3 bg-primary hover:bg-primary-light text-white rounded-lg font-medium transition-colors">
 						{t('setup.next')}
 					</button>
-					<button onclick={() => cardStepRef.resetForNewCard()}
+					<button onclick={() => { existingCardCount++; cardStepRef.resetForNewCard(); }}
 						class="w-full py-2.5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
 						{t('card.add')}
 					</button>

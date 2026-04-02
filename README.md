@@ -79,13 +79,15 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 
 > **Alpha (v0.1.0)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet.
 
-**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer), Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte), Browser-Audio, automatische Updates, Backup/Restore.
+**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
 **Getestet auf:**
 - Raspberry Pi Zero W + HifiBerry MiniAmp + RC522 (SPI)
 - Raspberry Pi 3B+ + HifiBerry MiniAmp + RC522 (SPI) + MPU6050 Gyro + GPIO Buttons
 
-**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Profiling, Mehrsprachigkeit (Englisch vorbereitet).
+**Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, 1.3 MB Frontend.
+
+**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).
 
 ## Mitmachen
 

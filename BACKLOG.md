@@ -69,11 +69,11 @@
 - [ ] Figuren-UI + Einstellungen + System-Seite testen und fixen
 - [ ] Captive Portal / Setup-Wizard Ersteinrichtungs-Flow
 - [ ] SD-Karte >= 16 GB, Install-Script End-to-End testen
-- [ ] Pi-Test mit echter Hardware (RFID, Gyro)
+- [x] Pi-Test mit echter Hardware (RFID, Gyro, Buttons — Pi 3B+)
 - [ ] Performance-Optimierung für Pi Zero W (siehe Architektur-Audit unten)
-- [ ] README.md mit Installationsanleitung für Endnutzer
+- [x] README.md mit Installationsanleitung für Endnutzer
 - [ ] Hardcoded Strings → i18n
-- [ ] Error-Boundaries und User-freundliche Fehlermeldungen
+- [x] Error-Boundaries und User-freundliche Fehlermeldungen
 
 ## Architektur-Audit (2026-03-29)
 

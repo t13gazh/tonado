@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from core.dependencies import (
     get_auth_service,
     get_backup_service,
+    get_button_service,
     get_card_service,
     get_gyro_service,
     get_hardware_detector,
@@ -21,6 +22,7 @@ from core.dependencies import (
 )
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
+from core.services.button_service import ButtonService
 from core.services.card_service import CardService
 from core.services.gyro_service import GyroService
 from core.services.hardware_detector import HardwareDetector
@@ -61,6 +63,7 @@ async def system_health(
     player: PlayerService = Depends(get_player),
     card: CardService = Depends(get_card_service),
     gyro: GyroService = Depends(get_gyro_service),
+    buttons: ButtonService = Depends(get_button_service),
     wifi: WifiService = Depends(get_wifi_service),
 ) -> dict:
     """Return health status of all hardware components for UI degraded-state banners."""
@@ -101,6 +104,9 @@ async def system_health(
                 health["audio"] = {"status": "unknown", "detail": "Audio-Status unbekannt"}
         except Exception:
             health["audio"] = {"status": "unknown", "detail": "Audio-Status unbekannt"}
+
+    # GPIO Buttons
+    health["buttons"] = buttons.health()
 
     # Storage
     try:

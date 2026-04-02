@@ -66,7 +66,12 @@ class CardService(BaseService):
 
     async def start(self) -> None:
         """Start RFID scanning loop (schema managed by DatabaseManager)."""
-        await self._reader.start()
+        try:
+            await self._reader.start()
+        except Exception as e:
+            logger.warning("RFID reader init failed, card service disabled: %s", e)
+            self._reader_connected = False
+            return
         self._scan_task = asyncio.create_task(self._scan_loop())
         logger.info("Card service started")
 

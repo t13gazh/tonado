@@ -146,7 +146,9 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         config_service=config_service,
     )
 
-    await asyncio.gather(
+    # Use return_exceptions=True so a single service failure
+    # doesn't prevent the remaining services from starting.
+    results = await asyncio.gather(
         card_service.start(),
         gyro_service.start(),
         library_service.start(),
@@ -156,7 +158,15 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         wifi_service.start(),
         ws_hub.start(),
         button_service.start(),
+        return_exceptions=True,
     )
+    _service_names = [
+        "card", "gyro", "library", "stream", "playlist",
+        "auth", "wifi", "websocket_hub", "button",
+    ]
+    for name, result in zip(_service_names, results):
+        if isinstance(result, Exception):
+            logger.error("Service '%s' failed to start: %s", name, result)
 
     # --- Group 3: Services that depend on Group 2 ---
     timer_service = TimerService(event_bus, player_service, config_service)

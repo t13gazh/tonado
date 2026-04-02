@@ -48,6 +48,7 @@
 	let buttonStep = $state<ButtonStepType>('idle');
 	let freeGpios = $state<number[]>([]);
 	let buttonStepRef: ButtonsStep;
+	let savedButtonLabels = $state<string[]>([]);
 
 	// Card
 	let cardStep = $state<CardStepType>('intro');
@@ -117,6 +118,7 @@
 		else if (step === 'audio') await loadAudioOutputs();
 		else if (step === 'buttons') await loadFreeGpios();
 		else if (step === 'card') cardStep = 'intro';
+		else if (step === 'complete') await loadSavedButtons();
 	}
 
 	async function nextStep() {
@@ -140,6 +142,21 @@
 
 	async function loadFreeGpios() {
 		try { freeGpios = await buttonsApi.freeGpios(); } catch { freeGpios = []; }
+	}
+
+	const BUTTON_ACTION_LABELS: Record<string, string> = {
+		volume_up: 'buttons.volume_up',
+		volume_down: 'buttons.volume_down',
+		play_pause: 'buttons.play_pause',
+		next_track: 'buttons.next_track',
+		previous_track: 'buttons.previous_track',
+	};
+
+	async function loadSavedButtons() {
+		try {
+			const cfg = await buttonsApi.getConfig();
+			savedButtonLabels = cfg.map((b) => t(BUTTON_ACTION_LABELS[b.action] ?? b.action));
+		} catch { savedButtonLabels = []; }
 	}
 
 	async function loadAudioOutputs() {
@@ -237,7 +254,7 @@
 				{onError} {onClearError}
 			/>
 		{:else if currentStep === 'complete'}
-			<CompleteStep {hardware} {sysInfo} {wifiStatus} buttonCount={buttonStepRef?.getAssignedCount() ?? 0} {error} />
+			<CompleteStep {hardware} {sysInfo} {wifiStatus} buttonCount={savedButtonLabels.length} buttonLabels={savedButtonLabels} {error} />
 		{/if}
 
 		</div>

@@ -121,13 +121,17 @@ class ButtonService(BaseService):
         data = [{"action": b.action.value, "gpio": b.gpio} for b in buttons]
         await self._config.set(CONFIG_KEY, json.dumps(data))
 
-        # Restart listener with new config
+        # Release ALL GPIO resources before starting permanent listener
+        self._test_mode = False
+        self._test_events = []
+        await self._scanner.stop_scan()
         await self._listener.stop()
+
         if buttons:
             self._listener.set_callback(self._on_button_press)
             try:
                 await self._listener.start(buttons)
-            except RuntimeError as e:
+            except (RuntimeError, OSError) as e:
                 logger.error("Could not start button listener: %s", e)
         logger.info("Button config saved: %d buttons", len(buttons))
 

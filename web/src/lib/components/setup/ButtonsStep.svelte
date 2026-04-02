@@ -82,6 +82,12 @@
 		return scan.assignedCount;
 	}
 
+	export function getAssignedLabels(): string[] {
+		return scan.buttons
+			.filter((b) => b.gpio !== null)
+			.map((b) => t(b.label));
+	}
+
 	export function canSkipCurrent(): boolean {
 		return scan.currentButton !== null && !scan.currentButton.required;
 	}

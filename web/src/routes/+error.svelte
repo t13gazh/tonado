@@ -1,10 +1,25 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 
 	const status = $derived(page.status);
 	const is404 = $derived(status === 404);
-	const isOffline = $derived(typeof navigator !== 'undefined' && !navigator.onLine);
+
+	let offline = $state(typeof navigator !== 'undefined' && !navigator.onLine);
+
+	onMount(() => {
+		const goOffline = () => { offline = true; };
+		const goOnline = () => { offline = false; };
+		window.addEventListener('offline', goOffline);
+		window.addEventListener('online', goOnline);
+		return () => {
+			window.removeEventListener('offline', goOffline);
+			window.removeEventListener('online', goOnline);
+		};
+	});
+
+	const isOffline = $derived(offline);
 
 	const title = $derived(
 		isOffline ? t('error.offline_title') :

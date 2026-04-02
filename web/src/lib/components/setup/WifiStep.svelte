@@ -20,6 +20,7 @@
 	let selectedSsid = $state('');
 	let wifiPassword = $state('');
 	let wifiConnecting = $state(false);
+	let showPassword = $state(false);
 
 	async function scanWifi() {
 		wifiScanning = true;
@@ -97,8 +98,16 @@
 					<div class="space-y-3 pt-2">
 						<label class="block">
 							<span class="text-xs text-text-muted mb-1 block">{t('setup.wifi_password')}</span>
-							<input type="password" bind:value={wifiPassword} placeholder="..."
-								class="w-full px-3 py-2.5 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
+							<div class="relative">
+								<input type={showPassword ? 'text' : 'password'} bind:value={wifiPassword} placeholder="..."
+									class="w-full px-3 py-2.5 pr-10 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
+								<button type="button"
+									onclick={() => showPassword = !showPassword}
+									aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+									class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded transition-colors">
+									<Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
+								</button>
+							</div>
 						</label>
 						<button onclick={connectWifi} disabled={wifiConnecting}
 							class="w-full py-2.5 bg-primary hover:bg-primary-light disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors">

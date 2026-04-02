@@ -94,7 +94,7 @@
 - [x] scan_waiters Leak: finally-Block für Future-Cleanup bei Request-Abbruch (`card_service.py:260`)
 
 ## Setup-Wizard
-- [ ] Audio Test-Button (Sound abspielen zum Prüfen)
+- [x] Audio Test-Button (Sound abspielen zum Prüfen)
 - [x] WiFi Passwort-Toggle (Auge-Icon)
 - [x] GPIO-Button-Erkennung (interaktiver Scan im Wizard)
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error)

@@ -40,6 +40,9 @@
 			{#if hardware.rfid.reader !== 'none'}
 				<div class="flex justify-between"><span class="text-text-muted">{t('setup.rfid_reader')}</span><span class="text-text">{hardware.rfid.reader.toUpperCase()}</span></div>
 			{/if}
+			{#if hardware.gyro_detected}
+				<div class="flex justify-between"><span class="text-text-muted">{t('setup.gyro_sensor')}</span><span class="text-text">{t('setup.detected')}</span></div>
+			{/if}
 		{/if}
 		{#if buttonCount > 0}
 			<div class="flex justify-between"><span class="text-text-muted">{t('setup.step_buttons')}</span><span class="text-text">{buttonLabels.join(', ')}</span></div>

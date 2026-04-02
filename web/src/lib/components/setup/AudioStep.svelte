@@ -12,6 +12,25 @@
 
 	let { hardwareAudio, selectedDevice, error, onError, onAudioChange }: Props = $props();
 
+	let testing = $state(false);
+	let testResult = $state<'success' | 'error' | null>(null);
+
+	async function testAudio() {
+		if (!selectedDevice) return;
+		testing = true;
+		testResult = null;
+		try {
+			await setupApi.testAudio();
+			testResult = 'success';
+		} catch {
+			testResult = 'error';
+		} finally {
+			testing = false;
+			// Clear result after 3 seconds
+			setTimeout(() => { testResult = null; }, 3000);
+		}
+	}
+
 	const TYPE_LABELS: Record<string, string> = {
 		i2s: 'I2S DAC',
 		hdmi: 'HDMI',
@@ -71,6 +90,35 @@
 					</div>
 				</button>
 			{/each}
+		</div>
+	{/if}
+
+	{#if selectedDevice}
+		<div class="flex items-center gap-3">
+			<button
+				onclick={testAudio}
+				disabled={testing}
+				aria-label="Ton testen"
+				class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-surface-light text-text hover:bg-surface-lighter disabled:opacity-50"
+			>
+				{#if testing}
+					<svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+					</svg>
+				{:else}
+					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+						<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+					</svg>
+				{/if}
+				{t('setup.audio_test')}
+			</button>
+			{#if testResult === 'success'}
+				<span class="text-sm text-green-400">{t('setup.audio_test_ok')}</span>
+			{:else if testResult === 'error'}
+				<span class="text-sm text-red-400">{t('setup.audio_test_fail')}</span>
+			{/if}
 		</div>
 	{/if}
 

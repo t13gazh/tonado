@@ -98,6 +98,7 @@
 - [ ] WiFi Passwort-Toggle (Auge-Icon)
 - [x] GPIO-Button-Erkennung (interaktiver Scan im Wizard)
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error)
+- [ ] Gyro-Gesten Zuverlässigkeit: Sensitivity-Profile testen, Debounce/Threshold tunen, evtl. Kalibrierung im Wizard
 - [ ] OnOff SHIM Erkennung (DT-Overlay `gpio-shutdown` prüfen)
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden
 

@@ -59,16 +59,76 @@ async def test_sleep_timer_cancel(timer_setup):
 
 @pytest.mark.asyncio
 async def test_sleep_timer_stops_playback(timer_setup):
-    timer, player, _, _ = timer_setup
+    timer, player, config, _ = timer_setup
+    # Use very short fade to keep test fast
+    await config.set("sleep_fade_duration", 2)
     await player.play_url("http://test.mp3")
     assert player.state.state.value == "playing"
 
     # Start very short timer
     await timer.start_sleep_timer(0.05)  # ~3 seconds
-    await asyncio.sleep(5)
+    await asyncio.sleep(8)
 
     assert player.state.state.value == "stopped"
     assert timer.sleep_timer_status()["active"] is False
+
+
+# --- Sleep timer fade-out ---
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_fades_volume(timer_setup):
+    """Volume should decrease during fade-out before stopping."""
+    timer, player, config, _ = timer_setup
+    await config.set("sleep_fade_duration", 2)
+    await player.play_url("http://test.mp3")
+    await player.set_volume(80)
+
+    await timer.start_sleep_timer(0.02)  # ~1.2 second countdown
+    # Wait for countdown + fade (1.2s + 2s) + margin
+    await asyncio.sleep(6)
+
+    assert player.state.state.value == "stopped"
+    # Volume restored after stop
+    assert player.state.volume == 80
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_status_shows_fading(timer_setup):
+    """Status should include fading flag."""
+    timer, player, config, _ = timer_setup
+    await config.set("sleep_fade_duration", 3)
+    await player.play_url("http://test.mp3")
+
+    status = timer.sleep_timer_status()
+    assert "fading" in status
+    assert status["fading"] is False
+
+
+@pytest.mark.asyncio
+async def test_sleep_fade_cancel_restores_volume(timer_setup):
+    """Cancelling during fade-out should restore original volume."""
+    timer, player, config, _ = timer_setup
+    await config.set("sleep_fade_duration", 5)
+    await player.play_url("http://test.mp3")
+    await player.set_volume(70)
+
+    await timer.start_sleep_timer(0.02)
+    await asyncio.sleep(2)  # Let fade start
+
+    # Cancel while fading
+    await timer.cancel_sleep_timer()
+
+    # Volume should be restored
+    assert player.state.volume == 70
+    assert timer._fading is False
+
+
+@pytest.mark.asyncio
+async def test_sleep_fade_default_duration(timer_setup):
+    """Without config, fade duration should use default (30s)."""
+    timer, _, _, _ = timer_setup
+    assert timer.DEFAULT_FADE_DURATION == 30
 
 
 # --- Volume enforcement ---

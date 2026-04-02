@@ -100,24 +100,37 @@ class GpiodButtonScanner(GpioButtonScanner):
         import gpiod
         from gpiod.line import Bias, Edge
 
-        self._free_gpios = free_gpios
         chip = gpiod.Chip(self._chip_path)
+        settings = gpiod.LineSettings(
+            direction=gpiod.line.Direction.INPUT,
+            bias=Bias.PULL_UP,
+            edge_detection=Edge.FALLING,
+            debounce_period=datetime.timedelta(milliseconds=50),
+        )
 
-        config = {
-            gpio: gpiod.LineSettings(
-                direction=gpiod.line.Direction.INPUT,
-                bias=Bias.PULL_UP,
-                edge_detection=Edge.FALLING,
-                debounce_period=datetime.timedelta(milliseconds=50),
-            )
-            for gpio in free_gpios
-        }
+        # Try each GPIO individually — skip kernel-busy ones
+        available = []
+        for gpio in free_gpios:
+            try:
+                test_req = chip.request_lines(
+                    consumer="tonado-scan-probe",
+                    config={gpio: settings},
+                )
+                test_req.release()
+                available.append(gpio)
+            except OSError:
+                logger.debug("GPIO %d busy (kernel driver), skipping", gpio)
 
+        if not available:
+            raise RuntimeError("No GPIO pins available for scanning")
+
+        self._free_gpios = available
+        config = {gpio: settings for gpio in available}
         self._request = chip.request_lines(
             consumer="tonado-button-scan",
             config=config,
         )
-        logger.info("Button scan started, watching GPIOs: %s", free_gpios)
+        logger.info("Button scan started, watching GPIOs: %s", available)
 
     async def get_result(self, timeout: float = 15.0) -> ScanResult:
         import datetime

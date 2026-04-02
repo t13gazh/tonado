@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { systemApi, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
+	import { systemApi, setupApi, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 
@@ -116,6 +117,15 @@
 			message = t('system.update_error', { error: t('system.connection_lost') });
 		}
 		updating = false;
+	}
+
+	async function restartWizard() {
+		try {
+			await setupApi.reset();
+			goto('/setup');
+		} catch {
+			message = t('system.setup_wizard_error');
+		}
 	}
 
 	async function handleBackupImport(e: Event) {
@@ -332,6 +342,15 @@
 						<input type="file" accept=".json" class="hidden" onchange={handleBackupImport} />
 					</label>
 				</div>
+			</div>
+
+			<!-- Setup Wizard -->
+			<div class="bg-surface-light rounded-xl p-4">
+				<h2 class="text-sm font-semibold mb-3">{t('system.setup_wizard')}</h2>
+				<p class="text-xs text-text-muted mb-3">{t('system.setup_wizard_desc')}</p>
+				<button onclick={restartWizard} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
+					{t('system.setup_wizard_restart')}
+				</button>
 			</div>
 
 			<!-- Power -->

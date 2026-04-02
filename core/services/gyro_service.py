@@ -34,6 +34,7 @@ class GyroService(BaseService):
         self._event_bus = event_bus
         self._detector = GestureDetector(sensitivity=sensitivity)
         self._enabled = enabled
+        self._hw_failed = False
         self._poll_task: asyncio.Task | None = None
 
     @property
@@ -49,7 +50,13 @@ class GyroService(BaseService):
         if not self._enabled:
             logger.info("Gyro service disabled")
             return
-        await self._sensor.start()
+        try:
+            await self._sensor.start()
+        except Exception as e:
+            logger.warning("Gyro sensor init failed, gyro service disabled: %s", e)
+            self._enabled = False
+            self._hw_failed = True
+            return
         self._poll_task = asyncio.create_task(self._poll_loop())
         logger.info("Gyro service started")
 
@@ -68,6 +75,8 @@ class GyroService(BaseService):
         from core.hardware.gyro import MockGyroSensor
         if isinstance(self._sensor, MockGyroSensor):
             return {"status": "not_configured", "detail": "Mock-Sensor"}
+        if self._hw_failed:
+            return {"status": "error", "detail": "Sensor-Initialisierung fehlgeschlagen"}
         if not self._enabled:
             return {"status": "disconnected", "detail": "Deaktiviert"}
         return {"status": "connected", "detail": "MPU6050"}

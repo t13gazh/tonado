@@ -11,6 +11,7 @@ Open-Source Kinder-Musikbox mit RFID-Figuren, gesteuert vom Smartphone. Raspberr
 - **Eigene Musik, eigene Regeln** — MP3s hochladen, Internetradio, Podcasts — alles auf deinem Pi, nichts in der Cloud
 - **Kindersicher** — PIN-geschützte Eltern-Einstellungen, maximale Lautstärke, automatischer Einschlaftimer
 - **Gesten-Steuerung** — Box kippen zum Skippen, schütteln für Shuffle (optional, mit Gyro-Sensor)
+- **Physische Tasten** — Lautstärke, Play/Pause, Skip per Knopfdruck — automatisch erkannt, kein Pin-Wissen nötig
 - **Open Source** — MIT-Lizenz, vollständig anpassbar, keine versteckten Kosten
 
 ## Was du brauchst
@@ -24,6 +25,8 @@ Open-Source Kinder-Musikbox mit RFID-Figuren, gesteuert vom Smartphone. Raspberr
 | RFID-Figuren oder -Karten | 13.56 MHz (MIFARE Classic o.ä.) | 5 € / 10 Stk |
 | USB-Netzteil | 5V, passend zum Pi-Modell | 10 € |
 | **Optional:** Gyro-Sensor | MPU6050 — für Gesten-Steuerung | 3 € |
+| **Optional:** Tasten | Arcade Buttons o.ä. — für Lautstärke, Skip | 5 € |
+| **Optional:** Ein/Aus-Taster | OnOff SHIM — sauberes Hoch-/Herunterfahren | 8 € |
 | **Optional:** Gehäuse | 3D-Druck, Holzbox, Brotdose, ... | variabel |
 
 **Gesamtkosten: ca. 70–100 €** — eigene Musik, kein Abo, keine laufenden Kosten.
@@ -76,16 +79,18 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 
 > **Alpha (v0.1.0)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet.
 
-**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer), Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, Setup-Wizard, Browser-Audio, automatische Updates, Backup/Restore.
+**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer), Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte), Browser-Audio, automatische Updates, Backup/Restore.
 
-**Getestet auf:** Raspberry Pi Zero W mit HifiBerry MiniAmp + RC522 (SPI). Andere Konfigurationen sollten funktionieren, sind aber noch nicht verifiziert.
+**Getestet auf:**
+- Raspberry Pi Zero W + HifiBerry MiniAmp + RC522 (SPI)
+- Raspberry Pi 3B+ + HifiBerry MiniAmp + RC522 (SPI) + MPU6050 Gyro + GPIO Buttons
 
-**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), Tests auf Pi 3B+/4/5, PN532- und USB-RFID-Reader-Tests, Performance-Profiling, Mehrsprachigkeit (Englisch vorbereitet).
+**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Profiling, Mehrsprachigkeit (Englisch vorbereitet).
 
 ## Mitmachen
 
 - **Testen:** Probier Tonado aus und melde Probleme als [Issue](https://github.com/t13gazh/tonado/issues)
-- **Hardware testen:** Wir suchen Tester mit Pi 3B+/4/5, PN532 (I2C) und USB-RFID-Readern
+- **Hardware testen:** Wir suchen Tester mit Pi 4/5, PN532 (I2C) und USB-RFID-Readern
 - **Übersetzen:** Tonado ist auf Deutsch — Hilfe bei weiteren Sprachen willkommen (`web/src/lib/i18n/`)
 
 ## Inspiration

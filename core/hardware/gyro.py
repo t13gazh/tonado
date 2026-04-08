@@ -165,9 +165,12 @@ def calibrate_from_readings(
     remaining = [a for a in ("x", "y", "z") if a != grav_axis and a != tilt_axis]
     fwd_axis = remaining[0]
 
-    # Forward sign: use cross-product convention (right-hand rule)
-    # For a standard orientation, forward should be positive
-    fwd_sign = 1.0
+    # Forward sign via right-hand rule: forward = cross(up, right)
+    # For axis triplets, sign follows from cyclic order (xyz, yzx, zxy = +1)
+    axis_order = {"x": 0, "y": 1, "z": 2}
+    grav_sign = 1.0 if grav_value > 0 else -1.0
+    cross_sign = 1.0 if (axis_order[grav_axis] + 1) % 3 == axis_order[tilt_axis] else -1.0
+    fwd_sign = cross_sign * grav_sign * tilt_sign
 
     mapping = AxisMapping(
         tilt_axis=tilt_axis,

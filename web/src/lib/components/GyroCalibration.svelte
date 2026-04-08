@@ -10,11 +10,9 @@
 
 	let { onDone, onCancel }: Props = $props();
 
-	type Step = 'intro' | 'rest' | 'tilt' | 'test' | 'saving';
+	type Step = 'intro' | 'rest_ready' | 'rest_measuring' | 'tilt_ready' | 'tilt_measuring' | 'test' | 'saving';
 	let step = $state<Step>('intro');
 	let error = $state('');
-	let restResult = $state<{ avg: { x: number; y: number; z: number } } | null>(null);
-	let tiltResult = $state<{ avg: { x: number; y: number; z: number } } | null>(null);
 
 	// Live test feedback
 	let testGesture = $state('');
@@ -24,32 +22,29 @@
 		error = '';
 		try {
 			await systemApi.gyroCalibrateStart();
-			step = 'rest';
-			// Auto-collect rest samples after short delay (user places box flat)
-			await collectRest();
+			step = 'rest_ready';
 		} catch {
 			error = t('gyro.error');
 		}
 	}
 
-	async function collectRest() {
+	async function measureRest() {
 		error = '';
+		step = 'rest_measuring';
 		try {
-			const result = await systemApi.gyroCalibrateRest();
-			restResult = result;
-			step = 'tilt';
+			await systemApi.gyroCalibrateRest();
+			step = 'tilt_ready';
 		} catch {
-			error = t('gyro.error');
-			step = 'intro';
+			error = t('gyro.error_rest');
+			step = 'rest_ready';
 		}
 	}
 
-	async function collectTilt() {
+	async function measureTilt() {
 		error = '';
+		step = 'tilt_measuring';
 		try {
-			const result = await systemApi.gyroCalibrateTilt();
-			tiltResult = result;
-			// Save immediately, then go to test
+			await systemApi.gyroCalibrateTilt();
 			step = 'saving';
 			const saveResult = await systemApi.gyroCalibrateSave();
 			if (saveResult.status === 'ok') {
@@ -57,8 +52,8 @@
 				startTestPolling();
 			}
 		} catch {
-			error = t('gyro.error');
-			step = 'intro';
+			error = t('gyro.error_tilt');
+			step = 'tilt_ready';
 		}
 	}
 
@@ -99,7 +94,7 @@
 	async function retry() {
 		stopTestPolling();
 		testGesture = '';
-		step = 'intro';
+		error = '';
 		await startCalibration();
 	}
 
@@ -116,7 +111,6 @@
 	{/if}
 
 	{#if step === 'intro'}
-		<!-- Step 0: Intro -->
 		<div class="text-center space-y-3">
 			<div class="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
 				<svg class="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -127,14 +121,32 @@
 			<p class="text-sm text-text-muted">{t('gyro.calibrate_desc')}</p>
 		</div>
 		<button onclick={startCalibration} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
-			{t('gyro.calibrate')}
+			{t('gyro.start_button')}
 		</button>
 		<button onclick={cancel} class="w-full px-4 py-2.5 text-text-muted text-sm">
 			{t('gyro.cancel')}
 		</button>
 
-	{:else if step === 'rest'}
-		<!-- Step 1: Rest position (auto-collecting) -->
+	{:else if step === 'rest_ready'}
+		<!-- Step 1: Place box flat — user confirms -->
+		<div class="text-center space-y-3">
+			<div class="w-16 h-16 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center">
+				<svg class="w-10 h-10 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<rect x="3" y="10" width="18" height="8" rx="1"/>
+					<line x1="2" y1="18" x2="22" y2="18" stroke-width="2"/>
+				</svg>
+			</div>
+			<h3 class="text-lg font-semibold">{t('gyro.step_rest')}</h3>
+			<p class="text-xs text-text-muted">{t('gyro.step_rest_hint')}</p>
+		</div>
+		<button onclick={measureRest} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
+			{t('gyro.step_rest_confirm')}
+		</button>
+		<button onclick={cancel} class="w-full px-4 py-2.5 text-text-muted text-sm">
+			{t('gyro.cancel')}
+		</button>
+
+	{:else if step === 'rest_measuring'}
 		<div class="text-center space-y-3">
 			<div class="w-16 h-16 mx-auto rounded-full bg-amber-500/20 flex items-center justify-center animate-pulse">
 				<svg class="w-10 h-10 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -149,12 +161,10 @@
 			</div>
 		</div>
 
-	{:else if step === 'tilt'}
-		<!-- Step 2: Tilt right -->
+	{:else if step === 'tilt_ready'}
+		<!-- Step 2: Tilt right — user confirms -->
 		<div class="text-center space-y-3">
-			{#if restResult}
-				<div class="text-xs text-green-500 font-medium">{t('gyro.step_rest_done')}</div>
-			{/if}
+			<div class="text-xs text-green-500 font-medium">{t('gyro.step_rest_done')}</div>
 			<div class="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
 				<svg class="w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 					<rect x="3" y="10" width="18" height="8" rx="1" transform="rotate(25 12 14)"/>
@@ -162,24 +172,37 @@
 				</svg>
 			</div>
 			<h3 class="text-lg font-semibold">{t('gyro.step_tilt')}</h3>
-			<p class="text-xs text-text-muted">→</p>
+			<p class="text-xs text-text-muted">{t('gyro.step_tilt_hint')}</p>
 		</div>
-		<button onclick={collectTilt} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
-			{t('gyro.step_tilt_waiting')}
+		<button onclick={measureTilt} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
+			{t('gyro.step_tilt_confirm')}
 		</button>
 		<button onclick={cancel} class="w-full px-4 py-2.5 text-text-muted text-sm">
 			{t('gyro.cancel')}
 		</button>
 
+	{:else if step === 'tilt_measuring'}
+		<div class="text-center space-y-3">
+			<div class="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+				<svg class="w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<rect x="3" y="10" width="18" height="8" rx="1" transform="rotate(25 12 14)"/>
+					<path d="M17 8l3 3-3 3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+			</div>
+			<h3 class="text-lg font-semibold">{t('gyro.step_tilt')}</h3>
+			<div class="flex items-center justify-center gap-2 text-sm text-text-muted">
+				<Spinner size="sm" />
+				{t('gyro.step_tilt_waiting')}
+			</div>
+		</div>
+
 	{:else if step === 'saving'}
-		<!-- Saving -->
 		<div class="flex flex-col items-center gap-3 py-8">
 			<Spinner />
 			<p class="text-sm text-text-muted">{t('gyro.saving')}</p>
 		</div>
 
 	{:else if step === 'test'}
-		<!-- Step 3: Test -->
 		<div class="text-center space-y-3">
 			<div class="text-xs text-green-500 font-medium">{t('gyro.step_tilt_done')}</div>
 			<h3 class="text-lg font-semibold">{t('gyro.step_test')}</h3>
@@ -197,11 +220,11 @@
 
 			<!-- Gesture legend -->
 			<div class="text-xs text-text-muted space-y-1 text-left bg-surface-light rounded-lg p-3">
-				<div>← {t('gyro.test_tilt_left')}</div>
-				<div>→ {t('gyro.test_tilt_right')}</div>
-				<div>↑ {t('gyro.test_tilt_forward')}</div>
-				<div>↓ {t('gyro.test_tilt_back')}</div>
-				<div>⤳ {t('gyro.test_shake')}</div>
+				<div>{t('gyro.test_tilt_left')}</div>
+				<div>{t('gyro.test_tilt_right')}</div>
+				<div>{t('gyro.test_tilt_forward')}</div>
+				<div>{t('gyro.test_tilt_back')}</div>
+				<div>{t('gyro.test_shake')}</div>
 			</div>
 		</div>
 

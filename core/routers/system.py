@@ -282,8 +282,11 @@ async def gyro_calibrate_save(
 
 @router.post("/gyro/calibrate/cancel")
 async def gyro_calibrate_cancel(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
     gyro: GyroService = Depends(get_gyro_service),
 ) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     await gyro.calibrate_cancel()
     return {"status": "ok"}
 

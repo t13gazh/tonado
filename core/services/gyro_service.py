@@ -149,9 +149,10 @@ class GyroService(BaseService):
         self._collecting = "rest"
         self._collect_done.clear()
 
-        # Wait for poll loop to collect samples
-        await asyncio.wait_for(self._collect_done.wait(), timeout=10.0)
-        self._collecting = None
+        try:
+            await asyncio.wait_for(self._collect_done.wait(), timeout=10.0)
+        finally:
+            self._collecting = None
 
         # Validate
         n = len(self._rest_samples)
@@ -171,8 +172,10 @@ class GyroService(BaseService):
         self._collecting = "tilt"
         self._collect_done.clear()
 
-        await asyncio.wait_for(self._collect_done.wait(), timeout=10.0)
-        self._collecting = None
+        try:
+            await asyncio.wait_for(self._collect_done.wait(), timeout=10.0)
+        finally:
+            self._collecting = None
 
         n = len(self._tilt_samples)
         if n < 10:

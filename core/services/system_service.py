@@ -168,6 +168,12 @@ class SystemService(BaseService):
             changelog = ""
             if commits:
                 changelog = await self._extract_remote_changelog(remote_version)
+                if not changelog:
+                    # No changelog section for this version — show commit subjects
+                    changelog = "### Änderungen\n" + "\n".join(
+                        f"- {c.split(' ', 1)[1]}" if ' ' in c else f"- {c}"
+                        for c in commits
+                    )
 
             return {
                 "available": len(commits) > 0,

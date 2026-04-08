@@ -343,13 +343,12 @@
 			<div class="bg-surface-light rounded-xl p-4">
 				<h2 class="text-sm font-semibold mb-3">{t('system.backup')}</h2>
 				<div class="flex gap-2">
-					<a
-						href={systemApi.exportBackup()}
-						download="tonado-backup.json"
+					<button
+						onclick={() => systemApi.exportBackup()}
 						class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm text-center font-medium transition-colors"
 					>
 						{t('system.backup_export')}
-					</a>
+					</button>
 					<label class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm text-center font-medium transition-colors cursor-pointer">
 						{t('system.backup_import')}
 						<input type="file" accept=".json" class="hidden" onchange={handleBackupImport} />

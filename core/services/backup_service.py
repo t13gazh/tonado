@@ -14,6 +14,7 @@ import aiosqlite
 
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
+from core.services.system_service import VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class BackupService(BaseService):
         backup = {
             "version": "1",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "tonado_version": "0.1.0",
+            "tonado_version": VERSION,
             "config": all_config,
             "cards": cards,
             "radio_stations": stations,

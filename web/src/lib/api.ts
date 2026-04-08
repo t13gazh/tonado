@@ -404,7 +404,7 @@ export const systemApi = {
 	checkUpdate: () => request<{ available: boolean; commits: number; changelog?: string; current_version?: string; remote_version?: string }>('/system/update/check'),
 	applyUpdate: () => request<{ success: boolean; output?: string; error?: string; old_version?: string; new_version?: string; files_changed?: number }>('/system/update/apply', { method: 'POST' }),
 	// Gyro calibration
-	gyroRaw: () => request<{ raw: { x: number; y: number; z: number }; mapped: { x: number; y: number; z: number }; calibrated: boolean; axis_map: Record<string, unknown> }>('/system/gyro/raw'),
+	gyroRaw: () => request<{ raw: { x: number; y: number; z: number }; mapped: { x: number; y: number; z: number }; calibrated: boolean; axis_map: Record<string, unknown>; gesture: string | null }>('/system/gyro/raw'),
 	gyroCalibrateStart: () => request<{ status: string }>('/system/gyro/calibrate/start', { method: 'POST' }),
 	gyroCalibrateRest: () => request<{ status: string; samples: number; avg: { x: number; y: number; z: number } }>('/system/gyro/calibrate/rest', { method: 'POST' }),
 	gyroCalibrateTilt: () => request<{ status: string; samples: number; avg: { x: number; y: number; z: number } }>('/system/gyro/calibrate/tilt', { method: 'POST' }),
@@ -413,7 +413,20 @@ export const systemApi = {
 	gyroFlipForward: () => request<{ status: string; axis_map: Record<string, unknown> }>('/system/gyro/flip-forward', { method: 'POST' }),
 	enableOverlay: () => request<void>('/system/overlay/enable', { method: 'POST' }),
 	disableOverlay: () => request<void>('/system/overlay/disable', { method: 'POST' }),
-	exportBackup: () => `${BASE}/system/backup`,
+	exportBackup: async () => {
+		const token = getAuthToken();
+		const res = await fetch(`${BASE}/system/backup`, {
+			...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+		});
+		if (!res.ok) throw toApiError(await res.text(), res.status);
+		const blob = await res.blob();
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'tonado-backup.json';
+		a.click();
+		URL.revokeObjectURL(url);
+	},
 	importBackup: (file: File) => {
 		const form = new FormData();
 		form.append('file', file);

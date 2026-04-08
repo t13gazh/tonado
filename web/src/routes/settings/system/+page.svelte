@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { systemApi, setupApi, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
+	import { systemApi, setupApi, config, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import GyroCalibration from '$lib/components/GyroCalibration.svelte';
 
 	let info = $state<SystemInfoData | null>(null);
 	let hardware = $state<HardwareStatus | null>(null);
@@ -16,6 +17,8 @@
 	let message = $state('');
 	let confirmShutdown = $state(false);
 	let powerAction = $state<'restart' | 'reboot' | 'shutdown' | null>(null);
+	let showGyroCalibration = $state(false);
+	let gyroCalibrated = $state(false);
 
 	async function waitForServer(timeout = 90_000): Promise<boolean> {
 		const start = Date.now();
@@ -69,6 +72,10 @@
 			info = infoData;
 			hardware = hwData;
 			healthData = hData;
+			try {
+				const allConfig = await config.getAll();
+				gyroCalibrated = (allConfig['gyro.calibrated'] as boolean) ?? false;
+			} catch {}
 		} catch {}
 		loading = false;
 	});
@@ -358,6 +365,34 @@
 					{t('system.setup_wizard_restart')}
 				</button>
 			</div>
+
+			<!-- Gyro Calibration -->
+			{#if healthData?.gyro?.status === 'connected'}
+				<div class="bg-surface-light rounded-xl p-4">
+					{#if showGyroCalibration}
+						<GyroCalibration
+							onDone={() => { showGyroCalibration = false; gyroCalibrated = true; message = t('gyro.calibrated'); }}
+							onCancel={() => { showGyroCalibration = false; }}
+						/>
+					{:else}
+						<div class="flex items-center justify-between">
+							<div>
+								<h2 class="text-sm font-semibold">{t('gyro.calibrate')}</h2>
+								<p class="text-xs text-text-muted mt-0.5">{t('gyro.calibrate_desc')}</p>
+							</div>
+							<span class="text-xs {gyroCalibrated ? 'text-green-500' : 'text-amber-500'}">
+								{gyroCalibrated ? t('gyro.calibrated') : t('gyro.not_calibrated')}
+							</span>
+						</div>
+						<button
+							onclick={() => { showGyroCalibration = true; }}
+							class="mt-3 w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors"
+						>
+							{t('gyro.start_button')}
+						</button>
+					{/if}
+				</div>
+			{/if}
 
 			<!-- Power -->
 			<div class="bg-surface-light rounded-xl p-4">

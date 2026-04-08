@@ -298,7 +298,7 @@ OCCUPIED_GPIOS: dict[str, set[int]] = {
     "hifiberry_i2s": {16, 18, 19, 20, 21, 26},
     "spi_rfid": {7, 8, 9, 10, 11, 24, 25},
     "i2c": {2, 3},
-    "onoff_shim": {3, 26},  # GPIO 3 = button (shared with I2C SCL), GPIO 26 = power-off signal
+    "onoff_shim": {26},  # GPIO 26 = power-off signal (GPIO 3 button is shared with I2C)
     "uart": {14, 15},
     "eeprom": {0, 1},
 }

@@ -158,21 +158,59 @@ class SystemService(BaseService):
                         pass
                     break
 
-            # Get commit log
+            # Get commit count
             _, commit_log, _ = await self._git(
                 "log", "HEAD..origin/main", "--oneline",
             )
             commits = commit_log.splitlines() if commit_log else []
 
+            # Get user-friendly changelog from remote
+            changelog = ""
+            if commits:
+                changelog = await self._extract_remote_changelog(remote_version)
+
             return {
                 "available": len(commits) > 0,
                 "commits": len(commits),
-                "changes": commits[:10],
+                "changelog": changelog,
                 "current_version": VERSION,
                 "remote_version": remote_version,
             }
         except Exception as e:
             return {"available": False, "error": str(e)}
+
+    async def _extract_remote_changelog(self, remote_version: str) -> str:
+        """Extract the changelog section for a specific version from remote."""
+        try:
+            rc, content, _ = await self._git(
+                "show", "origin/main:CHANGELOG.md",
+            )
+            if rc != 0 or not content:
+                return ""
+
+            # Find the section for this version: ## [x.y.z...] — date
+            lines = content.splitlines()
+            section: list[str] = []
+            capturing = False
+
+            for line in lines:
+                if line.startswith("## ["):
+                    if capturing:
+                        break  # Next version section — stop
+                    if remote_version in line:
+                        capturing = True
+                        continue  # Skip the header itself
+                elif capturing:
+                    # Skip compare links at the bottom
+                    if line.startswith("[") and "]: http" in line:
+                        break
+                    section.append(line)
+
+            # Trim leading/trailing blank lines
+            text = "\n".join(section).strip()
+            return text
+        except Exception:
+            return ""
 
     async def apply_update(self) -> dict[str, Any]:
         """Pull latest changes with rollback on failure, then restart."""

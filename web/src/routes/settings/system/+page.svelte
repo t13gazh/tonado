@@ -9,7 +9,7 @@
 	let info = $state<SystemInfoData | null>(null);
 	let hardware = $state<HardwareStatus | null>(null);
 	let healthData = $state<SystemHealth | null>(null);
-	let updateStatus = $state<{ available: boolean; commits: number; changes?: string[]; current_version?: string; remote_version?: string; error?: string } | null>(null);
+	let updateStatus = $state<{ available: boolean; commits: number; changelog?: string; current_version?: string; remote_version?: string; error?: string } | null>(null);
 	let updating = $state(false);
 	let checking = $state(false);
 	let loading = $state(true);
@@ -292,10 +292,16 @@
 									{updateStatus.current_version} → {updateStatus.remote_version}
 								</p>
 							{/if}
-							{#if updateStatus.changes && updateStatus.changes.length > 0}
-								<div class="text-xs text-text-muted bg-surface rounded-lg p-3 max-h-32 overflow-y-auto space-y-1 font-mono">
-									{#each updateStatus.changes as change}
-										<div class="truncate">{change}</div>
+							{#if updateStatus.changelog}
+								<div class="text-xs text-text bg-surface rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+									{#each updateStatus.changelog.split('\n') as line}
+										{#if line.startsWith('### ')}
+											<div class="font-semibold text-text mt-2 first:mt-0">{line.replace('### ', '')}</div>
+										{:else if line.startsWith('- ')}
+											<div class="text-text-muted pl-2">{line}</div>
+										{:else if line.trim()}
+											<div class="text-text-muted">{line}</div>
+										{/if}
 									{/each}
 								</div>
 							{/if}

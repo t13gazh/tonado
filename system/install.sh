@@ -148,19 +148,18 @@ systemctl restart mpd || true
 
 echo "[6/11] Hardware-Interfaces prüfen..."
 
-# OnOff SHIM support — clean power-off after shutdown
-# gpio-poweroff: kernel pulls GPIO 26 LOW after halt → SHIM cuts power
-# Note: gpio-shutdown on GPIO 3 conflicts with I2C (gyro), so shutdown
-# is triggered via the app. Power-on via button works without config
-# (GPIO 3 wake is a hardware feature of the Pi).
-if ! grep -q "dtoverlay=gpio-poweroff" "$BOOT_CONFIG"; then
+# OnOff SHIM support (GPIO 17 = button, GPIO 4 = power-off)
+# gpio-shutdown: kernel watches GPIO 17 for button press → triggers shutdown
+# gpio-poweroff: kernel pulls GPIO 4 LOW after halt → SHIM cuts power
+if ! grep -q "dtoverlay=gpio-shutdown" "$BOOT_CONFIG"; then
     echo "" >> "$BOOT_CONFIG"
-    echo "# Tonado: OnOff SHIM power-off signal (GPIO 26 LOW = cut power)" >> "$BOOT_CONFIG"
-    echo "dtoverlay=gpio-poweroff,gpiopin=26,active_low=1" >> "$BOOT_CONFIG"
-    echo "  OnOff SHIM: gpio-poweroff aktiviert (GPIO 26)."
+    echo "# Tonado: OnOff SHIM (GPIO 17 = button, GPIO 4 = power-off)" >> "$BOOT_CONFIG"
+    echo "dtoverlay=gpio-shutdown,gpio_pin=17,active_low=1" >> "$BOOT_CONFIG"
+    echo "dtoverlay=gpio-poweroff,gpiopin=4,active_low=1" >> "$BOOT_CONFIG"
+    echo "  OnOff SHIM: gpio-shutdown (GPIO 17) + gpio-poweroff (GPIO 4) aktiviert."
     NEEDS_REBOOT=true
 else
-    echo "  OnOff SHIM: gpio-poweroff bereits konfiguriert."
+    echo "  OnOff SHIM: bereits konfiguriert."
 fi
 
 # Check for USB RFID reader (works without SPI/I2C)
@@ -230,26 +229,9 @@ Environment=TONADO_HARDWARE_MODE=auto
 WantedBy=multi-user.target
 SERVICE
 
-# Power button service (OnOff SHIM — GPIO 3 in userspace)
-cat > /etc/systemd/system/tonado-power.service <<POWER
-[Unit]
-Description=Tonado Power Button (OnOff SHIM)
-After=local-fs.target
-
-[Service]
-Type=simple
-ExecStart=$TONADO_DIR/.venv/bin/python $TONADO_DIR/system/power-button.py
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-POWER
-
 systemctl daemon-reload
-systemctl enable tonado.service tonado-power.service
+systemctl enable tonado.service
 systemctl start tonado.service || true
-systemctl start tonado-power.service || true
 
 echo "[8/11] Frontend prüfen..."
 # Frontend is pre-built and committed to the repository.

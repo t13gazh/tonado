@@ -124,11 +124,11 @@ class PlaybackDispatcher:
             case "volume_down":
                 await self._player.adjust_volume(-5)
             case "shuffle":
-                await self._player.toggle_random()
+                await self._player.shuffle_play()
             case "play_pause":
                 await self._player.toggle()
             case "stop":
-                await self._player.stop()
+                await self._player.stop_playback()
 
     async def _on_gesture(self, action: str, **_) -> None:
         await self._dispatch_action(action)

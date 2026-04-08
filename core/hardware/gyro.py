@@ -1,13 +1,15 @@
 """Gyroscope hardware abstraction layer for MPU6050.
 
 Based on phonie-gyro logic (https://github.com/t13gazh/phonie-gyro).
-Detects gestures: tilt left/right (skip), tilt forward/back (volume), shake (shuffle).
+Detects gestures: tilt left/right (skip), tilt forward/back (play/stop), shake (shuffle).
 """
 
 import asyncio
 import logging
 import math
+import time
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -47,20 +49,13 @@ class AxisMapping:
     def remap(self, raw: AccelData) -> AccelData:
         """Remap raw sensor data to logical box axes."""
         src = {"x": raw.x, "y": raw.y, "z": raw.z}
+        used = {self.tilt_axis, self.fwd_axis}
+        remaining = [a for a in ("x", "y", "z") if a not in used]
         return AccelData(
             x=src[self.tilt_axis] * self.tilt_sign,
             y=src[self.fwd_axis] * self.fwd_sign,
-            z=raw.z if self.tilt_axis != "z" and self.fwd_axis != "z" else self._remaining_axis(raw),
+            z=src[remaining[0]] if remaining else raw.z,
         )
-
-    def _remaining_axis(self, raw: AccelData) -> float:
-        """Return the value of whichever axis is not used for tilt/fwd."""
-        used = {self.tilt_axis, self.fwd_axis}
-        src = {"x": raw.x, "y": raw.y, "z": raw.z}
-        for axis in ("x", "y", "z"):
-            if axis not in used:
-                return src[axis]
-        return raw.z  # fallback
 
     def to_dict(self) -> dict:
         return {
@@ -110,12 +105,7 @@ def calibrate_from_readings(
     rest_samples: list[AccelData],
     tilt_samples: list[AccelData],
 ) -> tuple[AxisMapping, AccelBias]:
-    """Calculate axis mapping and bias from rest + tilt-right samples.
-
-    rest_samples: box flat on table (gravity on one axis ≈ 1g)
-    tilt_samples: box tilted to the right
-    """
-    # Average rest readings
+    """Calculate axis mapping and bias from rest + tilt-right samples."""
     n = len(rest_samples)
     rest_avg = AccelData(
         x=sum(s.x for s in rest_samples) / n,
@@ -123,16 +113,13 @@ def calibrate_from_readings(
         z=sum(s.z for s in rest_samples) / n,
     )
 
-    # Determine gravity axis (highest absolute value at rest)
     axes = {"x": rest_avg.x, "y": rest_avg.y, "z": rest_avg.z}
     grav_axis = max(axes, key=lambda a: abs(axes[a]))
     grav_value = axes[grav_axis]
 
-    # Sanity check: gravity should be close to 1g
     if abs(abs(grav_value) - 1.0) > 0.15:
         raise ValueError(f"Gravity vector invalid: {abs(grav_value):.2f}g (expected ~1.0g)")
 
-    # Bias: expected rest values are 0 on non-gravity axes, ±1g on gravity axis
     expected = {"x": 0.0, "y": 0.0, "z": 0.0}
     expected[grav_axis] = 1.0 if grav_value > 0 else -1.0
     bias = AccelBias(
@@ -141,7 +128,6 @@ def calibrate_from_readings(
         z=rest_avg.z - expected["z"],
     )
 
-    # Average tilt readings and apply bias
     m = len(tilt_samples)
     tilt_avg = AccelData(
         x=sum(s.x for s in tilt_samples) / m - bias.x,
@@ -149,52 +135,30 @@ def calibrate_from_readings(
         z=sum(s.z for s in tilt_samples) / m - bias.z,
     )
 
-    # Delta from expected rest position (bias-corrected)
-    delta = {
-        "x": tilt_avg.x - expected["x"],
-        "y": tilt_avg.y - expected["y"],
-        "z": tilt_avg.z - expected["z"],
-    }
-
-    # Remove gravity axis from candidates — tilt axis is non-gravity
+    delta = {a: getattr(tilt_avg, a) - expected[a] for a in ("x", "y", "z")}
     non_grav = {a: v for a, v in delta.items() if a != grav_axis}
     tilt_axis = max(non_grav, key=lambda a: abs(non_grav[a]))
     tilt_sign = 1.0 if non_grav[tilt_axis] > 0 else -1.0
 
-    # Forward axis is the remaining non-gravity axis
     remaining = [a for a in ("x", "y", "z") if a != grav_axis and a != tilt_axis]
     fwd_axis = remaining[0]
 
-    # Forward sign via right-hand rule: forward = cross(up, right)
-    # For axis triplets, sign follows from cyclic order (xyz, yzx, zxy = +1)
     axis_order = {"x": 0, "y": 1, "z": 2}
     grav_sign = 1.0 if grav_value > 0 else -1.0
     cross_sign = 1.0 if (axis_order[grav_axis] + 1) % 3 == axis_order[tilt_axis] else -1.0
     fwd_sign = cross_sign * grav_sign * tilt_sign
 
-    mapping = AxisMapping(
-        tilt_axis=tilt_axis,
-        tilt_sign=tilt_sign,
-        fwd_axis=fwd_axis,
-        fwd_sign=fwd_sign,
-    )
-
+    mapping = AxisMapping(tilt_axis=tilt_axis, tilt_sign=tilt_sign, fwd_axis=fwd_axis, fwd_sign=fwd_sign)
     logger.info(
         "Calibration: gravity=%s (%.2fg), tilt=%s%s, fwd=%s%s",
         grav_axis, grav_value,
         "+" if tilt_sign > 0 else "-", tilt_axis,
         "+" if fwd_sign > 0 else "-", fwd_axis,
     )
-
     return mapping, bias
 
 
-# Sensitivity profiles: (tilt_threshold_degrees, shake_threshold_g)
-SENSITIVITY_PROFILES = {
-    "gentle": (45.0, 2.5),
-    "normal": (30.0, 2.0),
-    "wild": (20.0, 1.5),
-}
+# --- Sensor hardware ---
 
 
 class GyroSensor(ABC):
@@ -217,7 +181,7 @@ class MockGyroSensor(GyroSensor):
     """Mock gyro sensor for development without hardware."""
 
     def __init__(self) -> None:
-        self._accel = AccelData(x=0.0, y=0.0, z=1.0)  # Flat on table
+        self._accel = AccelData(x=0.0, y=0.0, z=1.0)
 
     async def start(self) -> None:
         logger.info("Mock gyro sensor started")
@@ -229,7 +193,6 @@ class MockGyroSensor(GyroSensor):
         return self._accel
 
     def simulate_gesture(self, gesture: Gesture) -> None:
-        """Set accelerometer values to simulate a gesture."""
         match gesture:
             case Gesture.TILT_LEFT:
                 self._accel = AccelData(x=-0.7, y=0.0, z=0.7)
@@ -243,32 +206,42 @@ class MockGyroSensor(GyroSensor):
                 self._accel = AccelData(x=2.5, y=2.5, z=2.5)
 
     def reset(self) -> None:
-        """Reset to flat position."""
         self._accel = AccelData(x=0.0, y=0.0, z=1.0)
 
 
 class Mpu6050Sensor(GyroSensor):
-    """MPU6050 accelerometer/gyroscope via I2C (smbus2)."""
+    """MPU6050 accelerometer/gyroscope via I2C (smbus2).
 
-    # MPU6050 registers
+    Ported from phonie-gyro: ±2g range, DLPF filter, dedicated thread executor.
+    """
+
     _PWR_MGMT_1 = 0x6B
+    _SMPLRT_DIV = 0x19
+    _CONFIG = 0x1A
     _ACCEL_XOUT_H = 0x3B
     _ACCEL_CONFIG = 0x1C
+    _ACCEL_SENS = 16384.0  # ±2g range
 
     def __init__(self, bus: int = 1, address: int = 0x68) -> None:
         self._bus_num = bus
         self._address = address
         self._bus = None
+        # Dedicated single-thread executor to avoid blocking the event loop
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gyro-i2c")
 
     async def start(self) -> None:
         try:
             import smbus2
             self._bus = smbus2.SMBus(self._bus_num)
-            # Wake up MPU6050 (clear sleep bit)
+            # Wake up
             self._bus.write_byte_data(self._address, self._PWR_MGMT_1, 0x00)
-            # Set accelerometer range to ±4g
-            self._bus.write_byte_data(self._address, self._ACCEL_CONFIG, 0x08)
-            logger.info("MPU6050 started on I2C bus %d address 0x%02x", self._bus_num, self._address)
+            # Sample rate divider: 1kHz / (7+1) = 125 Hz internal
+            self._bus.write_byte_data(self._address, self._SMPLRT_DIV, 0x07)
+            # DLPF: ~94 Hz bandwidth (smooths high-frequency noise)
+            self._bus.write_byte_data(self._address, self._CONFIG, 0x02)
+            # ±2g range (double resolution vs ±4g)
+            self._bus.write_byte_data(self._address, self._ACCEL_CONFIG, 0x00)
+            logger.info("MPU6050 started: ±2g, DLPF=94Hz, bus %d addr 0x%02x", self._bus_num, self._address)
         except ImportError:
             raise RuntimeError("smbus2 not available — install with: pip install smbus2")
         except OSError as e:
@@ -278,18 +251,18 @@ class Mpu6050Sensor(GyroSensor):
         if self._bus:
             self._bus.close()
             self._bus = None
+        self._executor.shutdown(wait=False)
 
     async def read_accel(self) -> AccelData:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._read_sync)
+        return await loop.run_in_executor(self._executor, self._read_sync)
 
     def _read_sync(self) -> AccelData:
         assert self._bus is not None
         data = self._bus.read_i2c_block_data(self._address, self._ACCEL_XOUT_H, 6)
-        # Convert to signed 16-bit, then to g-force (±4g range = 8192 LSB/g)
-        ax = self._to_signed(data[0] << 8 | data[1]) / 8192.0
-        ay = self._to_signed(data[2] << 8 | data[3]) / 8192.0
-        az = self._to_signed(data[4] << 8 | data[5]) / 8192.0
+        ax = self._to_signed(data[0] << 8 | data[1]) / self._ACCEL_SENS
+        ay = self._to_signed(data[2] << 8 | data[3]) / self._ACCEL_SENS
+        az = self._to_signed(data[4] << 8 | data[5]) / self._ACCEL_SENS
         return AccelData(x=ax, y=ay, z=az)
 
     @staticmethod
@@ -297,116 +270,243 @@ class Mpu6050Sensor(GyroSensor):
         return value - 65536 if value > 32767 else value
 
 
-class GestureDetector:
-    """Detects gestures from accelerometer data.
+# --- Gesture detection (ported from phonie-gyro) ---
 
-    Uses a simple state machine with debouncing to prevent rapid-fire events.
+# Sensitivity profiles: (roll_trigger_deg, pitch_trigger_deg, axis_margin_deg, dwell_ms)
+SENSITIVITY_PROFILES = {
+    "gentle": (18, 20, 10, 400),
+    "normal": (14, 16, 8, 300),
+    "wild": (10, 12, 6, 200),
+}
+
+
+def _dot(a: tuple, b: tuple) -> float:
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _cross(a: tuple, b: tuple) -> tuple:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _norm(v: tuple) -> tuple:
+    mag = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
+    if mag < 1e-9:
+        return (0.0, 0.0, 1.0)
+    return (v[0] / mag, v[1] / mag, v[2] / mag)
+
+
+def _angle_about_axis(axis: tuple, g0: tuple, g: tuple) -> float:
+    """Signed angle between g0 and g, projected onto rotation around axis."""
+    c = _cross(g0, g)
+    num = _dot(axis, c)
+    den = max(-1.0, min(1.0, _dot(g0, g)))
+    return math.degrees(math.atan2(num, den))
+
+
+class GestureDetector:
+    """Detects gestures from filtered accelerometer data.
+
+    Ported from phonie-gyro: EMA filter, angle-based detection relative
+    to base gravity, dwell timers, neutral-zone re-arm.
     """
 
-    _HISTORY_SIZE = 10  # Ring buffer size (0.5s at 20Hz)
+    # EMA filter coefficient (0.16 = strong smoothing, matches phonie-gyro)
+    ALPHA = 0.16
+    # Plausibility: gravity magnitude must be in this range
+    G_MIN = 0.7
+    G_MAX = 1.3
+    # Neutral zone: both angles must be below this (degrees)
+    NEUTRAL_DEG = 10.0
+    NEUTRAL_DWELL_MS = 700.0
+    # Debounce between gestures
+    DEBOUNCE_MS = 900.0
+    # Shake: consecutive implausible readings
+    SHAKE_COUNT = 4
+    SHAKE_WINDOW = 8
 
     def __init__(self, sensitivity: str = "normal") -> None:
-        tilt_deg, shake_g = SENSITIVITY_PROFILES.get(sensitivity, SENSITIVITY_PROFILES["normal"])
-        self._tilt_threshold = math.sin(math.radians(tilt_deg))
-        self._shake_amplitude = 0.8  # Peak amplitude threshold for shake
-        self._shake_flips_required = 3  # Min sign flips in any axis
-        self._tilt_jitter_limit = 0.3  # Variance above which tilt is suppressed
-        self._last_gesture: Gesture | None = None
-        self._gesture_count = 0
-        self._required_readings = 3
-        self._cooldown_readings = 10
-        # Ring buffers for sign-flip shake detection
-        self._x_buf: list[float] = []
-        self._y_buf: list[float] = []
+        profile = SENSITIVITY_PROFILES.get(sensitivity, SENSITIVITY_PROFILES["normal"])
+        self._roll_trig = float(profile[0])
+        self._pitch_trig = float(profile[1])
+        self._axis_margin = float(profile[2])
+        self._dwell_ms = float(profile[3])
 
-    @staticmethod
-    def _count_sign_flips(buf: list[float]) -> int:
-        flips = 0
-        for i in range(1, len(buf)):
-            if buf[i] * buf[i - 1] < 0:
-                flips += 1
-        return flips
+        # Filtered accelerometer values
+        self._fx = 0.0
+        self._fy = 0.0
+        self._fz = 1.0
+        self._initialized = False
 
-    @staticmethod
-    def _variance(buf: list[float]) -> float:
-        if len(buf) < 2:
-            return 0.0
-        mean = sum(buf) / len(buf)
-        return sum((v - mean) ** 2 for v in buf) / len(buf)
+        # Base gravity vector (set during re-arm)
+        self._base_g: tuple = (0.0, 0.0, 1.0)
+
+        # State machine
+        self._armed = False
+        self._warmup_until = 0.0  # ms timestamp
+
+        # Dwell timers (ms timestamp when angle first exceeded threshold)
+        self._roll_pos_since = 0.0
+        self._roll_neg_since = 0.0
+        self._pitch_pos_since = 0.0
+        self._pitch_neg_since = 0.0
+
+        # Neutral zone timer
+        self._neutral_since = 0.0
+
+        # Debounce
+        self._last_action_time = 0.0
+
+        # Shake detection
+        self._implausible_count = 0
+        self._implausible_window = 0
+
+    def reset_base(self, accel: AccelData | None = None) -> None:
+        """Set the base gravity vector (rest position)."""
+        if accel:
+            self._base_g = _norm((accel.x, accel.y, accel.z))
+            self._fx = accel.x
+            self._fy = accel.y
+            self._fz = accel.z
+            self._initialized = True
+        self._armed = True
+        self._warmup_until = time.monotonic() * 1000 + 2000
+        self._neutral_since = 0.0
+        self._roll_pos_since = 0.0
+        self._roll_neg_since = 0.0
+        self._pitch_pos_since = 0.0
+        self._pitch_neg_since = 0.0
+        self._implausible_count = 0
 
     def detect(self, accel: AccelData) -> Gesture | None:
-        """Analyze accelerometer data and return a gesture if detected."""
-        if self._cooldown_readings < 10:
-            self._cooldown_readings += 1
-            # Still collect history during cooldown for shake detection
-            self._x_buf.append(accel.x)
-            self._y_buf.append(accel.y)
-            if len(self._x_buf) > self._HISTORY_SIZE:
-                self._x_buf.pop(0)
-                self._y_buf.pop(0)
+        """Process one accelerometer reading and return a gesture or None."""
+        now = time.monotonic() * 1000  # ms
+
+        # Initialize filter on first reading
+        if not self._initialized:
+            self._fx, self._fy, self._fz = accel.x, accel.y, accel.z
+            self._base_g = _norm((accel.x, accel.y, accel.z))
+            self._initialized = True
+            self._armed = True
+            self._warmup_until = now + 2000
             return None
 
-        # Update ring buffers
-        self._x_buf.append(accel.x)
-        self._y_buf.append(accel.y)
-        if len(self._x_buf) > self._HISTORY_SIZE:
-            self._x_buf.pop(0)
-            self._y_buf.pop(0)
+        # EMA low-pass filter
+        a = self.ALPHA
+        self._fx = a * accel.x + (1 - a) * self._fx
+        self._fy = a * accel.y + (1 - a) * self._fy
+        self._fz = a * accel.z + (1 - a) * self._fz
 
-        # --- Shake detection (sign-flip frequency) ---
-        # Shake = rapid oscillation = multiple sign flips + significant amplitude
-        if len(self._x_buf) >= 6:
-            x_flips = self._count_sign_flips(self._x_buf)
-            y_flips = self._count_sign_flips(self._y_buf)
-            max_flips = max(x_flips, y_flips)
-            peak = max(
-                max((abs(v) for v in self._x_buf), default=0),
-                max((abs(v) for v in self._y_buf), default=0),
-            )
-            if max_flips >= self._shake_flips_required and peak > self._shake_amplitude:
-                self._x_buf.clear()
-                self._y_buf.clear()
-                self._last_gesture = None
-                self._gesture_count = 0
-                self._cooldown_readings = 0
-                return Gesture.SHAKE
+        # Shake detection uses RAW magnitude (unfiltered) — the EMA filter
+        # dampens peaks so heavily that filtered magnitude never exceeds 1.3g
+        raw_mag = math.sqrt(accel.x ** 2 + accel.y ** 2 + accel.z ** 2)
+        if raw_mag < self.G_MIN or raw_mag > self.G_MAX:
+            # Implausible reading — might be shaking
+            self._implausible_window += 1
+            self._implausible_count += 1
+            if self._implausible_count >= self.SHAKE_COUNT:
+                self._implausible_count = 0
+                self._implausible_window = 0
+                if now - self._last_action_time >= self.DEBOUNCE_MS:
+                    self._last_action_time = now
+                    self._armed = False
+                    return Gesture.SHAKE
+            if self._implausible_window > self.SHAKE_WINDOW:
+                self._implausible_count = 0
+                self._implausible_window = 0
+            return None
 
-        # --- Tilt detection (with jitter guard) ---
-        # Suppress tilt if axis is oscillating (shake residual)
-        x_jittery = self._variance(self._x_buf[-6:]) > self._tilt_jitter_limit
-        y_jittery = self._variance(self._y_buf[-6:]) > self._tilt_jitter_limit
+        # Reset shake counter on plausible reading
+        if self._implausible_window > 0:
+            self._implausible_window += 1
+            if self._implausible_window > self.SHAKE_WINDOW:
+                self._implausible_count = 0
+                self._implausible_window = 0
 
+        # Warmup period — no gestures
+        if now < self._warmup_until:
+            return None
+
+        # Compute angles relative to base gravity
+        g = _norm((self._fx, self._fy, self._fz))
+        dr = _angle_about_axis((0, 1, 0), self._base_g, g)  # Roll (left/right)
+        dp = _angle_about_axis((1, 0, 0), self._base_g, g)  # Pitch (fwd/back)
+
+        abs_r = abs(dr)
+        abs_p = abs(dp)
+
+        # --- Re-arm logic: must return to neutral zone ---
+        if not self._armed:
+            if abs_r < self.NEUTRAL_DEG and abs_p < self.NEUTRAL_DEG:
+                if self._neutral_since == 0:
+                    self._neutral_since = now
+                elif now - self._neutral_since >= self.NEUTRAL_DWELL_MS:
+                    # Re-arm with new base gravity
+                    self._base_g = _norm((self._fx, self._fy, self._fz))
+                    self._armed = True
+                    self._neutral_since = 0.0
+                    self._roll_pos_since = 0.0
+                    self._roll_neg_since = 0.0
+                    self._pitch_pos_since = 0.0
+                    self._pitch_neg_since = 0.0
+            else:
+                self._neutral_since = 0.0
+            return None
+
+        # Debounce
+        if now - self._last_action_time < self.DEBOUNCE_MS:
+            return None
+
+        # --- Gesture detection with dwell timer ---
+        # Determine dominant axis (must be clearly dominant)
         gesture = None
-        if not x_jittery:
-            if accel.x < -self._tilt_threshold:
-                gesture = Gesture.TILT_LEFT
-            elif accel.x > self._tilt_threshold:
-                gesture = Gesture.TILT_RIGHT
-        if gesture is None and not y_jittery:
-            if accel.y > self._tilt_threshold:
-                gesture = Gesture.TILT_FORWARD
-            elif accel.y < -self._tilt_threshold:
-                gesture = Gesture.TILT_BACK
+
+        if abs_r >= self._roll_trig and (abs_r - abs_p) >= self._axis_margin:
+            # Roll dominant
+            if dr > 0:
+                if self._roll_pos_since == 0:
+                    self._roll_pos_since = now
+                elif now - self._roll_pos_since >= self._dwell_ms:
+                    gesture = Gesture.TILT_RIGHT
+            else:
+                if self._roll_neg_since == 0:
+                    self._roll_neg_since = now
+                elif now - self._roll_neg_since >= self._dwell_ms:
+                    gesture = Gesture.TILT_LEFT
+            # Reset pitch timers
+            self._pitch_pos_since = 0.0
+            self._pitch_neg_since = 0.0
+
+        elif abs_p >= self._pitch_trig and (abs_p - abs_r) >= self._axis_margin:
+            # Pitch dominant
+            if dp > 0:
+                if self._pitch_pos_since == 0:
+                    self._pitch_pos_since = now
+                elif now - self._pitch_pos_since >= self._dwell_ms:
+                    gesture = Gesture.TILT_FORWARD
+            else:
+                if self._pitch_neg_since == 0:
+                    self._pitch_neg_since = now
+                elif now - self._pitch_neg_since >= self._dwell_ms:
+                    gesture = Gesture.TILT_BACK
+            # Reset roll timers
+            self._roll_pos_since = 0.0
+            self._roll_neg_since = 0.0
+
+        else:
+            # No dominant axis — reset all timers
+            self._roll_pos_since = 0.0
+            self._roll_neg_since = 0.0
+            self._pitch_pos_since = 0.0
+            self._pitch_neg_since = 0.0
 
         if gesture is not None:
-            return self._confirm(gesture)
-
-        # No gesture — reset
-        self._last_gesture = None
-        self._gesture_count = 0
-        return None
-
-    def _confirm(self, gesture: Gesture) -> Gesture | None:
-        """Require consistent readings before confirming a gesture."""
-        if gesture == self._last_gesture:
-            self._gesture_count += 1
-        else:
-            self._last_gesture = gesture
-            self._gesture_count = 1
-
-        if self._gesture_count >= self._required_readings:
-            self._gesture_count = 0
-            self._cooldown_readings = 0
+            self._last_action_time = now
+            self._armed = False  # Must re-arm through neutral zone
+            logger.debug("Gesture: %s (roll=%.1f° pitch=%.1f°)", gesture, dr, dp)
             return gesture
 
         return None
@@ -422,10 +522,9 @@ def detect_gyro(hardware_mode: str = "auto") -> GyroSensor:
             import smbus2  # noqa: F401
             from pathlib import Path
             if Path("/dev/i2c-1").exists():
-                # Try to communicate with MPU6050
                 bus = smbus2.SMBus(1)
                 try:
-                    bus.read_byte_data(0x68, 0x75)  # WHO_AM_I register
+                    bus.read_byte_data(0x68, 0x75)
                     bus.close()
                     logger.info("Auto-detected MPU6050 gyro sensor")
                     return Mpu6050Sensor()

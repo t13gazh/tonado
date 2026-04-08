@@ -216,7 +216,8 @@ class GyroService(BaseService):
             await self._config.set("gyro.bias", bias.to_dict())
             await self._config.set("gyro.calibrated", True)
 
-        # Resume gesture detection
+        # Reset detector base gravity and resume gesture detection
+        self._detector.reset_base()
         self._calibrating.set()
 
         await self._event_bus.publish("gyro.calibrated", mapping=mapping.to_dict())
@@ -264,7 +265,7 @@ class GyroService(BaseService):
             self._calibrated = False
 
     async def _poll_loop(self) -> None:
-        """Poll sensor at ~20 Hz and detect gestures."""
+        """Poll sensor at ~10 Hz and detect gestures."""
         while True:
             try:
                 if not self._enabled:
@@ -303,7 +304,7 @@ class GyroService(BaseService):
                             action=action,
                         )
 
-                await asyncio.sleep(0.05)  # 20 Hz — sufficient for gesture detection
+                await asyncio.sleep(0.1)  # 10 Hz — sufficient for gesture detection
             except asyncio.CancelledError:
                 break
             except Exception as e:

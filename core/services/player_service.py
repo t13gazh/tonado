@@ -163,10 +163,14 @@ class PlayerService(BaseService):
         await self._sync_state()
 
     async def play(self) -> None:
-        """Resume playback."""
+        """Resume playback (from paused or stopped)."""
         if not self._connected:
             return
-        await self._client.pause(0)
+        if self._state.state == PlaybackState.STOPPED:
+            # pause(0) doesn't work from stopped — use play() to restart
+            await self._client.play()
+        else:
+            await self._client.pause(0)
         await self._sync_state()
 
     async def pause(self) -> None:
@@ -190,6 +194,18 @@ class PlayerService(BaseService):
     def _is_stream(self) -> bool:
         """Check if current track is a network stream (not a local file)."""
         return self._state.current_uri.startswith(("http://", "https://"))
+
+    async def shuffle_play(self) -> None:
+        """Jump to a random track in the current queue and play it."""
+        if not self._connected:
+            return
+        import random
+        length = len(self._state.playlist)
+        if length < 2:
+            return
+        pos = random.randrange(length)
+        await self._client.play(pos)
+        await self._sync_state()
 
     async def stop_playback(self) -> None:
         """Stop playback entirely."""

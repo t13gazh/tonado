@@ -80,6 +80,7 @@ class Rc522Reader(RfidReader):
     _TPRESCALER_REG = 0x2B
     _TRELOAD_H_REG = 0x2C
     _TRELOAD_L_REG = 0x2D
+    _RF_CFG_REG = 0x26
     _AUTO_TEST_REG = 0x36
     _VERSION_REG = 0x37
 
@@ -151,6 +152,9 @@ class Rc522Reader(RfidReader):
 
         # CRC preset value 0x6363 (ISO 14443A)
         self._write_register(self._MODE_REG, 0x3D)
+
+        # Receiver gain 33 dB (pi-rc522 default, chip default is only 18 dB)
+        self._write_register(self._RF_CFG_REG, 0x40)
 
         # Turn on antenna (TX1 and TX2)
         self._set_bitmask(self._TX_CONTROL_REG, 0x03)

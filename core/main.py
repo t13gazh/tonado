@@ -146,6 +146,18 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         config_service=config_service,
     )
 
+    # Wire event bus → player actions BEFORE starting services.
+    # Card service starts scanning immediately on start(), so the
+    # dispatcher must be subscribed before the scan loop begins.
+    dispatcher = PlaybackDispatcher(
+        event_bus=event_bus,
+        player=player_service,
+        card_service=card_service,
+        stream_service=stream_service,
+        playlist_service=playlist_service,
+        timer_service=None,  # Not yet created, will be set after Group 3
+    )
+
     # Use return_exceptions=True so a single service failure
     # doesn't prevent the remaining services from starting.
     results = await asyncio.gather(
@@ -170,6 +182,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
 
     # --- Group 3: Services that depend on Group 2 ---
     timer_service = TimerService(event_bus, player_service, config_service)
+    dispatcher._timer_service = timer_service  # Now available for resume saves
     system_service = SystemService()
     backup_service = BackupService(db, config_service)
     captive_portal = CaptivePortalService()
@@ -210,6 +223,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         "button_service": button_service,
         "ws_hub": ws_hub,
         "settings": settings,
+        "_dispatcher": dispatcher,  # prevent GC
     }
 
 
@@ -221,16 +235,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     event_bus = EventBus()
     services = await _create_services(settings, event_bus)
-
-    # Wire event bus → player actions
-    _dispatcher = PlaybackDispatcher(  # noqa: F841 — prevent GC
-        event_bus=event_bus,
-        player=services["player_service"],
-        card_service=services["card_service"],
-        stream_service=services["stream_service"],
-        playlist_service=services["playlist_service"],
-        timer_service=services["timer_service"],
-    )
 
     # Store all services on app.state for FastAPI dependency injection
     for key, value in services.items():

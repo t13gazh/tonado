@@ -26,7 +26,7 @@ class PlaybackDispatcher:
         card_service: CardService,
         stream_service: StreamService,
         playlist_service: PlaylistService,
-        timer_service: TimerService,
+        timer_service: TimerService | None = None,
     ) -> None:
         self._player = player
         self._card_service = card_service
@@ -43,7 +43,7 @@ class PlaybackDispatcher:
 
     async def _on_card_scanned(self, card_id: str, mapping: dict, **_) -> None:
         # Save resume position of previous card
-        if self._current_card_id and self._current_card_id != card_id:
+        if self._current_card_id and self._current_card_id != card_id and self._timer_service:
             await self._timer_service.save_resume_position(self._current_card_id)
         self._current_card_id = card_id
 

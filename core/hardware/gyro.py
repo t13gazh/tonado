@@ -303,36 +303,90 @@ class GestureDetector:
     Uses a simple state machine with debouncing to prevent rapid-fire events.
     """
 
+    _HISTORY_SIZE = 10  # Ring buffer size (0.5s at 20Hz)
+
     def __init__(self, sensitivity: str = "normal") -> None:
         tilt_deg, shake_g = SENSITIVITY_PROFILES.get(sensitivity, SENSITIVITY_PROFILES["normal"])
         self._tilt_threshold = math.sin(math.radians(tilt_deg))
-        self._shake_threshold = shake_g
+        self._shake_amplitude = 0.8  # Peak amplitude threshold for shake
+        self._shake_flips_required = 3  # Min sign flips in any axis
+        self._tilt_jitter_limit = 0.3  # Variance above which tilt is suppressed
         self._last_gesture: Gesture | None = None
         self._gesture_count = 0
-        self._required_readings = 3  # Need N consistent readings before triggering
-        self._cooldown_readings = 10  # Readings to skip after a gesture fires
+        self._required_readings = 3
+        self._cooldown_readings = 10
+        # Ring buffers for sign-flip shake detection
+        self._x_buf: list[float] = []
+        self._y_buf: list[float] = []
+
+    @staticmethod
+    def _count_sign_flips(buf: list[float]) -> int:
+        flips = 0
+        for i in range(1, len(buf)):
+            if buf[i] * buf[i - 1] < 0:
+                flips += 1
+        return flips
+
+    @staticmethod
+    def _variance(buf: list[float]) -> float:
+        if len(buf) < 2:
+            return 0.0
+        mean = sum(buf) / len(buf)
+        return sum((v - mean) ** 2 for v in buf) / len(buf)
 
     def detect(self, accel: AccelData) -> Gesture | None:
         """Analyze accelerometer data and return a gesture if detected."""
         if self._cooldown_readings < 10:
             self._cooldown_readings += 1
+            # Still collect history during cooldown for shake detection
+            self._x_buf.append(accel.x)
+            self._y_buf.append(accel.y)
+            if len(self._x_buf) > self._HISTORY_SIZE:
+                self._x_buf.pop(0)
+                self._y_buf.pop(0)
             return None
 
-        # Check for shake first (high acceleration magnitude)
-        magnitude = math.sqrt(accel.x**2 + accel.y**2 + accel.z**2)
-        if magnitude > self._shake_threshold:
-            return self._confirm(Gesture.SHAKE)
+        # Update ring buffers
+        self._x_buf.append(accel.x)
+        self._y_buf.append(accel.y)
+        if len(self._x_buf) > self._HISTORY_SIZE:
+            self._x_buf.pop(0)
+            self._y_buf.pop(0)
 
-        # Tilt detection based on gravity vector
+        # --- Shake detection (sign-flip frequency) ---
+        # Shake = rapid oscillation = multiple sign flips + significant amplitude
+        if len(self._x_buf) >= 6:
+            x_flips = self._count_sign_flips(self._x_buf)
+            y_flips = self._count_sign_flips(self._y_buf)
+            max_flips = max(x_flips, y_flips)
+            peak = max(
+                max((abs(v) for v in self._x_buf), default=0),
+                max((abs(v) for v in self._y_buf), default=0),
+            )
+            if max_flips >= self._shake_flips_required and peak > self._shake_amplitude:
+                self._x_buf.clear()
+                self._y_buf.clear()
+                self._last_gesture = None
+                self._gesture_count = 0
+                self._cooldown_readings = 0
+                return Gesture.SHAKE
+
+        # --- Tilt detection (with jitter guard) ---
+        # Suppress tilt if axis is oscillating (shake residual)
+        x_jittery = self._variance(self._x_buf[-6:]) > self._tilt_jitter_limit
+        y_jittery = self._variance(self._y_buf[-6:]) > self._tilt_jitter_limit
+
         gesture = None
-        if accel.x < -self._tilt_threshold:
-            gesture = Gesture.TILT_LEFT
-        elif accel.x > self._tilt_threshold:
-            gesture = Gesture.TILT_RIGHT
-        elif accel.y > self._tilt_threshold:
-            gesture = Gesture.TILT_FORWARD
-        elif accel.y < -self._tilt_threshold:
-            gesture = Gesture.TILT_BACK
+        if not x_jittery:
+            if accel.x < -self._tilt_threshold:
+                gesture = Gesture.TILT_LEFT
+            elif accel.x > self._tilt_threshold:
+                gesture = Gesture.TILT_RIGHT
+        if gesture is None and not y_jittery:
+            if accel.y > self._tilt_threshold:
+                gesture = Gesture.TILT_FORWARD
+            elif accel.y < -self._tilt_threshold:
+                gesture = Gesture.TILT_BACK
 
         if gesture is not None:
             return self._confirm(gesture)
@@ -352,7 +406,7 @@ class GestureDetector:
 
         if self._gesture_count >= self._required_readings:
             self._gesture_count = 0
-            self._cooldown_readings = 0  # Start cooldown
+            self._cooldown_readings = 0
             return gesture
 
         return None

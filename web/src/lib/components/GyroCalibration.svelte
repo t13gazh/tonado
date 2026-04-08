@@ -17,6 +17,7 @@
 	// Live test feedback
 	let testGesture = $state('');
 	let testPollTimer = $state<ReturnType<typeof setInterval> | null>(null);
+	let flipped = $state(false);
 
 	async function startCalibration() {
 		error = '';
@@ -57,21 +58,23 @@
 		}
 	}
 
+	const gestureLabels: Record<string, string> = {
+		tilt_left: 'gyro.test_tilt_left',
+		tilt_right: 'gyro.test_tilt_right',
+		tilt_forward: 'gyro.test_tilt_forward',
+		tilt_back: 'gyro.test_tilt_back',
+		shake: 'gyro.test_shake',
+	};
+
 	function startTestPolling() {
 		stopTestPolling();
 		testPollTimer = setInterval(async () => {
 			try {
 				const data = await systemApi.gyroRaw();
-				const { x, y } = data.mapped;
-				const threshold = 0.4;
-				if (x < -threshold) testGesture = t('gyro.test_tilt_left');
-				else if (x > threshold) testGesture = t('gyro.test_tilt_right');
-				else if (y > threshold) testGesture = t('gyro.test_tilt_forward');
-				else if (y < -threshold) testGesture = t('gyro.test_tilt_back');
-				else {
-					const mag = Math.sqrt(data.raw.x ** 2 + data.raw.y ** 2 + data.raw.z ** 2);
-					if (mag > 2.0) testGesture = t('gyro.test_shake');
-					else testGesture = '';
+				if (data.gesture && data.gesture in gestureLabels) {
+					testGesture = t(gestureLabels[data.gesture]);
+				} else {
+					testGesture = '';
 				}
 			} catch {
 				// Ignore poll errors
@@ -89,6 +92,15 @@
 	async function finish() {
 		stopTestPolling();
 		onDone();
+	}
+
+	async function toggleFlip() {
+		try {
+			await systemApi.gyroFlipForward();
+			flipped = !flipped;
+		} catch {
+			error = t('gyro.error');
+		}
 	}
 
 	async function retry() {
@@ -230,6 +242,15 @@
 
 		<button onclick={finish} class="w-full px-4 py-2.5 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-medium transition-colors">
 			{t('gyro.save_ok')}
+		</button>
+		<button
+			onclick={toggleFlip}
+			class="w-full flex items-center justify-between px-4 py-2.5 bg-surface hover:bg-surface-lighter rounded-lg text-sm transition-colors"
+		>
+			<span class="text-text-muted">{t('gyro.flip_forward')}</span>
+			<div class="w-10 h-6 rounded-full transition-colors {flipped ? 'bg-primary' : 'bg-surface-lighter'} relative">
+				<div class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform {flipped ? 'translate-x-4' : 'translate-x-0.5'}"></div>
+			</div>
 		</button>
 		<button onclick={retry} class="w-full px-4 py-2.5 text-text-muted text-sm">
 			{t('gyro.retry')}

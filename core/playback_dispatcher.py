@@ -127,6 +127,8 @@ class PlaybackDispatcher:
                 await self._player.toggle_random()
             case "play_pause":
                 await self._player.toggle()
+            case "stop":
+                await self._player.stop()
 
     async def _on_gesture(self, action: str, **_) -> None:
         await self._dispatch_action(action)

@@ -410,6 +410,7 @@ export const systemApi = {
 	gyroCalibrateTilt: () => request<{ status: string; samples: number; avg: { x: number; y: number; z: number } }>('/system/gyro/calibrate/tilt', { method: 'POST' }),
 	gyroCalibrateSave: () => request<{ status: string; axis_map: Record<string, unknown>; bias: Record<string, number> }>('/system/gyro/calibrate/save', { method: 'POST' }),
 	gyroCalibrateCancel: () => request<{ status: string }>('/system/gyro/calibrate/cancel', { method: 'POST' }),
+	gyroFlipForward: () => request<{ status: string; axis_map: Record<string, unknown> }>('/system/gyro/flip-forward', { method: 'POST' }),
 	enableOverlay: () => request<void>('/system/overlay/enable', { method: 'POST' }),
 	disableOverlay: () => request<void>('/system/overlay/disable', { method: 'POST' }),
 	exportBackup: () => `${BASE}/system/backup`,

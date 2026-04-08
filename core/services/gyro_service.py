@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 GESTURE_ACTIONS = {
     Gesture.TILT_LEFT: "previous_track",
     Gesture.TILT_RIGHT: "next_track",
-    Gesture.TILT_FORWARD: "volume_up",
-    Gesture.TILT_BACK: "volume_down",
+    Gesture.TILT_FORWARD: "play_pause",
+    Gesture.TILT_BACK: "stop",
     Gesture.SHAKE: "shuffle",
 }
 
@@ -51,6 +51,10 @@ class GyroService(BaseService):
         self._hw_failed = False
         self._poll_task: asyncio.Task | None = None
 
+        # Last detected gesture (for test UI)
+        self._last_gesture: str | None = None
+        self._last_gesture_age = 0  # readings since last gesture
+
         # Calibration state
         self._axis_map = AxisMapping()
         self._bias = AccelBias()
@@ -75,6 +79,13 @@ class GyroService(BaseService):
     @property
     def calibrated(self) -> bool:
         return self._calibrated
+
+    @property
+    def last_gesture(self) -> str | None:
+        """Last detected gesture (clears after 1s / 20 readings)."""
+        if self._last_gesture_age > 20:
+            return None
+        return self._last_gesture
 
     @property
     def axis_map(self) -> AxisMapping:
@@ -216,6 +227,14 @@ class GyroService(BaseService):
             "bias": bias.to_dict(),
         }
 
+    async def flip_forward(self) -> dict:
+        """Invert the forward axis sign (fixes swapped forward/back)."""
+        self._axis_map.fwd_sign *= -1.0
+        if self._config:
+            await self._config.set("gyro.axis_map", self._axis_map.to_dict())
+        logger.info("Forward axis flipped: fwd_sign=%.0f", self._axis_map.fwd_sign)
+        return self._axis_map.to_dict()
+
     async def calibrate_cancel(self) -> None:
         """Cancel calibration and resume gesture detection."""
         self._collecting = None
@@ -264,6 +283,9 @@ class GyroService(BaseService):
                     if len(self._tilt_samples) >= CALIBRATION_SAMPLES:
                         self._collect_done.set()
 
+                # Track gesture age for test UI
+                self._last_gesture_age += 1
+
                 # Only detect gestures when not calibrating
                 if self._calibrating.is_set():
                     corrected = self._bias.apply(raw)
@@ -272,6 +294,8 @@ class GyroService(BaseService):
 
                     if gesture is not None:
                         action = GESTURE_ACTIONS[gesture]
+                        self._last_gesture = gesture.value
+                        self._last_gesture_age = 0
                         logger.info("Gesture detected: %s → %s", gesture, action)
                         await self._event_bus.publish(
                             "gesture_detected",

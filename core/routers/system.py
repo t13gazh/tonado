@@ -224,6 +224,7 @@ async def gyro_raw(gyro: GyroService = Depends(get_gyro_service)) -> dict:
         "mapped": {"x": round(mapped.x, 3), "y": round(mapped.y, 3), "z": round(mapped.z, 3)},
         "calibrated": gyro.calibrated,
         "axis_map": gyro.axis_map.to_dict(),
+        "gesture": gyro.last_gesture,
     }
 
 
@@ -278,6 +279,17 @@ async def gyro_calibrate_save(
         return {"status": "ok", **result}
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/gyro/flip-forward")
+async def gyro_flip_forward(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    axis_map = await gyro.flip_forward()
+    return {"status": "ok", "axis_map": axis_map}
 
 
 @router.post("/gyro/calibrate/cancel")

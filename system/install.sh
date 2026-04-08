@@ -38,7 +38,7 @@ fi
 
 NEEDS_REBOOT=false
 
-echo "[1/10] System-Pakete installieren..."
+echo "[1/11] System-Pakete installieren..."
 apt-get update -qq
 apt-get install -y -qq \
     python3 python3-venv python3-pip \
@@ -49,12 +49,12 @@ apt-get install -y -qq \
     i2c-tools spi-tools \
     avahi-daemon
 
-echo "[2/10] Verzeichnisse erstellen..."
+echo "[2/11] Verzeichnisse erstellen..."
 mkdir -p "$TONADO_DIR"
 mkdir -p "$MEDIA_DIR" "$MEDIA_DIR/.playlists" "$CONFIG_DIR"
 chown -R "$TONADO_USER:$TONADO_USER" "/home/${TONADO_USER}/tonado"
 
-echo "[3/10] Tonado installieren..."
+echo "[3/11] Tonado installieren..."
 if [ -d "${TONADO_DIR}/.git" ]; then
     cd "$TONADO_DIR"
     git fetch origin main
@@ -71,7 +71,7 @@ python3 -m venv .venv
 # Add user to hardware groups
 usermod -aG audio,spi,i2c,gpio "$TONADO_USER" 2>/dev/null || true
 
-echo "[4/10] Audio konfigurieren..."
+echo "[4/11] Audio konfigurieren..."
 BOOT_CONFIG="/boot/firmware/config.txt"
 [ ! -f "$BOOT_CONFIG" ] && BOOT_CONFIG="/boot/config.txt"
 
@@ -105,7 +105,7 @@ else
     fi
 fi
 
-echo "[5/10] MPD konfigurieren..."
+echo "[5/11] MPD konfigurieren..."
 cat > /etc/mpd.conf <<MPD
 music_directory     "$MEDIA_DIR"
 playlist_directory  "$MEDIA_DIR/.playlists"
@@ -146,7 +146,7 @@ chmod 750 "$MEDIA_DIR"
 systemctl enable mpd
 systemctl restart mpd || true
 
-echo "[6/10] Hardware-Interfaces prüfen..."
+echo "[6/11] Hardware-Interfaces prüfen..."
 
 # Check for USB RFID reader (works without SPI/I2C)
 USB_RFID=false
@@ -192,7 +192,7 @@ if [ "$NEEDS_REBOOT" = false ]; then
     modprobe i2c-dev 2>/dev/null && echo "  I2C-Modul: geladen." || true
 fi
 
-echo "[7/10] systemd-Service installieren..."
+echo "[7/11] systemd-Service installieren..."
 cat > /etc/systemd/system/tonado.service <<SERVICE
 [Unit]
 Description=Tonado Music Box
@@ -243,6 +243,9 @@ server {
     # Static frontend (built files)
     root /opt/tonado/web/build;
     index index.html;
+
+    # Upload limit (default 1 MB is too small for audio files)
+    client_max_body_size 500M;
 
     # API and WebSocket proxy
     location /api/ {

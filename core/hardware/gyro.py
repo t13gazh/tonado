@@ -31,6 +31,161 @@ class AccelData:
     z: float
 
 
+@dataclass
+class AxisMapping:
+    """Maps physical sensor axes to logical box axes.
+
+    Each field is (source_axis, sign) where source_axis is "x"/"y"/"z"
+    and sign is +1.0 or -1.0.  The default is identity (standard mount).
+    """
+
+    tilt_axis: str = "x"
+    tilt_sign: float = 1.0
+    fwd_axis: str = "y"
+    fwd_sign: float = 1.0
+
+    def remap(self, raw: AccelData) -> AccelData:
+        """Remap raw sensor data to logical box axes."""
+        src = {"x": raw.x, "y": raw.y, "z": raw.z}
+        return AccelData(
+            x=src[self.tilt_axis] * self.tilt_sign,
+            y=src[self.fwd_axis] * self.fwd_sign,
+            z=raw.z if self.tilt_axis != "z" and self.fwd_axis != "z" else self._remaining_axis(raw),
+        )
+
+    def _remaining_axis(self, raw: AccelData) -> float:
+        """Return the value of whichever axis is not used for tilt/fwd."""
+        used = {self.tilt_axis, self.fwd_axis}
+        src = {"x": raw.x, "y": raw.y, "z": raw.z}
+        for axis in ("x", "y", "z"):
+            if axis not in used:
+                return src[axis]
+        return raw.z  # fallback
+
+    def to_dict(self) -> dict:
+        return {
+            "tilt_axis": self.tilt_axis,
+            "tilt_sign": self.tilt_sign,
+            "fwd_axis": self.fwd_axis,
+            "fwd_sign": self.fwd_sign,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AxisMapping":
+        valid_axes = {"x", "y", "z"}
+        tilt_axis = data.get("tilt_axis", "x")
+        fwd_axis = data.get("fwd_axis", "y")
+        if tilt_axis not in valid_axes or fwd_axis not in valid_axes:
+            raise ValueError(f"Invalid axes: {tilt_axis}, {fwd_axis}")
+        if tilt_axis == fwd_axis:
+            raise ValueError("tilt_axis and fwd_axis must differ")
+        return cls(
+            tilt_axis=tilt_axis,
+            tilt_sign=float(data.get("tilt_sign", 1.0)),
+            fwd_axis=fwd_axis,
+            fwd_sign=float(data.get("fwd_sign", 1.0)),
+        )
+
+
+@dataclass
+class AccelBias:
+    """Zero-g offset calibration (subtracted from every reading)."""
+
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+
+    def apply(self, raw: AccelData) -> AccelData:
+        return AccelData(x=raw.x - self.x, y=raw.y - self.y, z=raw.z - self.z)
+
+    def to_dict(self) -> dict:
+        return {"x": self.x, "y": self.y, "z": self.z}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "AccelBias":
+        return cls(x=float(data.get("x", 0)), y=float(data.get("y", 0)), z=float(data.get("z", 0)))
+
+
+def calibrate_from_readings(
+    rest_samples: list[AccelData],
+    tilt_samples: list[AccelData],
+) -> tuple[AxisMapping, AccelBias]:
+    """Calculate axis mapping and bias from rest + tilt-right samples.
+
+    rest_samples: box flat on table (gravity on one axis ≈ 1g)
+    tilt_samples: box tilted to the right
+    """
+    # Average rest readings
+    n = len(rest_samples)
+    rest_avg = AccelData(
+        x=sum(s.x for s in rest_samples) / n,
+        y=sum(s.y for s in rest_samples) / n,
+        z=sum(s.z for s in rest_samples) / n,
+    )
+
+    # Determine gravity axis (highest absolute value at rest)
+    axes = {"x": rest_avg.x, "y": rest_avg.y, "z": rest_avg.z}
+    grav_axis = max(axes, key=lambda a: abs(axes[a]))
+    grav_value = axes[grav_axis]
+
+    # Sanity check: gravity should be close to 1g
+    if abs(abs(grav_value) - 1.0) > 0.15:
+        raise ValueError(f"Gravity vector invalid: {abs(grav_value):.2f}g (expected ~1.0g)")
+
+    # Bias: expected rest values are 0 on non-gravity axes, ±1g on gravity axis
+    expected = {"x": 0.0, "y": 0.0, "z": 0.0}
+    expected[grav_axis] = 1.0 if grav_value > 0 else -1.0
+    bias = AccelBias(
+        x=rest_avg.x - expected["x"],
+        y=rest_avg.y - expected["y"],
+        z=rest_avg.z - expected["z"],
+    )
+
+    # Average tilt readings and apply bias
+    m = len(tilt_samples)
+    tilt_avg = AccelData(
+        x=sum(s.x for s in tilt_samples) / m - bias.x,
+        y=sum(s.y for s in tilt_samples) / m - bias.y,
+        z=sum(s.z for s in tilt_samples) / m - bias.z,
+    )
+
+    # Delta from expected rest position (bias-corrected)
+    delta = {
+        "x": tilt_avg.x - expected["x"],
+        "y": tilt_avg.y - expected["y"],
+        "z": tilt_avg.z - expected["z"],
+    }
+
+    # Remove gravity axis from candidates — tilt axis is non-gravity
+    non_grav = {a: v for a, v in delta.items() if a != grav_axis}
+    tilt_axis = max(non_grav, key=lambda a: abs(non_grav[a]))
+    tilt_sign = 1.0 if non_grav[tilt_axis] > 0 else -1.0
+
+    # Forward axis is the remaining non-gravity axis
+    remaining = [a for a in ("x", "y", "z") if a != grav_axis and a != tilt_axis]
+    fwd_axis = remaining[0]
+
+    # Forward sign: use cross-product convention (right-hand rule)
+    # For a standard orientation, forward should be positive
+    fwd_sign = 1.0
+
+    mapping = AxisMapping(
+        tilt_axis=tilt_axis,
+        tilt_sign=tilt_sign,
+        fwd_axis=fwd_axis,
+        fwd_sign=fwd_sign,
+    )
+
+    logger.info(
+        "Calibration: gravity=%s (%.2fg), tilt=%s%s, fwd=%s%s",
+        grav_axis, grav_value,
+        "+" if tilt_sign > 0 else "-", tilt_axis,
+        "+" if fwd_sign > 0 else "-", fwd_axis,
+    )
+
+    return mapping, bias
+
+
 # Sensitivity profiles: (tilt_threshold_degrees, shake_threshold_g)
 SENSITIVITY_PROFILES = {
     "gentle": (45.0, 2.5),

@@ -403,6 +403,13 @@ export const systemApi = {
 	reboot: () => request<void>('/system/reboot', { method: 'POST' }),
 	checkUpdate: () => request<{ available: boolean; commits: number; changelog?: string; current_version?: string; remote_version?: string }>('/system/update/check'),
 	applyUpdate: () => request<{ success: boolean; output?: string; error?: string; old_version?: string; new_version?: string; files_changed?: number }>('/system/update/apply', { method: 'POST' }),
+	// Gyro calibration
+	gyroRaw: () => request<{ raw: { x: number; y: number; z: number }; mapped: { x: number; y: number; z: number }; calibrated: boolean; axis_map: Record<string, unknown> }>('/system/gyro/raw'),
+	gyroCalibrateStart: () => request<{ status: string }>('/system/gyro/calibrate/start', { method: 'POST' }),
+	gyroCalibrateRest: () => request<{ status: string; samples: number; avg: { x: number; y: number; z: number } }>('/system/gyro/calibrate/rest', { method: 'POST' }),
+	gyroCalibrateTilt: () => request<{ status: string; samples: number; avg: { x: number; y: number; z: number } }>('/system/gyro/calibrate/tilt', { method: 'POST' }),
+	gyroCalibrateSave: () => request<{ status: string; axis_map: Record<string, unknown>; bias: Record<string, number> }>('/system/gyro/calibrate/save', { method: 'POST' }),
+	gyroCalibrateCancel: () => request<{ status: string }>('/system/gyro/calibrate/cancel', { method: 'POST' }),
 	enableOverlay: () => request<void>('/system/overlay/enable', { method: 'POST' }),
 	disableOverlay: () => request<void>('/system/overlay/disable', { method: 'POST' }),
 	exportBackup: () => `${BASE}/system/backup`,

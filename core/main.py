@@ -119,6 +119,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
     gyro_service = GyroService(
         sensor=gyro_sensor,
         event_bus=event_bus,
+        config=config_service,
         sensitivity=gyro_sensitivity,
         enabled=gyro_enabled,
     )

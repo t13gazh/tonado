@@ -48,4 +48,4 @@ async def test_health_endpoint(tmp_path: Path) -> None:
                 assert resp.status_code == 200
                 data = resp.json()
                 assert data["status"] == "ok"
-                assert data["version"] == "0.1.0"
+                assert data["version"] == "0.2.1-alpha"

@@ -212,6 +212,82 @@ async def reboot(
     return {"status": "ok"}
 
 
+# --- Gyro Calibration ---
+
+@router.get("/gyro/raw")
+async def gyro_raw(gyro: GyroService = Depends(get_gyro_service)) -> dict:
+    """Read current accelerometer values (bias-corrected)."""
+    accel = await gyro.read_raw()
+    mapped = await gyro.read_mapped()
+    return {
+        "raw": {"x": round(accel.x, 3), "y": round(accel.y, 3), "z": round(accel.z, 3)},
+        "mapped": {"x": round(mapped.x, 3), "y": round(mapped.y, 3), "z": round(mapped.z, 3)},
+        "calibrated": gyro.calibrated,
+        "axis_map": gyro.axis_map.to_dict(),
+    }
+
+
+@router.post("/gyro/calibrate/start")
+async def gyro_calibrate_start(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    await gyro.calibrate_start()
+    return {"status": "ok"}
+
+
+@router.post("/gyro/calibrate/rest")
+async def gyro_calibrate_rest(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        result = await gyro.calibrate_collect_rest()
+        return {"status": "ok", **result}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/gyro/calibrate/tilt")
+async def gyro_calibrate_tilt(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        result = await gyro.calibrate_collect_tilt()
+        return {"status": "ok", **result}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/gyro/calibrate/save")
+async def gyro_calibrate_save(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        result = await gyro.calibrate_save()
+        return {"status": "ok", **result}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/gyro/calibrate/cancel")
+async def gyro_calibrate_cancel(
+    gyro: GyroService = Depends(get_gyro_service),
+) -> dict:
+    await gyro.calibrate_cancel()
+    return {"status": "ok"}
+
+
 # --- Updates ---
 
 @router.get("/update/check")

@@ -3,6 +3,7 @@
 	import { config, authApi, type AuthStatus, ApiError } from '$lib/api';
 	import { onMount } from 'svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import GyroCalibration from '$lib/components/GyroCalibration.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
@@ -31,6 +32,8 @@
 	let cardRemovePauses = $state(false);
 	let gyroEnabled = $state(true);
 	let gyroSensitivity = $state('normal');
+	let gyroCalibrated = $state(false);
+	let showGyroCalibration = $state(false);
 
 	onMount(async () => {
 		await loadAll();
@@ -55,6 +58,7 @@
 			cardRemovePauses = (allConfig['card.remove_pauses'] as boolean) ?? false;
 			gyroEnabled = (allConfig['gyro.enabled'] as boolean) ?? true;
 			gyroSensitivity = (allConfig['gyro.sensitivity'] as string) ?? 'normal';
+			gyroCalibrated = (allConfig['gyro.calibrated'] as boolean) ?? false;
 
 			const timer = await authApi.sleepTimer();
 			sleepActive = timer.active;
@@ -316,6 +320,26 @@
 							</button>
 						{/each}
 					</div>
+
+					<!-- Calibration -->
+					{#if showGyroCalibration}
+						<div class="mt-3 border-t border-surface-lighter pt-3">
+							<GyroCalibration
+								onDone={() => { showGyroCalibration = false; gyroCalibrated = true; addToast(t('settings.saved'), 'success'); }}
+								onCancel={() => { showGyroCalibration = false; }}
+							/>
+						</div>
+					{:else}
+						<button
+							onclick={() => { showGyroCalibration = true; }}
+							class="mt-3 w-full flex items-center justify-between px-3 py-2.5 bg-surface hover:bg-surface-lighter rounded-lg text-sm transition-colors"
+						>
+							<span>{t('gyro.calibrate')}</span>
+							<span class="text-xs {gyroCalibrated ? 'text-green-500' : 'text-amber-500'}">
+								{gyroCalibrated ? t('gyro.calibrated') : t('gyro.not_calibrated')}
+							</span>
+						</button>
+					{/if}
 				{/if}
 			{/if}
 		</div>

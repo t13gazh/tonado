@@ -245,6 +245,8 @@ export default {
 	'error.reload': 'Reload',
 	'error.home': 'Go to start page',
 	'error.upload_failed': 'Upload failed. Please try again.',
+	'error.upload_too_large': 'File is too large',
+	'error.upload_auth_required': 'Login required for upload',
 	'error.delete_failed': 'Delete failed.',
 	'error.save_failed': 'Save failed.',
 	'error.scan_timeout': 'No figure detected. Please try again.',
@@ -308,6 +310,11 @@ export default {
 	'library.no_entries': 'No entries yet.',
 	'library.delete_playlist': 'Delete playlist',
 	'library.upload_progress': 'File {current} of {total}...',
+	// Auth (login sheet)
+	'auth.enter_parent_pin': 'Enter parent PIN',
+	'auth.login_button': 'Log in',
+	'auth.wrong_pin': 'Wrong PIN',
+	'auth.cancel': 'Cancel',
 
 	// Player (additional)
 	'player.repeat_aria': 'Repeat',

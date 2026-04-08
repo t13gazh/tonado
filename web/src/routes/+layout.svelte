@@ -4,6 +4,7 @@
 	import { connectWebSocket, disconnectWebSocket, isConnected } from '$lib/stores/player.svelte';
 	import { setBrowserAudioElement } from '$lib/stores/browser-audio.svelte';
 	import { startHealthPolling, stopHealthPolling, isBackendOffline, isMpdConnected, isRfidAvailable, isGyroAvailable, isStorageCritical, isStorageLow, getHealth } from '$lib/stores/health.svelte';
+	import { startAuthPolling, stopAuthPolling } from '$lib/stores/auth.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import { onMount } from 'svelte';
@@ -23,10 +24,12 @@
 	onMount(() => {
 		connectWebSocket();
 		startHealthPolling();
+		startAuthPolling();
 		checkSetup();
 		return () => {
 			disconnectWebSocket();
 			stopHealthPolling();
+			stopAuthPolling();
 		};
 	});
 

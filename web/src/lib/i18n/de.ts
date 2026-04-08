@@ -245,6 +245,8 @@ export default {
 	'error.reload': 'Neu laden',
 	'error.home': 'Zur Startseite',
 	'error.upload_failed': 'Upload fehlgeschlagen. Bitte erneut versuchen.',
+	'error.upload_too_large': 'Datei ist zu groß',
+	'error.upload_auth_required': 'Anmeldung erforderlich für Upload',
 	'error.delete_failed': 'Löschen fehlgeschlagen.',
 	'error.save_failed': 'Speichern fehlgeschlagen.',
 	'error.scan_timeout': 'Keine Figur erkannt. Bitte erneut versuchen.',
@@ -308,6 +310,11 @@ export default {
 	'library.no_entries': 'Noch keine Einträge.',
 	'library.delete_playlist': 'Playlist löschen',
 	'library.upload_progress': 'Datei {current} von {total}...',
+	// Auth (login sheet)
+	'auth.enter_parent_pin': 'Eltern-PIN eingeben',
+	'auth.login_button': 'Anmelden',
+	'auth.wrong_pin': 'PIN ist falsch',
+	'auth.cancel': 'Abbrechen',
 
 	// Player (additional)
 	'player.repeat_aria': 'Wiederholung',

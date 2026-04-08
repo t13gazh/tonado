@@ -2,6 +2,8 @@
 	import { t } from '$lib/i18n';
 	import { playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
+	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -24,6 +26,32 @@
 	let showAddItem = $state(false);
 	let newItemPath = $state('');
 	let newItemTitle = $state('');
+
+	// Login sheet state
+	let loginSheetOpen = $state(false);
+	let pendingAction = $state<(() => void | Promise<void>) | null>(null);
+
+	function requireAuth(action: () => void | Promise<void>) {
+		if (canManageLibrary() || !isParentPinSet()) {
+			action();
+			return;
+		}
+		pendingAction = action;
+		loginSheetOpen = true;
+	}
+
+	function onLoginSuccess() {
+		loginSheetOpen = false;
+		if (pendingAction) {
+			pendingAction();
+			pendingAction = null;
+		}
+	}
+
+	function onLoginClose() {
+		loginSheetOpen = false;
+		pendingAction = null;
+	}
 
 	async function createPlaylist() {
 		if (!newPlaylistName.trim()) return;
@@ -72,13 +100,13 @@
 	{#if showNewPlaylist}
 		<button onclick={() => (showNewPlaylist = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
-		<button onclick={() => (showNewPlaylist = true)} class="text-sm text-primary font-medium">+ {t('content.playlist_new')}</button>
+		<button onclick={() => requireAuth(() => { showNewPlaylist = true; })} class="text-sm text-primary font-medium">+ {t('content.playlist_new')}</button>
 	{/if}
 </div>
 {#if showNewPlaylist}
 	<div class="flex gap-2 mb-4 p-3 bg-surface-light rounded-xl">
-		<input type="text" bind:value={newPlaylistName} placeholder={t('content.playlist_name')} class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" onkeydown={(e) => e.key === 'Enter' && createPlaylist()} />
-		<button onclick={createPlaylist} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
+		<input type="text" bind:value={newPlaylistName} placeholder={t('content.playlist_name')} class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" onkeydown={(e) => e.key === 'Enter' && requireAuth(createPlaylist)} />
+		<button onclick={() => requireAuth(createPlaylist)} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
 	</div>
 {/if}
 {#if allPlaylists.length === 0}
@@ -116,11 +144,11 @@
 									<input type="text" bind:value={newItemTitle} placeholder={t('library.display_name_placeholder')} class="px-2 py-1.5 bg-surface-light border border-surface-lighter rounded text-text text-xs focus:outline-none focus:border-primary" />
 									<div class="flex gap-2 justify-end">
 										<button onclick={() => (showAddItem = false)} class="text-xs text-text-muted">{t('general.cancel')}</button>
-										<button onclick={addPlaylistItem} disabled={!newItemPath.trim()} class="px-3 py-1 bg-primary disabled:opacity-30 text-white rounded text-xs">{t('general.save')}</button>
+										<button onclick={() => requireAuth(addPlaylistItem)} disabled={!newItemPath.trim()} class="px-3 py-1 bg-primary disabled:opacity-30 text-white rounded text-xs">{t('general.save')}</button>
 									</div>
 								</div>
 							{:else}
-								<button onclick={() => (showAddItem = true)} class="text-xs text-primary font-medium">{t('library.add_entry')}</button>
+								<button onclick={() => requireAuth(() => { showAddItem = true; })} class="text-xs text-primary font-medium">{t('library.add_entry')}</button>
 							{/if}
 						</div>
 						{#if expandedPlaylist && expandedPlaylist.items.length > 0}
@@ -130,7 +158,7 @@
 										<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
 										<span class="flex-1 text-text truncate">{item.title || parseTrackName(item.content_path).title}</span>
 										{#if item.duration_seconds}<span class="text-text-muted tabular-nums shrink-0">{formatDuration(item.duration_seconds)}</span>{/if}
-										<button onclick={() => removePlaylistItem(item.id)} class="p-0.5 text-text-muted/40 hover:text-red-400">
+										<button onclick={() => requireAuth(() => removePlaylistItem(item.id))} class="p-0.5 text-text-muted/40 hover:text-red-400">
 											<Icon name="x" size={14} />
 										</button>
 									</div>
@@ -140,7 +168,7 @@
 							<p class="text-xs text-text-muted py-1">{t('library.no_entries')}</p>
 						{/if}
 						<div class="mt-2 pt-2 border-t border-surface-lighter">
-							<button onclick={() => removePlaylist(pl.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_playlist')}</button>
+							<button onclick={() => requireAuth(() => removePlaylist(pl.id))} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_playlist')}</button>
 						</div>
 					</div>
 				{/if}
@@ -148,3 +176,5 @@
 		{/each}
 	</div>
 {/if}
+
+<LoginSheet open={loginSheetOpen} onSuccess={onLoginSuccess} onClose={onLoginClose} />

@@ -2,6 +2,8 @@
 	import { t } from '$lib/i18n';
 	import { streams, player, type PodcastInfo } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
+	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -28,6 +30,32 @@
 	let expandedPodcast = $state<number | null>(null);
 	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null; duration: string | null }[]>([]);
 	let loadingEpisodes = $state(false);
+
+	// Login sheet state
+	let loginSheetOpen = $state(false);
+	let pendingAction = $state<(() => void | Promise<void>) | null>(null);
+
+	function requireAuth(action: () => void | Promise<void>) {
+		if (canManageLibrary() || !isParentPinSet()) {
+			action();
+			return;
+		}
+		pendingAction = action;
+		loginSheetOpen = true;
+	}
+
+	function onLoginSuccess() {
+		loginSheetOpen = false;
+		if (pendingAction) {
+			pendingAction();
+			pendingAction = null;
+		}
+	}
+
+	function onLoginClose() {
+		loginSheetOpen = false;
+		pendingAction = null;
+	}
 
 	function formatDate(dateStr: string): string {
 		const d = new Date(dateStr);
@@ -104,7 +132,7 @@
 	{#if showAddPodcast}
 		<button onclick={() => { showAddPodcast = false; urlError = ''; }} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
-		<button onclick={() => (showAddPodcast = true)} class="text-sm text-primary font-medium">+ {t('content.podcast_add')}</button>
+		<button onclick={() => requireAuth(() => { showAddPodcast = true; })} class="text-sm text-primary font-medium">+ {t('content.podcast_add')}</button>
 	{/if}
 </div>
 {#if showAddPodcast}
@@ -112,7 +140,7 @@
 		<input type="text" bind:value={newPodcastName} placeholder={t('content.podcast_name')} class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
 		<input type="url" bind:value={newPodcastUrl} placeholder={t('content.podcast_url')} class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary {urlError ? 'border-red-500' : ''}" />
 		{#if urlError}<p class="text-xs text-red-400">{urlError}</p>{/if}
-		<button onclick={addPodcast} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
+		<button onclick={() => requireAuth(addPodcast)} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
 	</div>
 {/if}
 {#if podcasts.length === 0}
@@ -165,7 +193,7 @@
 							<p class="text-xs text-text-muted py-2">{t('library.no_episodes')}</p>
 						{/if}
 						<div class="mt-2 pt-2 border-t border-surface-lighter">
-							<button onclick={() => removePodcast(podcast.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_podcast')}</button>
+							<button onclick={() => requireAuth(() => removePodcast(podcast.id))} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_podcast')}</button>
 						</div>
 					</div>
 				{/if}
@@ -173,3 +201,5 @@
 		{/each}
 	</div>
 {/if}
+
+<LoginSheet open={loginSheetOpen} onSuccess={onLoginSuccess} onClose={onLoginClose} />

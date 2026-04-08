@@ -242,8 +242,8 @@ export const library = {
 					if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
 				};
 			}
-			xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new Error(xhr.statusText)));
-			xhr.onerror = () => reject(new Error('Upload fehlgeschlagen'));
+			xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new ApiError(xhr.statusText, xhr.status)));
+			xhr.onerror = () => reject(new ApiError('Upload failed', 0));
 			xhr.send(form);
 		});
 	},

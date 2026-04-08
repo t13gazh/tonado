@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { library, player, type MediaFolder, type MediaTrack } from '$lib/api';
+	import { library, player, ApiError, type MediaFolder, type MediaTrack } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { isStorageCritical } from '$lib/stores/health.svelte';
+	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -32,6 +34,33 @@
 	let uploading = $state(false);
 	let uploadCurrent = $state(0);
 	let uploadTotal = $state(0);
+	let fileInputs = $state<Record<string, HTMLInputElement | null>>({});
+
+	// Login sheet state
+	let loginSheetOpen = $state(false);
+	let pendingAction = $state<(() => void | Promise<void>) | null>(null);
+
+	function requireAuth(action: () => void | Promise<void>) {
+		if (canManageLibrary() || !isParentPinSet()) {
+			action();
+			return;
+		}
+		pendingAction = action;
+		loginSheetOpen = true;
+	}
+
+	function onLoginSuccess() {
+		loginSheetOpen = false;
+		if (pendingAction) {
+			pendingAction();
+			pendingAction = null;
+		}
+	}
+
+	function onLoginClose() {
+		loginSheetOpen = false;
+		pendingAction = null;
+	}
 
 	function isNowPlaying(type: 'folder' | 'url', path: string): boolean {
 		if (type === 'folder') return nowPlayingUri.startsWith(path);
@@ -97,8 +126,14 @@
 			}
 			await onReloadFolders();
 			if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);
-		} catch {
-			onError(t('error.upload_failed'));
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 413) {
+				onError(t('error.upload_too_large'));
+			} else if (err instanceof ApiError && err.status === 403) {
+				onError(t('error.upload_auth_required'));
+			} else {
+				onError(t('error.upload_failed'));
+			}
 		} finally {
 			uploading = false; uploadFolder = '';
 		}
@@ -109,13 +144,13 @@
 	{#if showNewFolder}
 		<button onclick={() => (showNewFolder = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
-		<button onclick={() => (showNewFolder = true)} class="text-sm text-primary font-medium">+ {t('content.new_folder')}</button>
+		<button onclick={() => requireAuth(() => { showNewFolder = true; })} class="text-sm text-primary font-medium">+ {t('content.new_folder')}</button>
 	{/if}
 </div>
 {#if showNewFolder}
 	<div class="flex gap-2 mb-4 p-3 bg-surface-light rounded-xl">
-		<input type="text" bind:value={newFolderName} placeholder={t('content.folder_name')} class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" onkeydown={(e) => e.key === 'Enter' && createFolder()} />
-		<button onclick={createFolder} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
+		<input type="text" bind:value={newFolderName} placeholder={t('content.folder_name')} class="flex-1 px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" onkeydown={(e) => e.key === 'Enter' && requireAuth(createFolder)} />
+		<button onclick={() => requireAuth(createFolder)} class="px-4 py-2 bg-primary text-white rounded-lg text-sm">{t('general.save')}</button>
 	</div>
 {/if}
 {#if folders.length === 0}
@@ -126,7 +161,7 @@
 			{@const expanded = expandedFolder === folder.path}
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
-					{@render playCircle(() => playContent(folder.path), false, isNowPlaying('folder', folder.path))}
+					{@render playCircle(() => playContent(folder.path), folder.track_count === 0, isNowPlaying('folder', folder.path))}
 					{@render thumbnail(folder.cover_path, 'folder')}
 					<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{folder.name}</p>
@@ -136,13 +171,13 @@
 				</div>
 				{#if expanded}
 					<div class="px-3 pb-3 border-t border-surface-lighter">
-						<div class="flex items-center gap-2 py-2">
-							<label class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-lighter rounded-lg text-xs text-text-muted hover:text-text cursor-pointer">
-								<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-								{t('library.upload')}
-								<input type="file" multiple accept="audio/*,image/*" class="hidden" onchange={(e) => { const el = e.target as HTMLInputElement; if (el.files) handleFiles(folder.path, el.files); }} />
-							</label>
-						</div>
+							<div class="flex items-center gap-2 py-2">
+								<button onclick={() => requireAuth(() => { fileInputs[folder.path]?.click(); })} class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-lighter rounded-lg text-xs text-text-muted hover:text-text cursor-pointer">
+									<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+									{t('library.upload')}
+								</button>
+								<input bind:this={fileInputs[folder.path]} type="file" multiple accept="audio/*,image/*" class="hidden" onchange={(e) => { const el = e.target as HTMLInputElement; if (el.files) handleFiles(folder.path, el.files); }} />
+							</div>
 						{#if uploading && uploadFolder === folder.path}
 							{#if uploadTotal > 1}
 								<p class="text-xs text-text-muted mb-1">{t('library.upload_progress', { current: uploadCurrent, total: uploadTotal })}</p>
@@ -172,11 +207,13 @@
 							<p class="text-xs text-text-muted py-2">{t('library.no_tracks')}</p>
 						{/if}
 						<div class="mt-2 pt-2 border-t border-surface-lighter">
-							<button onclick={() => deleteFolder(folder.path)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_folder')}</button>
-						</div>
+								<button onclick={() => requireAuth(() => deleteFolder(folder.path))} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_folder')}</button>
+							</div>
 					</div>
 				{/if}
 			</div>
 		{/each}
 	</div>
 {/if}
+
+<LoginSheet open={loginSheetOpen} onSuccess={onLoginSuccess} onClose={onLoginClose} />

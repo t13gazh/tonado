@@ -2,6 +2,8 @@
 	import { t } from '$lib/i18n';
 	import { streams, player, type RadioStation } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
+	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
 
@@ -25,6 +27,32 @@
 	let newStationUrl = $state('');
 	let urlError = $state('');
 	let expandedRadio = $state<number | null>(null);
+
+	// Login sheet state
+	let loginSheetOpen = $state(false);
+	let pendingAction = $state<(() => void | Promise<void>) | null>(null);
+
+	function requireAuth(action: () => void | Promise<void>) {
+		if (canManageLibrary() || !isParentPinSet()) {
+			action();
+			return;
+		}
+		pendingAction = action;
+		loginSheetOpen = true;
+	}
+
+	function onLoginSuccess() {
+		loginSheetOpen = false;
+		if (pendingAction) {
+			pendingAction();
+			pendingAction = null;
+		}
+	}
+
+	function onLoginClose() {
+		loginSheetOpen = false;
+		pendingAction = null;
+	}
 
 	function isNowPlaying(path: string): boolean {
 		return nowPlayingUri === path;
@@ -71,7 +99,7 @@
 	{#if showAddStation}
 		<button onclick={() => { showAddStation = false; urlError = ''; }} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
-		<button onclick={() => (showAddStation = true)} class="text-sm text-primary font-medium">+ {t('content.radio_add')}</button>
+		<button onclick={() => requireAuth(() => { showAddStation = true; })} class="text-sm text-primary font-medium">+ {t('content.radio_add')}</button>
 	{/if}
 </div>
 {#if showAddStation}
@@ -79,7 +107,7 @@
 		<input type="text" bind:value={newStationName} placeholder={t('content.radio_name')} class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary" />
 		<input type="url" bind:value={newStationUrl} placeholder={t('content.radio_url')} class="px-3 py-2 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary {urlError ? 'border-red-500' : ''}" />
 		{#if urlError}<p class="text-xs text-red-400">{urlError}</p>{/if}
-		<button onclick={addStation} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
+		<button onclick={() => requireAuth(addStation)} class="px-4 py-2 bg-primary text-white rounded-lg text-sm self-end">{t('general.save')}</button>
 	</div>
 {/if}
 {#if stations.length === 0}
@@ -101,10 +129,12 @@
 				{#if expanded}
 					<div class="px-3 pb-3 border-t border-surface-lighter">
 						<p class="text-[10px] text-text-muted font-mono py-2 truncate">{station.url}</p>
-						<button onclick={() => removeStation(station.id)} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_station')}</button>
+						<button onclick={() => requireAuth(() => removeStation(station.id))} class="text-xs text-red-400 hover:text-red-300">{t('library.delete_station')}</button>
 					</div>
 				{/if}
 			</div>
 		{/each}
 	</div>
 {/if}
+
+<LoginSheet open={loginSheetOpen} onSuccess={onLoginSuccess} onClose={onLoginClose} />

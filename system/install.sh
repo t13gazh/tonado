@@ -148,6 +148,28 @@ systemctl restart mpd || true
 
 echo "[6/11] Hardware-Interfaces prüfen..."
 
+# OnOff SHIM support (power button + clean power-off)
+# gpio-shutdown: kernel watches GPIO 3 for button press → triggers shutdown
+# gpio-poweroff: kernel pulls GPIO 26 LOW after halt → SHIM cuts power
+if ! grep -q "dtoverlay=gpio-shutdown" "$BOOT_CONFIG"; then
+    echo "" >> "$BOOT_CONFIG"
+    echo "# Tonado: OnOff SHIM power button (GPIO 3 = shutdown trigger)" >> "$BOOT_CONFIG"
+    echo "dtoverlay=gpio-shutdown,gpio_pin=3" >> "$BOOT_CONFIG"
+    echo "  OnOff SHIM: gpio-shutdown aktiviert (GPIO 3)."
+    NEEDS_REBOOT=true
+else
+    echo "  OnOff SHIM: gpio-shutdown bereits konfiguriert."
+fi
+
+if ! grep -q "dtoverlay=gpio-poweroff" "$BOOT_CONFIG"; then
+    echo "# Tonado: OnOff SHIM power-off signal (GPIO 26 LOW = cut power)" >> "$BOOT_CONFIG"
+    echo "dtoverlay=gpio-poweroff,gpiopin=26,active_low=1" >> "$BOOT_CONFIG"
+    echo "  OnOff SHIM: gpio-poweroff aktiviert (GPIO 26)."
+    NEEDS_REBOOT=true
+else
+    echo "  OnOff SHIM: gpio-poweroff bereits konfiguriert."
+fi
+
 # Check for USB RFID reader (works without SPI/I2C)
 USB_RFID=false
 for hidraw in /dev/hidraw*; do

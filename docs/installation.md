@@ -77,16 +77,17 @@ curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.s
 
 | Schritt | Beschreibung |
 |---|---|
-| 1/10 | System-Pakete installieren (MPD, Python, Nginx, Git) |
-| 2/10 | Verzeichnisse erstellen (Musik, Konfiguration) |
-| 3/10 | Tonado von GitHub klonen und Python-Umgebung einrichten |
-| 4/10 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
-| 5/10 | MPD (Music Player Daemon) konfigurieren |
-| 6/10 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C) |
-| 7/10 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
-| 8/10 | Frontend prüfen (ist im Repository enthalten) |
-| 9/10 | Nginx als Webserver einrichten (Port 80) |
-| 10/10 | Hardware-Erkennung ausführen |
+| 1/11 | System-Pakete installieren (MPD, Python, Nginx, Git) |
+| 2/11 | Verzeichnisse erstellen (Musik, Konfiguration) |
+| 3/11 | Tonado von GitHub klonen und Python-Umgebung einrichten |
+| 4/11 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
+| 5/11 | MPD (Music Player Daemon) konfigurieren |
+| 6/11 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C) |
+| 7/11 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
+| 8/11 | Frontend prüfen (ist im Repository enthalten) |
+| 9/11 | Nginx als Webserver einrichten (Port 80, Upload-Limit 500 MB) |
+| 10/11 | Berechtigungen setzen |
+| 11/11 | Hardware-Erkennung ausführen |
 
 ### Dauer
 

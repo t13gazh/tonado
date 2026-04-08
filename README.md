@@ -77,7 +77,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 
 ## Status
 
-> **Alpha (v0.2.0)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet. [Changelog](CHANGELOG.md)
+> **Alpha (v0.2.1)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet. [Changelog](CHANGELOG.md)
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 

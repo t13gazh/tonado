@@ -5,6 +5,12 @@ Alle nennenswerten Änderungen an Tonado werden hier dokumentiert.
 Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.1-alpha] — 2026-04-08
+
+### Verbessert
+
+- **Update-Dialog:** Zeigt jetzt verständliche Änderungsübersicht statt technischer Commit-Hashes. Änderungen werden aus dem Changelog gelesen.
+
 ## [0.2.0-alpha] — 2026-04-08
 
 ### Hinzugefügt
@@ -39,5 +45,6 @@ Erster funktionsfähiger Release. Alle 8 Meilenstein-1-Phasen implementiert.
 - Auto-Updates, Backup/Restore, OverlayFS-Vorbereitung
 - 113 Backend-Tests, 1.3 MB Frontend (gzipped)
 
+[0.2.1-alpha]: https://github.com/t13gazh/tonado/compare/v0.2.0-alpha...v0.2.1-alpha
 [0.2.0-alpha]: https://github.com/t13gazh/tonado/compare/v0.1.0-alpha...v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/t13gazh/tonado/releases/tag/v0.1.0-alpha

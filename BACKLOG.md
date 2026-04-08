@@ -98,8 +98,8 @@
 - [x] WiFi Passwort-Toggle (Auge-Icon)
 - [x] GPIO-Button-Erkennung (interaktiver Scan im Wizard)
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error)
-- [ ] Gyro-Gesten Zuverlässigkeit: Sensitivity-Profile testen, Debounce/Threshold tunen, evtl. Kalibrierung im Wizard
-- [ ] OnOff SHIM Erkennung (DT-Overlay `gpio-shutdown` prüfen)
+- [x] Gyro-Gesten: phonie-gyro Algorithmus portiert, Kalibrierung mit Achsen-Mapping implementiert
+- [x] OnOff SHIM (Kernel-Overlays: GPIO 17=Button, GPIO 4=Power-Off, getestet auf Pi 3B+)
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden
 
 ## Prio 1 — Kernfunktionen

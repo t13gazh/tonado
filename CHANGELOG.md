@@ -7,9 +7,15 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [0.2.1-alpha] — 2026-04-08
 
+### Hinzugefügt
+
+- **OnOff SHIM:** Sauberes Ein-/Ausschalten per Taster. Kernel-Overlays für GPIO 17 (Button) und GPIO 4 (Power-Off). Wird vom Install-Script automatisch konfiguriert.
+
 ### Verbessert
 
-- **Update-Dialog:** Zeigt jetzt verständliche Änderungsübersicht statt technischer Commit-Hashes. Änderungen werden aus dem Changelog gelesen.
+- **Update-Dialog:** Zeigt jetzt verständliche Änderungsübersicht statt technischer Commit-Hashes. Bei fehlenden Changelog-Einträgen werden Commit-Beschreibungen als Fallback angezeigt.
+- **Backup-Export:** Nutzt jetzt Auth-Token (behebt 403-Fehler wenn Eltern-PIN gesetzt ist).
+- **Backup-Version:** Dynamisch aus pyproject.toml statt fest auf "0.1.0".
 
 ## [0.2.0-alpha] — 2026-04-08
 

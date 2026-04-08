@@ -170,7 +170,37 @@ Drei Profile, einstellbar über die App unter **Einstellungen > Gesten**:
 | Normal | Standard — für die meisten Kinder |
 | Wild | Kräftiges Kippen/Schütteln nötig — für wilde Kinder |
 
-> **Status:** Bisher nur im Mock-Modus getestet. Hardware-Test steht noch aus.
+> **Kalibrierung:** Die Achsen-Zuordnung hängt von der Einbau-Orientierung ab. Nach dem Einbau über **Einstellungen > System > Gyro-Kalibrierung** kalibrieren.
+
+## OnOff SHIM (optional)
+
+Der [Pimoroni OnOff SHIM](https://shop.pimoroni.com/products/onoff-shim) ermöglicht sauberes Ein- und Ausschalten per Taster. Ohne SHIM muss der Pi über die App heruntergefahren und der Strom manuell getrennt werden.
+
+**Funktionsweise:**
+- **Einschalten:** Taster drücken → SHIM gibt Strom → Pi bootet
+- **Ausschalten:** Taster drücken → Kernel erkennt GPIO 17 → sauberer Shutdown → GPIO 4 signalisiert SHIM → Strom wird gekappt
+
+### Verkabelung
+
+Der SHIM steckt direkt auf die GPIO-Leiste (Physical Pins 1–12). Kein Löten nötig.
+
+| SHIM-Funktion | Pi Pin | GPIO | Richtung |
+|---|---|---|---|
+| Shutdown-Trigger | Pin 11 | GPIO 17 | Input (Button) |
+| Power-Off-Signal | Pin 7 | GPIO 4 | Output (nach Halt) |
+| Stromversorgung | Pin 2, 4 | 5V | — |
+| Masse | Pin 6, 9 | GND | — |
+
+### Konfiguration
+
+Das Install-Script konfiguriert die nötigen Kernel-Overlays automatisch in `/boot/firmware/config.txt`:
+
+```ini
+dtoverlay=gpio-shutdown,gpio_pin=17,active_low=1
+dtoverlay=gpio-poweroff,gpiopin=4,active_low=1
+```
+
+> **Hinweis:** Ein externer Taster wird an die Button-Pins des SHIM angeschlossen, nicht direkt an den Pi.
 
 ## Beispiel-Konfigurationen
 
@@ -194,6 +224,7 @@ Drei Profile, einstellbar über die App unter **Einstellungen > Gesten**:
 - RC522 RFID-Reader (SPI)
 - HifiBerry MiniAmp + kleiner Lautsprecher
 - MPU6050 Gyro-Sensor
+- OnOff SHIM + Taster
 - 10+ RFID-Figuren
 - Gehäuse (3D-Druck / Holzbox)
 
@@ -202,17 +233,22 @@ Drei Profile, einstellbar über die App unter **Einstellungen > Gesten**:
 Wenn alle Komponenten angeschlossen sind:
 
 ```
-Pin 1  (3.3V)  ← MPU6050 VCC, PN532 VCC
-Pin 3  (SDA)   ← MPU6050 SDA, PN532 SDA
-Pin 5  (SCL)   ← MPU6050 SCL, PN532 SCL
-Pin 6  (GND)   ← MPU6050 GND, PN532 GND
-Pin 17 (3.3V)  ← RC522 3.3V
-Pin 19 (MOSI)  ← RC522 MOSI
-Pin 20 (GND)   ← RC522 GND
-Pin 21 (MISO)  ← RC522 MISO
+Pin 1  (3.3V)   ← MPU6050 VCC, PN532 VCC
+Pin 2  (5V)     ← OnOff SHIM Strom
+Pin 3  (SDA)    ← MPU6050 SDA, PN532 SDA
+Pin 4  (5V)     ← OnOff SHIM Strom
+Pin 5  (SCL)    ← MPU6050 SCL, PN532 SCL
+Pin 6  (GND)    ← MPU6050 GND, PN532 GND, OnOff SHIM
+Pin 7  (GPIO4)  ← OnOff SHIM Power-Off Signal
+Pin 9  (GND)    ← OnOff SHIM
+Pin 11 (GPIO17) ← OnOff SHIM Shutdown Button
+Pin 17 (3.3V)   ← RC522 3.3V
+Pin 19 (MOSI)   ← RC522 MOSI
+Pin 20 (GND)    ← RC522 GND
+Pin 21 (MISO)   ← RC522 MISO
 Pin 22 (GPIO25) ← RC522 RST (+ HifiBerry Amp-Enable, Doppelnutzung OK)
-Pin 23 (SCLK)  ← RC522 SCK
-Pin 24 (CE0)   ← RC522 SDA
+Pin 23 (SCLK)   ← RC522 SCK
+Pin 24 (CE0)    ← RC522 SDA
 
 HifiBerry MiniAmp belegt zusätzlich: GPIO 18, 19 (I2S)
 ```

@@ -223,6 +223,12 @@ class SystemService(BaseService):
             return {"success": False, "error": "Git-Status unbekannt"}
 
         try:
+            # Discard local changes so pull succeeds even with hotfixes.
+            # All local modifications are assumed to be included in the
+            # incoming update (committed upstream before release).
+            await self._git("reset", "--hard", "HEAD")
+            await self._git("clean", "-fd", "web/build/")
+
             # Pull latest (fast-forward only, safe)
             rc, stdout, stderr = await self._git("pull", "--ff-only")
             if rc != 0:

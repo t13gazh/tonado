@@ -1,0 +1,1 @@
+@keyframes svelte-1y6l4jc-slide-up{0%{transform:translateY(100%);opacity:0}to{transform:translateY(0);opacity:1}}@keyframes svelte-1y6l4jc-shake{0%,to{transform:translate(0)}20%,60%{transform:translate(-6px)}40%,80%{transform:translate(6px)}}.animate-slide-up{animation:svelte-1y6l4jc-slide-up .3s ease-out}.animate-shake{animation:svelte-1y6l4jc-shake .4s ease-in-out}

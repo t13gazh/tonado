@@ -300,20 +300,17 @@ class SystemService(BaseService):
         return result == 0
 
     async def setup_watchdog(self) -> None:
-        """Configure hardware watchdog for auto-recovery."""
-        if not self._is_pi:
-            return
+        """No-op until systemd-notify integration is complete (K7).
 
-        # Enable hardware watchdog in boot config
-        boot_config = Path("/boot/config.txt")
-        if boot_config.exists():
-            content = boot_config.read_text()
-            if "dtparam=watchdog=on" not in content:
-                with open(boot_config, "a") as f:
-                    f.write("\n# Tonado watchdog\ndtparam=watchdog=on\n")
-
-        # Configure systemd watchdog for tonado.service
-        logger.info("Watchdog configured")
+        Previous implementation enabled dtparam=watchdog=on without a ticker,
+        which would have rebooted the Pi every ~15s once /dev/watchdog was
+        opened. Neutralised to prevent accidental bricking; a proper
+        WatchdogSec= + sd_notify loop will land post-Beta.
+        """
+        logger.warning(
+            "setup_watchdog() invoked but disabled until systemd-notify "
+            "integration lands (K7)."
+        )
 
     # --- Helpers ---
 

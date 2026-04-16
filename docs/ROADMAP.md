@@ -70,7 +70,7 @@
 - Backup/Export (Config + Karten-Zuweisungen)
 - Restore/Import
 - OverlayFS (Read-Only Root)
-- Watchdog (Auto-Recovery bei Abstürzen)
+- Watchdog — verschoben auf Post-Beta (systemd-notify-Integration offen, K7)
 - System-Info, Restart, Shutdown im Experten-Bereich
 
 ### Phase 8: PWA & Polish ✓

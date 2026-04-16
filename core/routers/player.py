@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,8 +12,9 @@ logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 
-from core.dependencies import get_player
+from core.dependencies import get_library_service, get_player
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
+from core.services.library_service import LibraryService
 from core.services.player_service import PlayerService
 from core.utils.url import SSRFError, validate_url
 
@@ -177,9 +179,34 @@ class PlayFolderRequest(BaseModel):
     start_index: int = 0
 
 
+def _validate_folder_path(path: str, library: LibraryService) -> None:
+    """Reject empty, traversing, absolute or out-of-root folder paths."""
+    if not path or "\x00" in path:
+        raise HTTPException(400, "Ungültiger Pfad")
+    parts = Path(path).parts
+    if ".." in parts:
+        raise HTTPException(400, "Ungültiger Pfad")
+    if Path(path).is_absolute() or path.startswith(("/", "\\")):
+        raise HTTPException(400, "Ungültiger Pfad")
+    try:
+        resolved = (library._media_dir / path).resolve()
+        media_resolved = library._media_dir.resolve()
+    except (OSError, ValueError):
+        raise HTTPException(400, "Ungültiger Pfad")
+    try:
+        resolved.relative_to(media_resolved)
+    except ValueError:
+        raise HTTPException(400, "Ungültiger Pfad")
+
+
 @router.post("/play-folder")
-async def play_folder(req: PlayFolderRequest, player: PlayerService = Depends(get_player)) -> dict:
+async def play_folder(
+    req: PlayFolderRequest,
+    player: PlayerService = Depends(get_player),
+    library: LibraryService = Depends(get_library_service),
+) -> dict:
     """Play all tracks in a media folder, optionally starting at a specific track."""
+    _validate_folder_path(req.path, library)
     logger.info("play_folder called with path: %r, start_index: %d", req.path, req.start_index)
     await player.play_folder(req.path, start_index=req.start_index)
     return {"status": "ok"}

@@ -12,7 +12,7 @@ from fastapi import FastAPI
 
 from core.database import DatabaseManager
 from core.hardware.rfid import MockRfidReader
-from core.routers import auth, cards, config, library, playlists, streams, system
+from core.routers import auth, cards, config, library, player, playlists, streams, system
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.card_service import CardService
@@ -94,6 +94,7 @@ async def client(tmp_path: Path):
     app.include_router(streams.router)
     app.include_router(playlists.router)
     app.include_router(system.router)
+    app.include_router(player.router)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -190,6 +191,24 @@ async def test_library_path_traversal(client):
         resp = await c.get(path)
         # Should not return 200 with file content — 404 or cleaned path
         assert resp.status_code in (404, 422), f"Path traversal on {path} should fail"
+
+
+@pytest.mark.asyncio
+async def test_play_folder_rejects_traversal(client):
+    c, _ = client
+    for bad_path in ["../etc/passwd", "/etc/passwd", "foo/../../bar", "evil\x00", ""]:
+        resp = await c.post("/api/player/play-folder", json={"path": bad_path, "start_index": 0})
+        assert resp.status_code in (400, 422), f"play-folder accepted traversal: {bad_path!r}"
+
+
+@pytest.mark.asyncio
+async def test_play_folder_accepts_valid(client, tmp_path: Path):
+    c, _ = client
+    media_root = tmp_path / "media"
+    media_root.mkdir(exist_ok=True)
+    (media_root / "Hoerbuch").mkdir()
+    resp = await c.post("/api/player/play-folder", json={"path": "Hoerbuch", "start_index": 0})
+    assert resp.status_code == 200
 
 
 # --- Input validation ---

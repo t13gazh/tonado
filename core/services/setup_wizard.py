@@ -16,6 +16,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.hardware.detect import HardwareProfile, get_free_gpios
+from core.services.auth_service import AuthService, AuthTier
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.services.wifi_service import WifiService
@@ -30,6 +31,7 @@ class SetupStep(StrEnum):
     AUDIO_SETUP = "audio_setup"
     BUTTONS_SETUP = "buttons_setup"
     FIRST_CARD = "first_card"
+    PIN_SETUP = "pin_setup"
     COMPLETED = "completed"
 
 
@@ -45,11 +47,13 @@ class SetupWizard(BaseService):
         config_service: ConfigService,
         wifi_service: WifiService,
         hardware_detector: "HardwareDetector | None" = None,
+        auth_service: AuthService | None = None,
     ) -> None:
         super().__init__()
         self._config = config_service
         self._wifi = wifi_service
         self._detector = hardware_detector
+        self._auth = auth_service
         self._hardware: HardwareProfile | None = None
         self._current_step = SetupStep.NOT_STARTED
         self._hardware_changed = False
@@ -203,8 +207,22 @@ class SetupWizard(BaseService):
         await self._save_step(SetupStep.FIRST_CARD)
         return {"success": True}
 
+    async def mark_pin_setup_done(self) -> dict[str, Any]:
+        """Step 6: Mark PIN setup as done (advances the wizard state)."""
+        await self._save_step(SetupStep.PIN_SETUP)
+        return {"success": True}
+
     async def complete_setup(self) -> dict[str, Any]:
-        """Mark setup as fully complete."""
+        """Mark setup as fully complete.
+
+        Requires a parent PIN to be set — a completed wizard without PIN
+        would leave the whole LAN-exposed API wide open (see K1).
+        """
+        if self._auth is not None and not await self._auth.is_pin_set(AuthTier.PARENT):
+            raise ValueError(
+                "Eltern-PIN muss gesetzt sein, bevor die Einrichtung abgeschlossen wird."
+            )
+
         # Update fingerprint on completion
         if self._hardware:
             fingerprint = self._compute_hardware_fingerprint(self._hardware)
@@ -212,6 +230,8 @@ class SetupWizard(BaseService):
         self._hardware_changed = False
         await self._config.set("setup.hardware_changed", False)
         await self._save_step(SetupStep.COMPLETED)
+        if self._auth is not None:
+            self._auth.set_setup_complete(True)
         logger.info("Setup wizard completed")
         return {"success": True}
 

@@ -46,6 +46,7 @@ class AuthService(BaseService):
         self._config = config
         self._jwt_secret: str = ""
         self._pin_cache: dict[str, bool] = {}
+        self._setup_complete: bool = False
 
     async def start(self) -> None:
         """Initialize auth service. Generate JWT secret if not set."""
@@ -57,7 +58,14 @@ class AuthService(BaseService):
         # Cache PIN status for sync access checks
         for tier in (AuthTier.PARENT, AuthTier.EXPERT):
             self._pin_cache[tier.value] = await self.is_pin_set(tier)
+        # Cache setup completion state (locks down the LAN once wizard is done)
+        saved_step = await self._config.get("setup.step")
+        self._setup_complete = saved_step == "completed"
         logger.info("Auth service started")
+
+    def set_setup_complete(self, complete: bool) -> None:
+        """Update the cached setup-complete flag (called by SetupWizard)."""
+        self._setup_complete = complete
 
     async def is_pin_set(self, tier: AuthTier) -> bool:
         """Check if a PIN is configured for a tier."""
@@ -130,15 +138,18 @@ class AuthService(BaseService):
 
         Open tier always passes. Parent/Expert tiers need valid tokens.
         Expert token also grants parent access.
-        If the required PIN is not set, access is granted (no lockout).
+        Before setup is completed, missing PINs allow access (bootstrap phase).
+        After setup is completed, missing PINs lock down the tier (sealed).
         """
         if required_tier == AuthTier.OPEN:
             return True
 
-        # If no PIN is configured for this tier, allow access
-        # (prevents lockout when no PINs are set)
+        # Bootstrap phase: allow access when no PIN is set yet so the
+        # initial setup flow (and wizard reset) remains usable.
+        # After setup completion the wizard guarantees a parent PIN,
+        # so an unset PIN must NOT grant access anymore.
         if not self._pin_cache.get(required_tier.value, False):
-            return True
+            return not self._setup_complete
 
         if not token:
             return False

@@ -2,6 +2,8 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
+> **Pre-Beta-Audit (2026-04-16):** Vollständige Bestandsaufnahme aller Lücken vor Beta in [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md). Dort stehen 8 KRITISCH-Findings (Beta-Blocker), 12 HOCH-Findings (vor Beta) und die abgeleitete Phasen-Reihenfolge (Security-Härtung → Update-Härtung → Test-Coverage → Captive-Portal E2E → Doku → Product-Decisions).
+
 ## Offene Bugs
 
 - [ ] **Browser-Audio bricht bei Stream-Wechsel ab.** Wenn Browser-Audio aktiv ist und man den Radio-Stream oder die Musik wechselt, kommt kein Audio mehr im Browser. Erst nach manuellem Deaktivieren/Aktivieren wieder Ton. Bisherige Fix-Versuche (Retry-Chain, Reload-Delay 2.5s, alten Stream sofort stoppen, same-URI Detection) haben nicht geholfen. Root Cause ist tiefer — vermutlich muss der gesamte Ansatz (HTML Audio Element auf Streaming-Proxy) überdacht werden. Mögliche Alternative: WebAudio API oder Server-Sent Events für Stream-Status.
@@ -66,7 +68,7 @@
 
 ## v0.2.0-beta — Nächste Schritte
 - [x] Hardware-Resilience: Graceful Degradation wenn Hardware fehlt/falsch
-- [ ] Figuren-UI + Einstellungen + System-Seite testen und fixen
+- [x] Figuren-UI + Einstellungen + System-Seite testen und fixen (Pi 3B+ Live-Test bestanden)
 - [ ] Captive Portal / Setup-Wizard Ersteinrichtungs-Flow
 - [ ] SD-Karte >= 16 GB, Install-Script End-to-End testen
 - [x] Pi-Test mit echter Hardware (RFID, Gyro, Buttons — Pi 3B+)

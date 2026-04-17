@@ -180,6 +180,13 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
     for name, result in zip(_service_names, results):
         if isinstance(result, Exception):
             logger.error("Service '%s' failed to start: %s", name, result)
+    # AuthService is load-bearing — if it didn't come up, refuse to serve
+    # rather than silently running without authentication.
+    auth_index = _service_names.index("auth")
+    if isinstance(results[auth_index], Exception):
+        raise RuntimeError(
+            "AuthService failed to start — aborting boot so the API is not exposed without auth"
+        ) from results[auth_index]
 
     # --- Group 3: Services that depend on Group 2 ---
     timer_service = TimerService(event_bus, player_service, config_service)

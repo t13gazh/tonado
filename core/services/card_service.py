@@ -66,6 +66,11 @@ class CardService(BaseService):
 
     async def start(self) -> None:
         """Start RFID scanning loop (schema managed by DatabaseManager)."""
+        # Allow live reconfiguration of the cooldown via config events (M7).
+        if self._config_service is not None:
+            self._event_bus.subscribe(
+                "config_changed", self._on_config_changed
+            )
         try:
             await self._reader.start()
         except Exception as e:
@@ -74,6 +79,15 @@ class CardService(BaseService):
             return
         self._scan_task = asyncio.create_task(self._scan_loop())
         logger.info("Card service started")
+
+    async def _on_config_changed(self, key: str, value, **_) -> None:
+        """Pick up rescan-cooldown changes without a full restart."""
+        if key == "card.rescan_cooldown":
+            try:
+                self._rescan_cooldown = float(value)
+                logger.info("RFID rescan cooldown updated: %.1fs", self._rescan_cooldown)
+            except (TypeError, ValueError):
+                logger.warning("Ignored invalid card.rescan_cooldown value: %r", value)
 
     async def stop(self) -> None:
         """Stop scanning and release reader."""

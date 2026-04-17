@@ -138,8 +138,11 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(400, "No filename provided")
 
-    # Basic filename sanitization
-    safe_filename = file.filename.replace("/", "_").replace("\\", "_")
+    # Strip directory separators, null bytes and resolve to the basename only.
+    # Path(..).name drops every parent component on both POSIX and Windows.
+    safe_filename = Path(file.filename.replace("\x00", "")).name
+    if not safe_filename or safe_filename in (".", ".."):
+        raise HTTPException(400, "Invalid filename")
     target = svc.get_upload_path(folder_name, safe_filename)
 
     allowed = {".mp3", ".ogg", ".flac", ".wav", ".m4a", ".aac", ".opus",

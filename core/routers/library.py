@@ -138,9 +138,11 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(400, "No filename provided")
 
-    # Strip directory separators, null bytes and resolve to the basename only.
-    # Path(..).name drops every parent component on both POSIX and Windows.
-    safe_filename = Path(file.filename.replace("\x00", "")).name
+    # Path(..).name only strips the runtime's own separator; we also need
+    # to collapse Windows backslashes and null bytes that a Linux runtime
+    # would otherwise keep verbatim.
+    raw = file.filename.replace("\x00", "").replace("\\", "/")
+    safe_filename = Path(raw).name
     if not safe_filename or safe_filename in (".", ".."):
         raise HTTPException(400, "Invalid filename")
     target = svc.get_upload_path(folder_name, safe_filename)

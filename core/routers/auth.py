@@ -176,14 +176,22 @@ class SleepTimerRequest(BaseModel):
 @router.post("/sleep-timer")
 async def start_sleep_timer(
     req: SleepTimerRequest,
+    request: Request,
     timer: TimerService = Depends(get_timer_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     await timer.start_sleep_timer(req.minutes)
     return {"status": "ok", "minutes": req.minutes}
 
 
 @router.delete("/sleep-timer")
-async def cancel_sleep_timer(timer: TimerService = Depends(get_timer_service)) -> dict:
+async def cancel_sleep_timer(
+    request: Request,
+    timer: TimerService = Depends(get_timer_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     await timer.cancel_sleep_timer()
     return {"status": "ok"}
 

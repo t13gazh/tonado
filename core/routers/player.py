@@ -5,15 +5,21 @@ import logging
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from starlette.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel
 
-from core.dependencies import get_library_service, get_player
+from core.dependencies import (
+    get_auth_service,
+    get_library_service,
+    get_player,
+    require_tier,
+)
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
+from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import LibraryService
 from core.services.player_service import PlayerService
 from core.utils.url import SSRFError, validate_url
@@ -98,7 +104,14 @@ class OutputToggle(BaseModel):
 
 
 @router.post("/outputs/{output_id}")
-async def toggle_output(output_id: int, req: OutputToggle, player: PlayerService = Depends(get_player)) -> dict:
+async def toggle_output(
+    output_id: int,
+    req: OutputToggle,
+    request: Request,
+    player: PlayerService = Depends(get_player),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
     await player.toggle_output(output_id, req.enabled)
     return {"status": "ok"}
 

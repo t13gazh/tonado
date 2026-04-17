@@ -105,10 +105,13 @@ async def clear_config(
 
 @router.post("/scan/start")
 async def scan_start(
+    request: Request,
     svc: ButtonService = Depends(get_button_service),
     detector: HardwareDetector = Depends(get_hardware_detector),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Start listening for a button press on any free GPIO."""
+    require_tier(request, AuthTier.PARENT, auth)
     profile = detector.profile
     free = get_free_gpios(profile)
     if not free:
@@ -132,9 +135,12 @@ async def scan_result(
 
 @router.post("/scan/stop")
 async def scan_stop(
+    request: Request,
     svc: ButtonService = Depends(get_button_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Stop the current scan."""
+    require_tier(request, AuthTier.PARENT, auth)
     await svc.stop_scan()
     return {"success": True}
 
@@ -144,13 +150,16 @@ async def scan_stop(
 
 @router.post("/test/start")
 async def test_start(
+    request: Request,
     req: ButtonsConfigRequest | None = None,
     svc: ButtonService = Depends(get_button_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Start test mode — presses are recorded for polling.
 
     Optionally accepts button config for testing before save (wizard flow).
     """
+    require_tier(request, AuthTier.PARENT, auth)
     buttons = None
     if req and req.buttons:
         buttons = [
@@ -171,9 +180,12 @@ async def test_events(
 
 @router.post("/test/stop")
 async def test_stop(
+    request: Request,
     svc: ButtonService = Depends(get_button_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Stop test mode."""
+    require_tier(request, AuthTier.PARENT, auth)
     await svc.stop_test()
     return {"success": True}
 

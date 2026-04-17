@@ -312,7 +312,13 @@ async def gyro_calibrate_cancel(
 # --- Updates ---
 
 @router.get("/update/check")
-async def check_update(svc: SystemService = Depends(get_system_service)) -> dict:
+async def check_update(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    svc: SystemService = Depends(get_system_service),
+) -> dict:
+    # Gated: each call does a git fetch. Public access = DoS vector.
+    require_tier(request, AuthTier.PARENT, auth)
     return await svc.check_update()
 
 

@@ -65,6 +65,9 @@ class SystemService(BaseService):
         super().__init__()
         self._install_dir = install_dir
         self._is_pi = Path("/proc/cpuinfo").exists()
+        # Serialises update/check against update/apply so `git fetch` and
+        # `git pull` don't stomp on each other when two admins click at once.
+        self._update_lock = asyncio.Lock()
 
     async def get_info(self) -> SystemInfo:
         """Gather system information."""
@@ -142,6 +145,10 @@ class SystemService(BaseService):
         if not (self._install_dir / ".git").exists():
             return {"available": False, "error": "Kein Git-Repository"}
 
+        async with self._update_lock:
+            return await self._check_update_unlocked()
+
+    async def _check_update_unlocked(self) -> dict[str, Any]:
         try:
             await self._git("fetch", "--quiet")
 
@@ -219,14 +226,23 @@ class SystemService(BaseService):
             return ""
 
     async def apply_update(self) -> dict[str, Any]:
-        """Pull latest changes with rollback on failure, then restart."""
+        """Pull latest changes with rollback on failure, then restart.
+
+        Serialised via _update_lock so two concurrent /update/apply clicks
+        don't race on the working tree.
+        """
         if not (self._install_dir / ".git").exists():
             return {"success": False, "error": "Kein Git-Repository"}
 
+        async with self._update_lock:
+            return await self._apply_update_unlocked()
+
+    async def _apply_update_unlocked(self) -> dict[str, Any]:
         # Save current commit for rollback
         rc, current_hash, _ = await self._git("rev-parse", "HEAD")
         if rc != 0:
             return {"success": False, "error": "Git-Status unbekannt"}
+        current_hash = current_hash.strip()
 
         try:
             # Discard local changes so pull succeeds even with hotfixes.
@@ -255,7 +271,7 @@ class SystemService(BaseService):
                     )
                     if pip_rc != 0:
                         logger.error("pip install failed — rolling back")
-                        await self._git("reset", "--hard", current_hash)
+                        await self._rollback(current_hash, reinstall=True)
                         return {
                             "success": False,
                             "error": "Abhängigkeiten konnten nicht installiert werden. Rollback durchgeführt.",
@@ -276,13 +292,40 @@ class SystemService(BaseService):
                 "files_changed": len(changed_files),
             }
         except Exception as e:
-            # Rollback on any unexpected error
-            logger.error("Update failed: %s — rolling back", e)
-            await self._git("reset", "--hard", current_hash)
+            # Rollback on any unexpected error. Don't reinstall deps — the
+            # pip step hasn't been reached yet in this branch.
+            logger.exception("Update failed — rolling back")
+            await self._rollback(current_hash, reinstall=False)
             return {
                 "success": False,
                 "error": f"Update fehlgeschlagen: {e}. Rollback durchgeführt.",
             }
+
+    async def _rollback(self, commit_hash: str, *, reinstall: bool) -> None:
+        """Reset working tree and, when requested, reinstall deps from pyproject.
+
+        ``reinstall`` is only set after pip has already run — otherwise the
+        installed packages still match the previous pyproject and there's
+        nothing to repair.
+        """
+        try:
+            await self._git("reset", "--hard", commit_hash)
+        except Exception:
+            logger.exception("git reset during rollback failed")
+            return
+        if not reinstall:
+            return
+        venv_pip = self._install_dir / ".venv" / "bin" / "pip"
+        if not venv_pip.exists():
+            return
+        pip_rc = await self._run(
+            str(venv_pip), "install", "-e", ".[pi]", "--quiet",
+        )
+        if pip_rc != 0:
+            logger.error(
+                "Rollback pip reinstall returned %d — deps may be inconsistent",
+                pip_rc,
+            )
 
     async def enable_overlay(self) -> bool:
         """Enable read-only root filesystem with OverlayFS."""

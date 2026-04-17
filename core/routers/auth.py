@@ -24,6 +24,27 @@ _MAX_ATTEMPTS = 5
 _LOCKOUT_SECONDS = 60
 _CLEANUP_AGE_SECONDS = 600  # Remove entries older than 10 minutes
 
+# Trusted reverse proxies whose forwarded headers we honour. Nginx on the
+# same host appears as 127.0.0.1; everything else is treated as a direct
+# client to avoid accepting spoofed X-Forwarded-For headers.
+_TRUSTED_PROXIES = frozenset({"127.0.0.1", "::1"})
+
+
+def _extract_client_ip(request: Request) -> str:
+    """Return the real client IP, honouring X-Forwarded-For only behind a trusted proxy."""
+    peer = request.client.host if request.client else "unknown"
+    if peer in _TRUSTED_PROXIES:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            # Take the left-most address (original client)
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+        real = request.headers.get("x-real-ip")
+        if real:
+            return real.strip()
+    return peer
+
 
 def _cleanup_old_entries() -> None:
     """Remove stale entries older than 10 minutes."""
@@ -72,7 +93,7 @@ async def login(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
 ) -> dict:
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _extract_client_ip(request)
     _check_rate_limit(client_ip)
 
     result = await auth.login(req.pin)

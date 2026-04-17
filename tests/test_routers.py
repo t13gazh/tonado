@@ -96,7 +96,7 @@ async def client(tmp_path: Path):
     app.include_router(system.router)
     app.include_router(player.router)
 
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app, client=("127.0.0.1", 0))
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c, auth_svc
 
@@ -235,6 +235,60 @@ async def test_login_rate_limiting(client):
     # 6th attempt should be rate limited
     resp = await c.post("/api/auth/login", json={"pin": "wrong"})
     assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_uses_forwarded_ip_behind_trusted_proxy(client):
+    """X-Forwarded-For must be honoured so nginx doesn't globalise the bucket."""
+    from core.routers import auth as auth_router
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_router._login_attempts.clear()
+
+    # Attacker at 5.5.5.5 locks themselves out
+    for _ in range(5):
+        resp = await c.post(
+            "/api/auth/login",
+            json={"pin": "wrong"},
+            headers={"X-Forwarded-For": "5.5.5.5"},
+        )
+        assert resp.status_code == 401
+    resp = await c.post(
+        "/api/auth/login",
+        json={"pin": "wrong"},
+        headers={"X-Forwarded-For": "5.5.5.5"},
+    )
+    assert resp.status_code == 429
+
+    # A different IP must still be able to log in
+    resp = await c.post(
+        "/api/auth/login",
+        json={"pin": "1234"},
+        headers={"X-Forwarded-For": "6.6.6.6"},
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_ignores_forwarded_from_untrusted_peer():
+    """Spoofed X-Forwarded-For from a non-proxy peer must be ignored."""
+    from core.routers.auth import _extract_client_ip
+    from starlette.datastructures import Headers
+
+    class _Req:
+        def __init__(self, peer: str, headers: dict[str, str]) -> None:
+            self.client = type("C", (), {"host": peer})()
+            self.headers = Headers(headers)
+
+    # Untrusted peer — header ignored
+    ip = _extract_client_ip(_Req("8.8.8.8", {"x-forwarded-for": "1.2.3.4"}))
+    assert ip == "8.8.8.8"
+    # Trusted loopback — header honoured
+    ip = _extract_client_ip(_Req("127.0.0.1", {"x-forwarded-for": "1.2.3.4, 9.9.9.9"}))
+    assert ip == "1.2.3.4"
+    ip = _extract_client_ip(_Req("127.0.0.1", {"x-real-ip": "7.7.7.7"}))
+    assert ip == "7.7.7.7"
 
 
 @pytest.mark.asyncio

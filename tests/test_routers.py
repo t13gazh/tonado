@@ -11,10 +11,12 @@ from httpx import ASGITransport, AsyncClient
 from fastapi import FastAPI
 
 from core.database import DatabaseManager
+from core.hardware.gpio_buttons import MockGpioButtonListener, MockGpioButtonScanner
 from core.hardware.rfid import MockRfidReader
-from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
+from core.routers import auth, buttons, cards, config, library, player, playlists, setup, streams, system
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
+from core.services.button_service import ButtonService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
@@ -75,6 +77,10 @@ async def client(tmp_path: Path):
     setup_wizard = SetupWizard(config_svc, wifi_svc, auth_service=auth_svc)
     await setup_wizard.start()
     captive_portal = CaptivePortalService(config_service=config_svc)
+    button_svc = ButtonService(
+        MockGpioButtonScanner(), MockGpioButtonListener(), event_bus, config_svc
+    )
+    await button_svc.start()
 
     # Wire app.state
     app.state.player_service = player_svc
@@ -92,6 +98,7 @@ async def client(tmp_path: Path):
     app.state.gyro_service = gyro_svc
     app.state.setup_wizard = setup_wizard
     app.state.captive_portal = captive_portal
+    app.state.button_service = button_svc
 
     # Include routers
     app.include_router(auth.router)
@@ -103,6 +110,7 @@ async def client(tmp_path: Path):
     app.include_router(system.router)
     app.include_router(player.router)
     app.include_router(setup.router)
+    app.include_router(buttons.router)
 
     transport = ASGITransport(app=app, client=("127.0.0.1", 0))
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -330,6 +338,100 @@ async def test_backup_import_malformed_schema(client):
                         files={"file": ("backup.json", bad_backup, "application/json")})
     assert resp.status_code == 400
     assert "Invalid backup" in resp.json()["detail"]
+
+
+# --- Auth-Matrix ---
+#
+# Each entry is (method, path, required_tier, body_kwargs). Endpoints
+# that require a body-validated payload include a minimally-valid one so
+# we exercise the tier check (422 validation would otherwise mask 403).
+_PROTECTED: list[tuple[str, str, AuthTier, dict]] = [
+    # Auth / timer
+    ("POST", "/api/auth/sleep-timer", AuthTier.PARENT, {"json": {"minutes": 10}}),
+    ("DELETE", "/api/auth/sleep-timer", AuthTier.PARENT, {}),
+
+    # Cards
+    ("DELETE", "/api/cards/does-not-exist", AuthTier.PARENT, {}),
+
+    # Config
+    ("PUT", "/api/config/", AuthTier.PARENT, {"json": {"key": "x.y", "value": "v"}}),
+
+    # Library
+    ("DELETE", "/api/library/folders/nope", AuthTier.PARENT, {}),
+
+    # Player outputs
+    ("POST", "/api/player/outputs/1", AuthTier.PARENT, {"json": {"enabled": True}}),
+
+    # Playlists
+    ("POST", "/api/playlists/", AuthTier.PARENT, {"json": {"name": "test"}}),
+
+    # Streams
+    ("POST", "/api/streams/radio", AuthTier.PARENT, {"json": {"name": "x", "url": "http://x.com"}}),
+
+    # Buttons
+    ("POST", "/api/buttons/scan/start", AuthTier.PARENT, {}),
+    ("POST", "/api/buttons/scan/stop", AuthTier.PARENT, {}),
+    ("POST", "/api/buttons/test/stop", AuthTier.PARENT, {}),
+
+    # System — expert
+    ("POST", "/api/system/restart", AuthTier.EXPERT, {}),
+    ("POST", "/api/system/shutdown", AuthTier.EXPERT, {}),
+    ("POST", "/api/system/reboot", AuthTier.EXPERT, {}),
+
+    # System update
+    ("GET", "/api/system/update/check", AuthTier.PARENT, {}),
+
+    # Setup reset / portal
+    ("POST", "/api/setup/reset", AuthTier.EXPERT, {}),
+]
+
+
+@pytest.mark.parametrize("method,path,required,body", _PROTECTED)
+@pytest.mark.asyncio
+async def test_protected_without_token_denied(client, method, path, required, body):
+    """H7 auth-matrix: every protected endpoint returns 403 once a PIN is set and no token is sent."""
+    c, auth_svc = client
+    # Ensure both tiers have PINs so check_access actually enforces the seal
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    resp = await c.request(method, path, **body)
+    assert resp.status_code == 403, (
+        f"{method} {path} should deny without token, got {resp.status_code}"
+    )
+
+
+@pytest.mark.parametrize("method,path,required,body", _PROTECTED)
+@pytest.mark.asyncio
+async def test_protected_with_expert_token_accepted(client, method, path, required, body):
+    """An expert token must be accepted for any PARENT or EXPERT route (not 403)."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    result = await auth_svc.login("9999")
+    headers = {"Authorization": f"Bearer {result['token']}"}
+    resp = await c.request(method, path, headers=headers, **body)
+    # Don't care if the handler 404s/400s for a missing resource — only that
+    # it did NOT reject us with 403.
+    assert resp.status_code != 403, (
+        f"{method} {path} rejected expert token: {resp.status_code}"
+    )
+
+
+@pytest.mark.parametrize(
+    "method,path,required,body",
+    [t for t in _PROTECTED if t[2] == AuthTier.EXPERT],
+)
+@pytest.mark.asyncio
+async def test_expert_routes_reject_parent_token(client, method, path, required, body):
+    """Parent token must NOT unlock expert-only endpoints."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    result = await auth_svc.login("1234")
+    headers = {"Authorization": f"Bearer {result['token']}"}
+    resp = await c.request(method, path, headers=headers, **body)
+    assert resp.status_code == 403, (
+        f"{method} {path} accepted parent token for expert-only route"
+    )
 
 
 @pytest.mark.asyncio

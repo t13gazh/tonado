@@ -108,6 +108,38 @@ async def test_unknown_card_ignored(tmp_db: aiosqlite.Connection, mock_reader, e
 
 
 @pytest.mark.asyncio
+async def test_cooldown_blocks_rapid_rescan_at_2s(
+    tmp_db: aiosqlite.Connection, mock_reader, event_bus
+) -> None:
+    """M9: Product spec says 2s cooldown on the same card. Verify with the real value."""
+    service = CardService(mock_reader, event_bus, tmp_db, rescan_cooldown=2.0)
+    await service.start()
+
+    await service.set_mapping(CardMapping(
+        card_id="deadbeef", name="x", content_type="folder", content_path="x",
+    ))
+    events: list[dict] = []
+
+    async def on_scanned(**kwargs):
+        events.append(kwargs)
+
+    event_bus.subscribe("card_scanned", on_scanned)
+
+    # First scan → event fires
+    mock_reader.simulate_card("deadbeef")
+    await asyncio.sleep(0.3)
+    first_count = len(events)
+    assert first_count >= 1
+
+    # Re-scan within cooldown window — must be suppressed
+    mock_reader.simulate_card("deadbeef")
+    await asyncio.sleep(0.3)
+    assert len(events) == first_count, "re-scan within 2s cooldown must be suppressed"
+
+    await service.stop()
+
+
+@pytest.mark.asyncio
 async def test_resume_position(tmp_db: aiosqlite.Connection, mock_reader, event_bus) -> None:
     service = CardService(mock_reader, event_bus, tmp_db)
     await service.start()

@@ -10,12 +10,14 @@ from pydantic import BaseModel
 from core.dependencies import (
     get_auth_service,
     get_captive_portal,
+    get_connectivity_monitor,
     get_setup_wizard,
     get_wifi_service,
     require_tier,
 )
 from core.services.auth_service import AuthService, AuthTier
 from core.services.captive_portal import CaptivePortalService
+from core.services.connectivity_monitor import ConnectivityMonitor
 from core.services.setup_wizard import SetupWizard
 from core.services.wifi_service import WifiService
 
@@ -140,6 +142,7 @@ async def pin_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
 async def complete_setup(
     wizard: SetupWizard = Depends(get_setup_wizard),
     portal: CaptivePortalService = Depends(get_captive_portal),
+    monitor: ConnectivityMonitor = Depends(get_connectivity_monitor),
 ) -> dict:
     _require_setup_incomplete(wizard)
     try:
@@ -150,6 +153,11 @@ async def complete_setup(
     # Stop captive portal if active
     if portal.active:
         await portal.stop()
+    # Now that setup is done, arm the auto-fallback monitor. It was held
+    # back in main.py because the setup-wizard portal and the monitor can't
+    # share wlan0.
+    if not monitor.is_running:
+        await monitor.start()
     return result
 
 
@@ -172,6 +180,19 @@ async def portal_status(portal: CaptivePortalService = Depends(get_captive_porta
     return portal.status()
 
 
+@router.get("/portal/credentials")
+async def portal_credentials(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    portal: CaptivePortalService = Depends(get_captive_portal),
+) -> dict:
+    """Return the AP SSID + password so the parent app can show them
+    ahead of time — they're useless after the AP is up, since the phone
+    would already be offline from the main WiFi."""
+    require_tier(request, AuthTier.PARENT, auth)
+    return await portal.credentials()
+
+
 @router.post("/portal/start")
 async def portal_start(
     request: Request,
@@ -179,7 +200,7 @@ async def portal_start(
     portal: CaptivePortalService = Depends(get_captive_portal),
 ) -> dict:
     require_tier(request, AuthTier.EXPERT, auth)
-    success = await portal.start()
+    success = await portal.start(owner="manual")
     if not success:
         raise HTTPException(500, "Failed to start captive portal")
     return portal.status()
@@ -194,3 +215,24 @@ async def portal_stop(
     require_tier(request, AuthTier.EXPERT, auth)
     await portal.stop()
     return {"status": "ok"}
+
+
+# --- Connectivity monitor (auto-fallback AP) ---
+
+
+@router.get("/connectivity/status")
+async def connectivity_status(
+    request: Request,
+    auth: AuthService = Depends(get_auth_service),
+    monitor: ConnectivityMonitor = Depends(get_connectivity_monitor),
+) -> dict:
+    """Current auto-fallback monitor state (for UI badge + debugging).
+
+    PARENT-tier: the window counter is a recon signal on a LAN-only API,
+    but there's no reason to gate it harder than sleep timer / volume.
+    """
+    require_tier(request, AuthTier.PARENT, auth)
+    return {
+        "running": monitor.is_running,
+        **monitor.status(),
+    }

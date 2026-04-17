@@ -85,13 +85,22 @@ class WifiService(BaseService):
         return False
 
     async def status(self) -> WifiStatus:
-        """Get current WiFi connection status."""
+        """Get current WiFi connection status.
+
+        Wrapped in a hard 10s timeout: on Pi Zero W, `nmcli` can hang for
+        30s+ when the driver is misbehaving, which would otherwise block
+        the ConnectivityMonitor's poll loop and stall fallback decisions.
+        """
         if self._mock:
             return WifiStatus()
 
-        if self._use_nmcli:
-            return await self._nmcli_status()
-        return await self._wpa_status()
+        try:
+            if self._use_nmcli:
+                return await asyncio.wait_for(self._nmcli_status(), timeout=10.0)
+            return await asyncio.wait_for(self._wpa_status(), timeout=10.0)
+        except asyncio.TimeoutError:
+            logger.warning("WiFi status query timed out — treating as unknown")
+            return WifiStatus()
 
     async def forget(self, ssid: str) -> bool:
         """Remove a saved WiFi network."""

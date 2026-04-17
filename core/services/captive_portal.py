@@ -13,13 +13,15 @@ import secrets
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
 from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
+
+PortalOwner = Literal["setup", "auto", "manual"]
 
 _HOSTAPD_CONF = """\
 interface=wlan0
@@ -71,6 +73,7 @@ class CaptivePortalService(BaseService):
         self._timeout_seconds: int = DEFAULT_TIMEOUT_MINUTES * 60
         self._timeout_task: asyncio.Task[None] | None = None
         self._started_at: float | None = None
+        self._owner: PortalOwner | None = None
 
     @property
     def active(self) -> bool:
@@ -85,6 +88,12 @@ class CaptivePortalService(BaseService):
         """Current AP password (exposed only to callers with service access)."""
         return self._password
 
+    @property
+    def owner(self) -> PortalOwner | None:
+        """Who started the portal — used by ConnectivityMonitor to know
+        whether it's allowed to stop it on recovery."""
+        return self._owner
+
     def status(self) -> dict[str, Any]:
         seconds_until_timeout: int | None = None
         if self._active and self._started_at is not None:
@@ -97,6 +106,7 @@ class CaptivePortalService(BaseService):
             "ip": "192.168.4.1" if self._active else None,
             "password_available": bool(self._password),
             "seconds_until_timeout": seconds_until_timeout,
+            "owner": self._owner,
         }
 
     async def _load_or_generate_password(self) -> str:
@@ -110,6 +120,17 @@ class CaptivePortalService(BaseService):
             await self._config.set(CONFIG_KEY_PASSWORD, password)
         return password
 
+    async def credentials(self) -> dict[str, str]:
+        """Return the AP SSID + password so the parent UI can display them
+        (and render the 'stick on the fridge' QR code) *before* the AP is
+        actually up — otherwise they'd only learn the credentials when the
+        app is already unreachable.
+        """
+        password = self._password or await self._load_or_generate_password()
+        if not self._password:
+            self._password = password
+        return {"ssid": self._ssid, "password": password}
+
     async def _load_timeout_seconds(self) -> int:
         if self._config is None:
             return DEFAULT_TIMEOUT_MINUTES * 60
@@ -120,13 +141,18 @@ class CaptivePortalService(BaseService):
             minutes = DEFAULT_TIMEOUT_MINUTES
         return max(1, int(minutes * 60))
 
-    async def start(self) -> bool:
+    async def start(self, owner: PortalOwner = "manual") -> bool:
         """Start the captive portal AP.
 
         Returns True if successfully started, False if prerequisites missing.
+
+        `owner` records who triggered the start: "setup" (first-boot wizard),
+        "auto" (ConnectivityMonitor fallback) or "manual" (expert endpoint).
+        ConnectivityMonitor uses this to decide whether it may stop the portal
+        on WiFi recovery — it must never stop one it did not start.
         """
         if self._active:
-            logger.warning("Captive portal already active")
+            logger.warning("Captive portal already active (owner=%s)", self._owner)
             return True
 
         # Check prerequisites
@@ -182,8 +208,10 @@ class CaptivePortalService(BaseService):
 
             self._active = True
             self._started_at = time.monotonic()
+            self._owner = owner
             logger.warning(
-                "Captive portal started: SSID=%s password=%s timeout=%dmin ip=192.168.4.1",
+                "Captive portal started: owner=%s SSID=%s password=%s timeout=%dmin ip=192.168.4.1",
+                owner,
                 self._ssid,
                 self._password,
                 self._timeout_seconds // 60,
@@ -240,6 +268,7 @@ class CaptivePortalService(BaseService):
 
         self._active = False
         self._started_at = None
+        self._owner = None
         self._hostapd_proc = None
         self._dnsmasq_proc = None
         logger.info("Captive portal stopped")

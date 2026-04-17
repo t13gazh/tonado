@@ -19,6 +19,7 @@ from core.services.backup_service import BackupService
 from core.services.button_service import ButtonService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
+from core.services.connectivity_monitor import ConnectivityMonitor
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
@@ -77,6 +78,13 @@ async def client(tmp_path: Path):
     setup_wizard = SetupWizard(config_svc, wifi_svc, auth_service=auth_svc)
     await setup_wizard.start()
     captive_portal = CaptivePortalService(config_service=config_svc)
+    connectivity_monitor = ConnectivityMonitor(
+        wifi=wifi_svc,
+        portal=captive_portal,
+        config=config_svc,
+        event_bus=event_bus,
+        mock=True,
+    )
     button_svc = ButtonService(
         MockGpioButtonScanner(), MockGpioButtonListener(), event_bus, config_svc
     )
@@ -98,6 +106,7 @@ async def client(tmp_path: Path):
     app.state.gyro_service = gyro_svc
     app.state.setup_wizard = setup_wizard
     app.state.captive_portal = captive_portal
+    app.state.connectivity_monitor = connectivity_monitor
     app.state.button_service = button_svc
 
     # Include routers

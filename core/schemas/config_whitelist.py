@@ -54,6 +54,11 @@ PUBLIC_CONFIG_WHITELIST: dict[str, Callable[[Any], Any]] = {
     "system.idle_shutdown_minutes": _int_range(0, 1440),
     "sleep_fade_duration": _int_range(0, 300),
     "wizard.expert_mode": _bool,
+    # Auto-fallback AP mode — see services/connectivity_monitor.py
+    "wifi.auto_fallback_enabled": _bool,
+    "wifi.fallback_timeout_seconds": _int_range(60, 1800),
+    "wifi.boot_grace_seconds": _int_range(10, 600),
+    "wifi.post_recovery_grace_seconds": _int_range(60, 1800),
 }
 
 

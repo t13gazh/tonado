@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { config, authApi, type AuthStatus, ApiError } from '$lib/api';
+	import { config, authApi, setupApi, type AuthStatus, ApiError } from '$lib/api';
 	import { onMount } from 'svelte';
+	import QRCode from 'qrcode';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
@@ -32,6 +33,21 @@
 	let gyroEnabled = $state(true);
 	let gyroSensitivity = $state('normal');
 
+	// WiFi rescue (auto-fallback AP)
+	let wlanRescueEnabled = $state(true);
+	let wlanRescueTimeoutSeconds = $state(180);
+	let apCredentials = $state<{ ssid: string; password: string } | null>(null);
+	let apQrDataUrl = $state('');
+	let apPasswordCopied = $state(false);
+
+	// Discrete interval presets (in seconds) — segmented control in UI
+	const RESCUE_PRESETS = [
+		{ seconds: 120, key: 'settings.wlan_rescue_interval_short' },
+		{ seconds: 300, key: 'settings.wlan_rescue_interval_medium' },
+		{ seconds: 600, key: 'settings.wlan_rescue_interval_long' },
+		{ seconds: 1200, key: 'settings.wlan_rescue_interval_verylong' },
+	] as const;
+
 	onMount(async () => {
 		await loadAll();
 	});
@@ -55,6 +71,19 @@
 			cardRemovePauses = (allConfig['card.remove_pauses'] as boolean) ?? false;
 			gyroEnabled = (allConfig['gyro.enabled'] as boolean) ?? true;
 			gyroSensitivity = (allConfig['gyro.sensitivity'] as string) ?? 'normal';
+			wlanRescueEnabled = (allConfig['wifi.auto_fallback_enabled'] as boolean) ?? true;
+			wlanRescueTimeoutSeconds = (allConfig['wifi.fallback_timeout_seconds'] as number) ?? 180;
+
+			// Credentials + QR are only reachable with a PARENT token
+			if (authStatus?.authenticated) {
+				try {
+					apCredentials = await setupApi.portalCredentials();
+					await regenerateQr();
+				} catch {
+					apCredentials = null;
+					apQrDataUrl = '';
+				}
+			}
 
 			const timer = await authApi.sleepTimer();
 			sleepActive = timer.active;
@@ -91,6 +120,87 @@
 		} catch (e) {
 			addToast(e instanceof ApiError ? e.userMessage : t('error.save_failed'), 'error');
 		}
+	}
+
+	async function regenerateQr() {
+		if (!apCredentials) {
+			apQrDataUrl = '';
+			return;
+		}
+		// WIFI: URI scheme — modern phones scan this and offer to join directly.
+		const escaped = (s: string) => s.replace(/([\\;,":])/g, '\\$1');
+		const payload = `WIFI:T:WPA;S:${escaped(apCredentials.ssid)};P:${escaped(apCredentials.password)};;`;
+		try {
+			apQrDataUrl = await QRCode.toDataURL(payload, { margin: 1, width: 240 });
+		} catch {
+			apQrDataUrl = '';
+		}
+	}
+
+	async function toggleWlanRescue(value: boolean) {
+		const prev = wlanRescueEnabled;
+		wlanRescueEnabled = value;
+		try {
+			await config.set('wifi.auto_fallback_enabled', value);
+			if (value) {
+				addToast(t('settings.saved'), 'success');
+			} else {
+				addToast(t('settings.wlan_rescue_off_warning'), 'info');
+			}
+		} catch (e) {
+			wlanRescueEnabled = prev;
+			addToast(e instanceof ApiError ? e.userMessage : t('error.save_failed'), 'error');
+		}
+	}
+
+	async function setWlanRescueInterval(seconds: number) {
+		const prev = wlanRescueTimeoutSeconds;
+		wlanRescueTimeoutSeconds = seconds;
+		try {
+			await config.set('wifi.fallback_timeout_seconds', seconds);
+			addToast(t('settings.saved'), 'success');
+		} catch (e) {
+			wlanRescueTimeoutSeconds = prev;
+			addToast(e instanceof ApiError ? e.userMessage : t('error.save_failed'), 'error');
+		}
+	}
+
+	async function copyApPassword() {
+		if (!apCredentials) return;
+		try {
+			await navigator.clipboard.writeText(apCredentials.password);
+			apPasswordCopied = true;
+			addToast(t('settings.wlan_rescue_ap_copied'), 'success');
+			setTimeout(() => { apPasswordCopied = false; }, 2000);
+		} catch {
+			addToast(t('error.save_failed'), 'error');
+		}
+	}
+
+	function printApQr() {
+		if (!apCredentials || !apQrDataUrl) return;
+		// Open a minimal print-only window so the user can stick the QR on the fridge.
+		const w = window.open('', '_blank', 'width=400,height=600');
+		if (!w) return;
+		w.document.write(`<!doctype html><html><head><title>Tonado WLAN-Rettung</title>
+			<style>
+				body { font-family: system-ui, sans-serif; text-align: center; padding: 24px; color: #111; }
+				h1 { font-size: 18px; margin-bottom: 8px; }
+				p { font-size: 14px; color: #444; margin: 4px 0; }
+				img { max-width: 100%; margin-top: 16px; }
+				.creds { margin-top: 16px; font-family: monospace; font-size: 13px; }
+			</style>
+			</head><body>
+			<h1>Tonado WLAN-Rettung</h1>
+			<p>Scanne den Code oder verbinde dich manuell:</p>
+			<div class="creds">
+				<div>Netzwerk: <strong>${apCredentials.ssid}</strong></div>
+				<div>Passwort: <strong>${apCredentials.password}</strong></div>
+			</div>
+			<img src="${apQrDataUrl}" alt="QR" />
+			<script>window.onload = () => { window.print(); };<\/script>
+			</body></html>`);
+		w.document.close();
 	}
 
 	// Determine current tier level: 0=open, 1=parent, 2=expert
@@ -317,6 +427,72 @@
 						{/each}
 					</div>
 				{/if}
+			{/if}
+		</div>
+
+		<!-- WiFi rescue (parent+) — auto-fallback AP mode -->
+		<div class="bg-surface-light rounded-xl p-4">
+			<div class="flex items-center justify-between mb-2">
+				<h2 class="text-sm font-semibold">{t('settings.wlan_rescue_title')}</h2>
+				<label class="relative inline-flex items-center cursor-pointer">
+					<input
+						type="checkbox"
+						class="sr-only peer"
+						checked={wlanRescueEnabled}
+						onchange={(e) => toggleWlanRescue((e.target as HTMLInputElement).checked)}
+					/>
+					<div class="w-11 h-6 bg-surface peer-focus:ring-2 peer-focus:ring-primary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+				</label>
+			</div>
+			<p class="text-xs text-text-muted mb-3">{t('settings.wlan_rescue_desc')}</p>
+
+			{#if wlanRescueEnabled && apCredentials}
+				<div class="bg-surface rounded-lg p-3 text-xs mb-3">
+					<div class="text-text-muted mb-2">{t('settings.wlan_rescue_ap_info')}</div>
+					<div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
+						<span class="text-text-muted">{t('settings.wlan_rescue_ap_network')}</span>
+						<span class="font-mono">{apCredentials.ssid}</span>
+						<span class="text-text-muted">{t('settings.wlan_rescue_ap_password')}</span>
+						<span class="font-mono break-all">{apCredentials.password}</span>
+					</div>
+					<div class="flex gap-2 mt-3">
+						<button
+							onclick={copyApPassword}
+							class="flex-1 px-3 py-1.5 bg-primary hover:bg-primary-light text-white rounded-lg text-xs font-medium transition-colors"
+						>
+							{apPasswordCopied ? t('settings.wlan_rescue_ap_copied') : t('settings.wlan_rescue_ap_copy')}
+						</button>
+						<button
+							onclick={printApQr}
+							disabled={!apQrDataUrl}
+							class="flex-1 px-3 py-1.5 bg-surface hover:bg-surface-lighter text-text rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+						>
+							{t('settings.wlan_rescue_ap_qr_print')}
+						</button>
+					</div>
+					{#if apQrDataUrl}
+						<div class="flex items-start gap-3 mt-3">
+							<img src={apQrDataUrl} alt="QR" class="w-24 h-24 rounded bg-white p-1 shrink-0" />
+							<p class="text-xs text-text-muted leading-snug">{t('settings.wlan_rescue_ap_qr_hint')}</p>
+						</div>
+					{/if}
+				</div>
+			{/if}
+
+			{#if wlanRescueEnabled}
+				<div class="flex items-center gap-2 mb-1">
+					<span class="text-xs text-text-muted">{t('settings.wlan_rescue_interval')}</span>
+				</div>
+				<div class="flex gap-1">
+					{#each RESCUE_PRESETS as preset}
+						<button
+							onclick={() => setWlanRescueInterval(preset.seconds)}
+							class="flex-1 px-2 py-1.5 rounded-lg text-xs transition-colors {wlanRescueTimeoutSeconds === preset.seconds ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+						>
+							{t(preset.key)}
+						</button>
+					{/each}
+				</div>
 			{/if}
 		</div>
 

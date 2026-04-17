@@ -147,7 +147,7 @@
 
 ## Prio 1 — Kernfunktionen
 - [x] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
-- [ ] Auto-Fallback auf AP-Modus: Wenn bekanntes WLAN nicht erreichbar (z.B. Box bei Oma, im Auto), nach Timeout automatisch eigenen AP aufspannen. Handy kann sich verbinden und Box wieder steuern/neues WLAN konfigurieren. Musik spielt offline weiter, nur App-Zugriff wäre sonst verloren
+- [x] Auto-Fallback auf AP-Modus: `ConnectivityMonitor`-Service pollt WLAN-Status, startet nach Timeout automatisch das bestehende Captive Portal als Rettungs-AP. Owner-Flag (`setup`/`auto`/`manual`) verhindert dass Monitor fremdgestartete Portale anfasst. State-Machine mit Boot-Grace, Double-Check, Post-Recovery-Cooldown, Circuit-Breaker. Eltern-UI in `/settings` mit Toggle, AP-Credentials, QR-Code zum Ausdrucken (WIFI:-URI-Scheme). Backend-Tests (11 neue State-Machine-Tests, 2 Owner-Flag-Tests für das Portal), Frontend-Build grün. Live-Test auf Pi-Hardware offen.
 
 ## Prio 2 — Differenzierung
 - [ ] Sprachaufnahme in der Web-App: Figur/Karte auflegen → App erkennt sie → direkt besprechen (MediaRecorder API). Physische Geste + Aufnahme verknüpft = einprägsamer als nachträgliches Zuordnen

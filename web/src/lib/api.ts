@@ -515,4 +515,6 @@ export const setupApi = {
 	pinDone: () => request<{ success: boolean }>('/setup/pin-done', { method: 'POST' }),
 	complete: () => request<{ success: boolean }>('/setup/complete', { method: 'POST' }),
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
+	portalCredentials: () =>
+		request<{ ssid: string; password: string }>('/setup/portal/credentials'),
 };

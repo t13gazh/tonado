@@ -7,6 +7,7 @@ from core.services.backup_service import BackupService
 from core.services.button_service import ButtonService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
+from core.services.connectivity_monitor import ConnectivityMonitor
 from core.services.config_service import ConfigService
 from core.services.gyro_service import GyroService
 from core.services.hardware_detector import HardwareDetector
@@ -98,6 +99,10 @@ def get_wifi_service(request: Request) -> WifiService:
 
 def get_captive_portal(request: Request) -> CaptivePortalService:
     return request.app.state.captive_portal
+
+
+def get_connectivity_monitor(request: Request) -> ConnectivityMonitor:
+    return request.app.state.connectivity_monitor
 
 
 def get_gyro_service(request: Request) -> GyroService:

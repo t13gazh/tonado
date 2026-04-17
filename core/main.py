@@ -29,6 +29,7 @@ from core.services.auth_service import AuthService
 from core.services.backup_service import BackupService
 from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
+from core.services.connectivity_monitor import ConnectivityMonitor
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
 from core.services.gyro_service import GyroService
@@ -210,7 +211,19 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
     # If setup not complete and on Pi, start captive portal
     if not setup_wizard.is_complete and settings.hardware_mode != "mock":
         logger.info("Setup not complete — starting captive portal")
-        await captive_portal.start()
+        await captive_portal.start(owner="setup")
+
+    # Auto-fallback AP monitor — only after setup is done, otherwise the
+    # setup-wizard portal and the monitor would fight over wlan0.
+    connectivity_monitor = ConnectivityMonitor(
+        wifi=wifi_service,
+        portal=captive_portal,
+        config=config_service,
+        event_bus=event_bus,
+        mock=(settings.hardware_mode == "mock"),
+    )
+    if setup_wizard.is_complete:
+        await connectivity_monitor.start()
 
     return {
         "db_manager": db_manager,
@@ -228,6 +241,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         "setup_wizard": setup_wizard,
         "wifi_service": wifi_service,
         "captive_portal": captive_portal,
+        "connectivity_monitor": connectivity_monitor,
         "gyro_service": gyro_service,
         "button_service": button_service,
         "ws_hub": ws_hub,
@@ -255,6 +269,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown — stop all services in reverse startup order
     logger.info("Shutting down Tonado...")
     shutdown_order = [
+        "connectivity_monitor",
         "captive_portal",
         "setup_wizard",
         "wifi_service",

@@ -20,6 +20,7 @@
 	let showGyroCalibration = $state(false);
 	let gyroCalibrated = $state(false);
 
+
 	async function waitForServer(timeout = 90_000): Promise<boolean> {
 		const start = Date.now();
 		while (Date.now() - start < timeout) {
@@ -364,6 +365,7 @@
 					{t('system.setup_wizard_restart')}
 				</button>
 			</div>
+
 
 			<!-- Gyro Calibration -->
 			{#if healthData?.gyro?.status === 'connected'}

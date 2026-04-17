@@ -124,6 +124,40 @@ async def test_stop_cancels_timeout(
 
 
 @pytest.mark.asyncio
+async def test_owner_defaults_to_manual_and_resets_on_stop(
+    config_service: ConfigService, tmp_path: Path
+) -> None:
+    await config_service.set(CONFIG_KEY_TIMEOUT, 60)
+    portal = CaptivePortalService(config_service=config_service)
+    _prep_portal(portal, tmp_path)
+    with _portal_env():
+        assert portal.owner is None
+        await portal.start()
+        assert portal.owner == "manual"
+        assert portal.status()["owner"] == "manual"
+        await portal.stop()
+    assert portal.owner is None
+    assert portal.status()["owner"] is None
+
+
+@pytest.mark.asyncio
+async def test_owner_records_auto_and_setup(
+    config_service: ConfigService, tmp_path: Path
+) -> None:
+    await config_service.set(CONFIG_KEY_TIMEOUT, 60)
+    portal = CaptivePortalService(config_service=config_service)
+    _prep_portal(portal, tmp_path)
+    with _portal_env():
+        await portal.start(owner="auto")
+        assert portal.owner == "auto"
+        await portal.stop()
+
+        await portal.start(owner="setup")
+        assert portal.owner == "setup"
+        await portal.stop()
+
+
+@pytest.mark.asyncio
 async def test_status_reports_timeout_and_password_flag(
     config_service: ConfigService, tmp_path: Path
 ) -> None:

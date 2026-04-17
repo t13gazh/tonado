@@ -117,3 +117,85 @@ async def test_import_validates_schema(backup_service) -> None:
             "version": "1",
             "cards": ["not a dict"],
         })
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_unknown_version(backup_service) -> None:
+    """M6: future versions must not silently import with undefined behaviour."""
+    service, _, _ = backup_service
+    with pytest.raises(ValueError, match="not supported"):
+        await service.import_backup({
+            "version": "99",
+            "config": {},
+            "cards": [],
+            "radio_stations": [],
+            "podcasts": [],
+        })
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_cover_path_traversal(backup_service) -> None:
+    """M6: cover_path must be checked for traversal, not just content_path."""
+    service, _, _ = backup_service
+    data = {
+        "version": "1",
+        "config": {},
+        "cards": [
+            {
+                "card_id": "x",
+                "name": "x",
+                "content_type": "folder",
+                "content_path": "safe/path",
+                "cover_path": "../../etc/passwd",
+            }
+        ],
+        "radio_stations": [],
+        "podcasts": [],
+    }
+    with pytest.raises(ValueError, match="cover_path"):
+        await service.import_backup(data)
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_absolute_content_path(backup_service) -> None:
+    """M6: absolute paths are also dangerous, not only .."""
+    service, _, _ = backup_service
+    data = {
+        "version": "1",
+        "config": {},
+        "cards": [
+            {
+                "card_id": "x",
+                "name": "x",
+                "content_type": "folder",
+                "content_path": "/etc/shadow",
+            }
+        ],
+        "radio_stations": [],
+        "podcasts": [],
+    }
+    with pytest.raises(ValueError, match="content_path"):
+        await service.import_backup(data)
+
+
+@pytest.mark.asyncio
+async def test_import_skips_audio_device(backup_service) -> None:
+    """M6: hardware-specific keys (audio.*) must not cross boxes."""
+    service, config, _ = backup_service
+    await config.set("audio.device", "hw:original")
+
+    data = {
+        "version": "1",
+        "config": {
+            "audio.device": "hw:other-box",
+            "player.max_volume": 70,
+        },
+        "cards": [],
+        "radio_stations": [],
+        "podcasts": [],
+    }
+    counts = await service.import_backup(data)
+    # audio.device was skipped, player.max_volume was imported
+    assert counts["config"] == 1
+    assert await config.get("audio.device") == "hw:original"
+    assert await config.get("player.max_volume") == 70

@@ -21,6 +21,18 @@ logger = logging.getLogger(__name__)
 
 _SENSITIVE_KEY_EXACT = {"auth.jwt_secret", "auth.pin_hash.parent", "auth.pin_hash.expert"}
 
+# Backup schema versions this service knows how to restore. A backup tagged
+# with anything else is likely from a future Tonado build and importing it
+# blindly would drop fields silently.
+_KNOWN_BACKUP_VERSIONS = {"1"}
+
+# Config keys that must not be overwritten during restore:
+# - auth.*: secrets and PIN hashes — exported filtered, re-importing empty
+#   would brick login
+# - audio.*: tied to the hardware of the originating box (e.g. hw:1 =
+#   HifiBerry). Restoring on a different Pi silences audio.
+_RESTORE_CONFIG_SKIP_PREFIXES: tuple[str, ...] = ("auth.", "audio.")
+
 
 class BackupService(BaseService):
     """Manages backup and restore of Tonado configuration."""
@@ -110,11 +122,26 @@ class BackupService(BaseService):
         return path
 
     @staticmethod
+    def _path_looks_unsafe(path: str) -> bool:
+        """Reject parent-directory traversal, absolute paths, and Windows-style paths."""
+        if not path:
+            return False
+        if ".." in path or path.startswith(("/", "~")) or "\\" in path:
+            return True
+        return False
+
+    @staticmethod
     def _validate_backup(data: dict[str, Any]) -> list[str]:
         """Validate backup structure. Returns list of errors (empty = valid)."""
         errors: list[str] = []
-        if not isinstance(data.get("version"), str):
+        version = data.get("version")
+        if not isinstance(version, str):
             errors.append("Missing or invalid 'version' field")
+        elif version not in _KNOWN_BACKUP_VERSIONS:
+            errors.append(
+                f"Backup version '{version}' is not supported — "
+                "maybe from a newer Tonado build"
+            )
         for i, card in enumerate(data.get("cards", [])):
             if not isinstance(card, dict):
                 errors.append(f"cards[{i}]: not a dict")
@@ -122,9 +149,12 @@ class BackupService(BaseService):
             for field in ("card_id", "name", "content_type", "content_path"):
                 if not isinstance(card.get(field), str) or not card[field].strip():
                     errors.append(f"cards[{i}]: missing or empty '{field}'")
-            path = card.get("content_path", "")
-            if isinstance(path, str) and ".." in path:
-                errors.append(f"cards[{i}]: content_path contains path traversal")
+            for path_field in ("content_path", "cover_path"):
+                path = card.get(path_field)
+                if isinstance(path, str) and BackupService._path_looks_unsafe(path):
+                    errors.append(
+                        f"cards[{i}]: {path_field} contains path traversal or absolute path"
+                    )
         for i, station in enumerate(data.get("radio_stations", [])):
             if not isinstance(station, dict):
                 errors.append(f"radio_stations[{i}]: not a dict")
@@ -155,11 +185,16 @@ class BackupService(BaseService):
 
         counts = {"config": 0, "cards": 0, "stations": 0, "podcasts": 0}
 
-        # Restore config (skip auth secrets)
+        # Restore config (skip auth secrets and hardware-specific keys)
         config_data = data.get("config", {})
         for key, value in config_data.items():
-            if not isinstance(key, str) or key.startswith("auth."):
-                continue  # Don't overwrite auth settings
+            if not isinstance(key, str):
+                continue
+            if any(key.startswith(prefix) for prefix in _RESTORE_CONFIG_SKIP_PREFIXES):
+                # auth.*: never overwrite secrets / PIN hashes.
+                # audio.*: originating box's hw:id likely doesn't exist on
+                # this Pi, would silence playback.
+                continue
             await self._config.set(key, value)
             counts["config"] += 1
 

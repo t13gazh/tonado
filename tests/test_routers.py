@@ -573,6 +573,22 @@ async def test_system_info_bootstrap_returns_full(client):
 
 
 @pytest.mark.asyncio
+async def test_backup_restore_rejects_oversize_upload(client):
+    """M6: reject a backup file that's obviously too big before parsing it."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    result = await auth_svc.login("9999")
+    headers = {"Authorization": f"Bearer {result['token']}"}
+
+    # 11 MB of bytes — above the 10 MB cap
+    payload = b"{" + b"x" * (11 * 1024 * 1024) + b"}"
+    files = {"file": ("backup.json", payload, "application/json")}
+    resp = await c.post("/api/system/restore", headers=headers, files=files)
+    assert resp.status_code == 413
+    assert "max" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
 async def test_system_health_generic_network_detail_when_sealed(client):
     """M5: sealed & anonymous callers must not see SSID/IP in health.network.detail."""
     c, auth_svc = client

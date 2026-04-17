@@ -425,6 +425,9 @@ async def export_backup(
     )
 
 
+_BACKUP_MAX_BYTES = 10 * 1024 * 1024  # 10 MB — real backups are tens of KB
+
+
 @router.post("/restore")
 async def import_backup(
     request: Request,
@@ -438,6 +441,16 @@ async def import_backup(
 
     try:
         content = await file.read()
+    except Exception:
+        raise HTTPException(400, "Could not read backup file")
+
+    if len(content) > _BACKUP_MAX_BYTES:
+        raise HTTPException(
+            413,
+            f"Backup zu groß (max. {_BACKUP_MAX_BYTES // (1024 * 1024)} MB)",
+        )
+
+    try:
         data = json.loads(content)
     except (json.JSONDecodeError, UnicodeDecodeError):
         raise HTTPException(400, "Invalid backup file")

@@ -1,6 +1,11 @@
 #!/bin/bash
 # Tonado installation script for Raspberry Pi
 # Usage: curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
+#
+# Re-running the script on an already-installed box is safe but short-circuits
+# by default. Pass --force (or --reinstall) to run every step again.
+# Override HifiBerry overlay variant:
+#   sudo HIFIBERRY_OVERLAY=hifiberry-dacplus bash install.sh
 
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -9,6 +14,21 @@ TONADO_DIR="/opt/tonado"
 TONADO_USER="${SUDO_USER:-pi}"
 MEDIA_DIR="/home/${TONADO_USER}/tonado/media"
 CONFIG_DIR="/home/${TONADO_USER}/tonado/config"
+INSTALL_MARKER="/var/lib/tonado/install.done"
+
+# Which HifiBerry overlay to write into config.txt. Default covers the
+# common MiniAmp / plain DAC. Set HIFIBERRY_OVERLAY=hifiberry-dacplus (or
+# hifiberry-amp, hifiberry-digi etc.) to match Amp2/DAC+ boards.
+HIFIBERRY_OVERLAY="${HIFIBERRY_OVERLAY:-hifiberry-dac}"
+
+FORCE_REINSTALL=false
+for arg in "$@"; do
+    case "$arg" in
+        --force|--reinstall)
+            FORCE_REINSTALL=true
+            ;;
+    esac
+done
 
 echo "=== Tonado Installation ==="
 echo "User: $TONADO_USER"
@@ -27,6 +47,34 @@ if ! id "$TONADO_USER" &>/dev/null; then
     exit 1
 fi
 
+# Short-circuit re-runs unless the user explicitly asked for them.
+# The marker is written at the very end, so partial installs never
+# create it — they retry automatically on the next run.
+if [ -f "$INSTALL_MARKER" ] && [ "$FORCE_REINSTALL" = false ]; then
+    echo "Tonado ist bereits installiert ($(cat "$INSTALL_MARKER"))."
+    echo "Für eine erneute Installation: sudo bash install.sh --force"
+    echo "Für ein Update: über die App (Einstellungen → System) oder git pull."
+    exit 0
+fi
+
+# Retry wrapper for apt steps. A shaky WLAN during first-boot on the
+# captive-portal path easily breaks a single apt-get update; retrying
+# with a short pause is enough for almost every real-world case.
+apt_retry() {
+    local tries=3
+    local attempt=1
+    while [ "$attempt" -le "$tries" ]; do
+        if "$@"; then
+            return 0
+        fi
+        echo "  Versuch $attempt/$tries fehlgeschlagen — warte 5 s..."
+        sleep 5
+        attempt=$((attempt + 1))
+    done
+    echo "  FEHLER: '$*' nach $tries Versuchen nicht erfolgreich."
+    return 1
+}
+
 # Detect Pi model (warn if not a Pi, but continue)
 PI_MODEL="unbekannt"
 if [ -f /proc/device-tree/model ]; then
@@ -39,8 +87,8 @@ fi
 NEEDS_REBOOT=false
 
 echo "[1/11] System-Pakete installieren..."
-apt-get update -qq
-apt-get install -y -qq \
+apt_retry apt-get update -qq
+apt_retry apt-get install -y -qq \
     python3 python3-venv python3-pip \
     mpd mpc \
     hostapd dnsmasq \
@@ -86,14 +134,19 @@ elif grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG" 2>/dev/null; then
 fi
 
 if [ "$HIFIBERRY_DETECTED" = true ]; then
-    echo "  HifiBerry erkannt — I2S-Audio wird konfiguriert."
-    if ! grep -q "dtoverlay=hifiberry-dac" "$BOOT_CONFIG"; then
+    echo "  HifiBerry erkannt — I2S-Audio wird konfiguriert (Overlay: ${HIFIBERRY_OVERLAY})."
+    # Idempotent: match any hifiberry-* overlay, not only the exact
+    # overlay we're about to write. Prevents duplicate lines if the
+    # user re-ran the script with a different HIFIBERRY_OVERLAY.
+    if ! grep -qE "^dtoverlay=hifiberry-" "$BOOT_CONFIG"; then
         sed -i 's/^dtparam=audio=on/#dtparam=audio=on/' "$BOOT_CONFIG"
         echo "" >> "$BOOT_CONFIG"
-        echo "# Tonado: HifiBerry MiniAmp" >> "$BOOT_CONFIG"
-        echo "dtoverlay=hifiberry-dac" >> "$BOOT_CONFIG"
+        echo "# Tonado: HifiBerry (${HIFIBERRY_OVERLAY})" >> "$BOOT_CONFIG"
+        echo "dtoverlay=${HIFIBERRY_OVERLAY}" >> "$BOOT_CONFIG"
         echo "gpio=25=op,dh" >> "$BOOT_CONFIG"
         NEEDS_REBOOT=true
+    else
+        echo "  HifiBerry-Overlay bereits in $BOOT_CONFIG eingetragen — keine Änderung."
     fi
 else
     echo "  Kein HifiBerry erkannt — Onboard-Audio wird verwendet."
@@ -316,9 +369,14 @@ MaxRetentionSec=7day
 JOURNAL
 systemctl restart systemd-journald 2>/dev/null || true
 
-# Disable IPv6 (saves RAM on Pi Zero W)
-if ! grep -q "ipv6.disable=1" /boot/firmware/cmdline.txt 2>/dev/null; then
-    sed -i 's/$/ ipv6.disable=1/' /boot/firmware/cmdline.txt 2>/dev/null || true
+# Disable IPv6 (saves RAM on Pi Zero W).
+# cmdline.txt MUST stay single-line or the kernel refuses to boot. The
+# previous `sed s/$/ .../` would append to *every* line if the file
+# somehow had more than one — only touch line 1.
+CMDLINE="/boot/firmware/cmdline.txt"
+[ ! -f "$CMDLINE" ] && CMDLINE="/boot/cmdline.txt"
+if [ -f "$CMDLINE" ] && ! grep -q "ipv6.disable=1" "$CMDLINE"; then
+    sed -i '1 s/$/ ipv6.disable=1/' "$CMDLINE"
     NEEDS_REBOOT=true
 fi
 
@@ -343,6 +401,16 @@ fi
 # Final permissions fix — must run LAST, after all files are in place
 chown -R "$TONADO_USER:$TONADO_USER" "$TONADO_DIR"
 chmod -R 755 "$TONADO_DIR/web/build" 2>/dev/null || true
+
+# Write the install marker last so a partial failure never makes the
+# script skip itself on the next run.
+mkdir -p "$(dirname "$INSTALL_MARKER")"
+cat > "$INSTALL_MARKER" <<MARKER
+Tonado installed $(date -Iseconds)
+pi_model=$PI_MODEL
+tonado_user=$TONADO_USER
+hifiberry_overlay=$HIFIBERRY_OVERLAY
+MARKER
 
 IP=$(hostname -I | awk '{print $1}')
 echo ""

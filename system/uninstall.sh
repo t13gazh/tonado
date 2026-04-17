@@ -78,6 +78,9 @@ rm -rf "$MEDIA_DIR/config"
 rm -f /etc/systemd/journald.conf.d/tonado.conf 2>/dev/null || true
 systemctl restart systemd-journald 2>/dev/null || true
 
+# Remove install marker so a subsequent install.sh runs from scratch.
+rm -rf /var/lib/tonado
+
 echo ""
 echo "=== Deinstallation abgeschlossen ==="
 echo ""

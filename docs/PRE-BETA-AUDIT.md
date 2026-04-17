@@ -90,14 +90,14 @@ Exception-Strings landen beim Client (Stacktrace, httpx-URL, File-Paths, SQL). D
 `$CONFIG_DIR` und `$MEDIA_DIR` liegen unter `/home/$USER/tonado/` — bei aktivem Overlay im RAM-Upper-Layer. **Nach Reboot: alle Config-Writes + alle Uploads weg.** API-Endpoints existieren, kein UI-Toggle (UX-Audit SY01 offen), keine Tests, keine Warnung.
 **Fix für Beta:** OverlayFS im UI **nicht freischalten**. Als "Experimental" markieren oder post-Beta implementieren. Alternativ: Bind-Mounts für `/home/$USER/tonado/config` + `/home/$USER/tonado/media` in tmpfs-Upper rausnehmen (persistent halten).
 
-### H5 — Install-Script nicht re-run-safe
-**Datei:** `system/install.sh`
-- `sed -i 's/$/ ipv6.disable=1/'` hängt bei jedem Run erneut an falls grep-Check leer → cmdline.txt-Korruption (muss einzeilig bleiben)
-- Partial-Failure ohne Recovery (config.txt teils geschrieben, systemd-Unit fehlt noch)
-- HifiBerry hardcoded auf `hifiberry-dac` (DAC-Variante), Amp2/DAC+ falsch konfiguriert
-- Pi-Modell-Check lässt "unknown" weiterlaufen (2B/A+/B+ ohne WiFi bekommen hostapd ohne Nutzen)
-- `apt-get update -qq` ohne Retry → schwache Verbindung bricht Install ab
-**Fix:** Idempotenz konsequent (Marker-Datei `/var/lib/tonado/install.done`, grep-Checks robuster), HifiBerry-Variante abfragen oder dokumentieren, apt-Retry-Loop.
+### H5 — Install-Script nicht re-run-safe ✅ BEHOBEN
+**Datei:** `system/install.sh`, `system/uninstall.sh`
+- ✅ Marker-Datei `/var/lib/tonado/install.done` — nur am Ende geschrieben, Short-Circuit bei Re-Runs ohne `--force`; partial failure schreibt keinen Marker und versucht es beim nächsten Lauf erneut
+- ✅ `cmdline.txt`-Patch nutzt `sed '1 s/$/.../'` — nur Zeile 1, keine Multi-Line-Korruption
+- ✅ `HIFIBERRY_OVERLAY` als Env-Var mit Default `hifiberry-dac` — User kann `sudo HIFIBERRY_OVERLAY=hifiberry-dacplus bash install.sh` für Amp2/DAC+
+- ✅ `apt_retry`-Wrapper: 3× mit 5 s Pause bei flakigem WLAN
+- ⏭ Pi-Modell-Check bei "unknown": nicht adressiert — weiterhin Test-Modus-Abfangnetz, bei Pi-2B/A+/B+ OK wegen fehlender WiFi-Benutzbarkeit als Box sowieso
+- ⏭ Partial-Failure-Recovery (einzelne Steps idempotent zurücksetzen): nicht adressiert — durch Marker-Datei ist zumindest der Gesamt-Retry sauber, Einzel-Schritte sind idempotent per grep-Check
 
 ### H6 — Test-Coverage-Lücken bei 6 Services
 **Komplett ungetestet:** `system_service` (378 LOC), `button_service` (202 LOC), `captive_portal` (167 LOC), `playlist_service` (189 LOC), `websocket_hub` (109 LOC), `gyro_service` (Service-Schicht — nur GestureDetector-Algorithmus getestet).

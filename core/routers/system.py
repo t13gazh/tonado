@@ -179,8 +179,9 @@ async def restart_service(
     require_tier(request, AuthTier.EXPERT, auth)
     try:
         await svc.restart()
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+    except RuntimeError:
+        logger.exception("System restart failed")
+        raise HTTPException(500, "Neustart fehlgeschlagen")
     return {"status": "ok"}
 
 
@@ -193,8 +194,9 @@ async def shutdown(
     require_tier(request, AuthTier.EXPERT, auth)
     try:
         await svc.shutdown()
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+    except RuntimeError:
+        logger.exception("System shutdown failed")
+        raise HTTPException(500, "Ausschalten fehlgeschlagen")
     return {"status": "ok"}
 
 
@@ -207,8 +209,9 @@ async def reboot(
     require_tier(request, AuthTier.EXPERT, auth)
     try:
         await svc.reboot()
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
+    except RuntimeError:
+        logger.exception("System reboot failed")
+        raise HTTPException(500, "Reboot fehlgeschlagen")
     return {"status": "ok"}
 
 
@@ -249,8 +252,9 @@ async def gyro_calibrate_rest(
     try:
         result = await gyro.calibrate_collect_rest()
         return {"status": "ok", **result}
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("Gyro calibrate rest failed")
+        raise HTTPException(400, "Kalibrierung (Ruhelage) fehlgeschlagen")
 
 
 @router.post("/gyro/calibrate/tilt")
@@ -263,8 +267,9 @@ async def gyro_calibrate_tilt(
     try:
         result = await gyro.calibrate_collect_tilt()
         return {"status": "ok", **result}
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("Gyro calibrate tilt failed")
+        raise HTTPException(400, "Kalibrierung (Kippen) fehlgeschlagen")
 
 
 @router.post("/gyro/calibrate/save")
@@ -277,8 +282,9 @@ async def gyro_calibrate_save(
     try:
         result = await gyro.calibrate_save()
         return {"status": "ok", **result}
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    except Exception:
+        logger.exception("Gyro calibrate save failed")
+        raise HTTPException(400, "Kalibrierung konnte nicht gespeichert werden")
 
 
 @router.post("/gyro/flip-forward")

@@ -1,5 +1,6 @@
 """Stream and podcast API routes."""
 
+import logging
 from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -9,6 +10,8 @@ from core.dependencies import get_auth_service, get_stream_service, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.stream_service import StreamService
 from core.utils.url import SSRFError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/streams", tags=["streams"])
 
@@ -86,8 +89,9 @@ async def add_podcast(
         podcast = await svc.add_podcast(req.name, req.feed_url, req.auto_download)
     except SSRFError as e:
         raise HTTPException(400, str(e))
-    except Exception as e:
-        raise HTTPException(422, f"Feed konnte nicht geladen werden: {e}")
+    except Exception:
+        logger.exception("Failed to add podcast %r (%r)", req.name, req.feed_url)
+        raise HTTPException(422, "Feed konnte nicht geladen werden.")
     return podcast.to_dict()
 
 

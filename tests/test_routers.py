@@ -12,9 +12,10 @@ from fastapi import FastAPI
 
 from core.database import DatabaseManager
 from core.hardware.rfid import MockRfidReader
-from core.routers import auth, cards, config, library, player, playlists, streams, system
+from core.routers import auth, cards, config, library, player, playlists, setup, streams, system
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
+from core.services.captive_portal import CaptivePortalService
 from core.services.card_service import CardService
 from core.services.config_service import ConfigService
 from core.services.event_bus import EventBus
@@ -23,6 +24,7 @@ from core.services.hardware_detector import HardwareDetector
 from core.services.library_service import LibraryService
 from core.services.player_service import PlayerService
 from core.services.playlist_service import PlaylistService
+from core.services.setup_wizard import SetupWizard
 from core.services.stream_service import StreamService
 from core.services.system_service import SystemService
 from core.services.timer_service import TimerService
@@ -70,6 +72,9 @@ async def client(tmp_path: Path):
     backup_svc = BackupService(db, config_svc)
     wifi_svc = WifiService()
     hw_detector = HardwareDetector()
+    setup_wizard = SetupWizard(config_svc, wifi_svc, auth_service=auth_svc)
+    await setup_wizard.start()
+    captive_portal = CaptivePortalService(config_service=config_svc)
 
     # Wire app.state
     app.state.player_service = player_svc
@@ -85,6 +90,8 @@ async def client(tmp_path: Path):
     app.state.wifi_service = wifi_svc
     app.state.hardware_detector = hw_detector
     app.state.gyro_service = gyro_svc
+    app.state.setup_wizard = setup_wizard
+    app.state.captive_portal = captive_portal
 
     # Include routers
     app.include_router(auth.router)
@@ -95,6 +102,7 @@ async def client(tmp_path: Path):
     app.include_router(playlists.router)
     app.include_router(system.router)
     app.include_router(player.router)
+    app.include_router(setup.router)
 
     transport = ASGITransport(app=app, client=("127.0.0.1", 0))
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -322,6 +330,25 @@ async def test_backup_import_malformed_schema(client):
                         files={"file": ("backup.json", bad_backup, "application/json")})
     assert resp.status_code == 400
     assert "Invalid backup" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_requires_parent_pin(client):
+    """K1 router integration: /api/setup/complete must return 400 if no PIN is set."""
+    c, _ = client
+    resp = await c.post("/api/setup/complete")
+    assert resp.status_code == 400
+    assert "Eltern-PIN" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_succeeds_with_parent_pin(client):
+    """K1 router integration: /api/setup/complete succeeds when a PIN is set."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    resp = await c.post("/api/setup/complete")
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
 
 
 @pytest.mark.asyncio

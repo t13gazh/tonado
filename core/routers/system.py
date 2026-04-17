@@ -163,9 +163,9 @@ async def hardware_redetect(
     try:
         profile = await detector.redetect(skip_rfid=True)
         return profile.to_dict()
-    except Exception as e:
-        logger.error("Hardware re-detection failed: %s", e)
-        raise HTTPException(500, "Hardware re-detection failed")
+    except Exception:
+        logger.exception("Hardware re-detection failed")
+        raise HTTPException(500, "Hardware-Neuerkennung fehlgeschlagen")
 
 
 # --- Power ---

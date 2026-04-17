@@ -145,6 +145,7 @@ async def complete_setup(
     try:
         result = await wizard.complete_setup()
     except ValueError as e:
+        # ValueError carries a curated German user message (see setup_wizard.complete_setup)
         raise HTTPException(400, str(e))
     # Stop captive portal if active
     if portal.active:

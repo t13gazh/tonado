@@ -267,15 +267,15 @@ Kern-Produkt-Verhalten (CLAUDE.md), kein Test. `test_card_scanned_event` nutzt 0
 
 ## Abgeleitete TODO-Reihenfolge
 
-### Phase 1 — Security-Härtung (1-2 Sessions)
-1. K1 Setup-Complete erzwingt PIN-Setzung
-2. K2 `X-Real-IP` hinter nginx lesen
-3. K3 `/play-folder` Path-Validation
-4. K6 Captive-Portal-AP WPA2 + Timeout
-5. K7 Watchdog aus Install-Script raus bis systemd-Ticker da ist
-6. H1 Tier-Checks auf `/sleep-timer`, `/player/outputs`, `/playlists/{id}/play`, `/buttons/scan|test`
-7. H2 Globales Rate-Limit
-8. H3 `str(e)` in HTTPException bereinigen
+### Phase 1 — Security-Härtung ✅ (2026-04-17, 9 Commits 5366ebe→01db72d)
+1. ✅ K1 Setup-Complete erzwingt PIN-Setzung
+2. ✅ K2 `X-Real-IP` hinter nginx lesen
+3. ✅ K3 `/play-folder` Path-Validation
+4. ✅ K6 Captive-Portal-AP WPA2 + Timeout
+5. ✅ K7 Watchdog aus system_service.py raus bis systemd-Ticker da ist
+6. ✅ H1 Tier-Checks auf `/sleep-timer`, `/player/outputs`, `/buttons/scan|test` (Playlist-Play bewusst OPEN)
+7. ✅ H2 Globales Rate-Limit (100/min default, 5/min Upload)
+8. ✅ H3 `str(e)` in HTTPException bereinigen
 
 ### Phase 2 — Update-Härtung (1 Session)
 9. K5 Unit-Tests `test_system_service.py` (Happy Path + Fehlerpfade + Rollback)

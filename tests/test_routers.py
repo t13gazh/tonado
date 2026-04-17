@@ -168,8 +168,8 @@ async def test_write_with_valid_token(client):
     token = await _get_token(auth_svc, AuthTier.PARENT)
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Config set should work with valid parent token
-    resp = await c.put("/api/config/", json={"key": "test.key", "value": "hello"}, headers=headers)
+    # Config set should work with valid parent token (whitelisted key + valid value)
+    resp = await c.put("/api/config/", json={"key": "player.max_volume", "value": 80}, headers=headers)
     assert resp.status_code == 200
 
 
@@ -190,7 +190,7 @@ async def test_expert_endpoints_reject_parent_token(client):
 async def test_no_pin_set_allows_access(client):
     c, _ = client
     # No PINs set → all write endpoints accessible
-    resp = await c.put("/api/config/", json={"key": "test", "value": "ok"})
+    resp = await c.put("/api/config/", json={"key": "player.max_volume", "value": 80})
     assert resp.status_code == 200
 
 
@@ -466,3 +466,58 @@ async def test_config_sensitive_keys_blocked(client):
     # Cannot write auth secrets
     resp = await c.put("/api/config/", json={"key": "auth.jwt_secret", "value": "hack"}, headers=headers)
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_config_whitelist_rejects_unknown_key(client):
+    """M1: only whitelisted keys are writeable via the public API."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.put(
+        "/api/config/",
+        json={"key": "player.mpd_host", "value": "evil.example.com"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+    assert "not writeable" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_config_whitelist_rejects_wrong_type(client):
+    """M1: whitelisted keys still validate types and ranges."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # max_volume expects int 10-100
+    for bad in ["loud", True, 5, 200, 50.5]:
+        resp = await c.put(
+            "/api/config/",
+            json={"key": "player.max_volume", "value": bad},
+            headers=headers,
+        )
+        assert resp.status_code == 400, f"{bad!r} should be rejected"
+
+
+@pytest.mark.asyncio
+async def test_config_whitelist_accepts_enum(client):
+    """M1: enum keys accept known values and reject others."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.put(
+        "/api/config/",
+        json={"key": "gyro.sensitivity", "value": "normal"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await c.put(
+        "/api/config/",
+        json={"key": "gyro.sensitivity", "value": "extreme"},
+        headers=headers,
+    )
+    assert resp.status_code == 400

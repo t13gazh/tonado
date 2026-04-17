@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.dependencies import get_auth_service, get_config_service, require_tier
 from core.schemas.config import ConfigSetRequest, ConfigValueResponse
+from core.schemas.config_whitelist import validate_public_config
 from core.services.auth_service import AuthService, AuthTier
 from core.services.config_service import ConfigService
 
@@ -48,8 +49,12 @@ async def set_value(
     require_tier(request, AuthTier.PARENT, auth)
     if _is_sensitive(req.key):
         raise HTTPException(403, "This setting cannot be changed directly")
-    await svc.set(req.key, req.value)
-    return {"status": "ok", "key": req.key, "value": req.value}
+    try:
+        normalised = validate_public_config(req.key, req.value)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    await svc.set(req.key, normalised)
+    return {"status": "ok", "key": req.key, "value": normalised}
 
 
 @router.delete("/{key}")

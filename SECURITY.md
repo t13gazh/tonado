@@ -48,7 +48,7 @@ Wir bestätigen den Eingang innerhalb von **72 Stunden** und planen einen Fix in
 
 | Datum | Finding | Status |
 |-------|---------|--------|
-| 2026-04-16 | Pre-Beta-Audit (8 KRITISCH + 12 HOCH + 10 MITTEL) | K1/K2/K3/K5/K6/K7 + H1–H4, H6/H7, H10–H12 + M2/M7/M8/M9/M10 behoben (Commits 5366ebe → 2f25734). K4 (Captive-Portal-First-Boot E2E) und K8 (Gyro Tilt-Produktentscheidung) offen — brauchen Hardware bzw. Product-Owner-Input. |
+| 2026-04-16 | Pre-Beta-Audit (8 KRITISCH + 12 HOCH + 10 MITTEL) | K1/K2/K3/K5/K6/K7 + H1–H4, H6/H7, H10–H12 + M1–M10 behoben (Commits 5366ebe → 2d9bddc). Offen: K4 (Captive-Portal-First-Boot E2E), K8 (Gyro Tilt-Produktentscheidung), H5 (Install-Script-Idempotenz), H8 (Pi-Kompat Live-Tests), H9 (Hardware-Detection-Härtung). |
 
 Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
 

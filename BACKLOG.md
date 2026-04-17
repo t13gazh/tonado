@@ -2,7 +2,7 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
-> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. K5-Live-E2E (braucht Pi-Hardware), K4 Captive-Portal-First-Boot und K8 Gyro-Tilt-Produktentscheidung offen. Details & Status: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
+> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. Alle 10 MITTEL-Findings (M1–M10) ✅. Offen: K5-Live-E2E (Pi-Hardware), K4 Captive-Portal-First-Boot, K8 Gyro-Tilt-Produktentscheidung, H5/H9 Install+Hardware-Härtung. Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
 
 ## Pre-Beta-Audit (abgearbeitet 2026-04-17)
 
@@ -31,16 +31,16 @@
 - [ ] H9 Hardware-Detection härten (RC522-Klone, USB-HID VID/PID-Whitelist) — offen
 
 **MITTEL:**
-- [x] M2 Library-Filename via `Path(..).name` (Commit 9d0bf0c)
+- [x] M1 ConfigSetRequest.value Whitelist (Commit 891b188)
+- [x] M2 Library-Filename via `Path(..).name` (Commit 9d0bf0c + aba670b Windows-Backslashes)
+- [x] M3 JWT 4h + Secret-Rotation bei PIN-Change (Commit 3b1e757)
+- [x] M4 Nginx-Security-Header für Static-Assets (Commit caff1bf, install.sh)
+- [x] M5 `/system/info` + `/health` LAN-Metadaten maskiert (Commit 980cf03)
+- [x] M6 Backup-Import: Size-Cap, cover_path, version, audio.* skip (Commit 2d9bddc)
 - [x] M7 RFID-Cooldown live-reconfigurierbar (Commit 9d0bf0c)
 - [x] M8 AuthService-Start-Failure bricht Boot ab (Commit 9d0bf0c)
-- [x] M9 Card-Cooldown 2s Test (Commit 77f2c4b)
+- [x] M9 Card-Cooldown 2s Test (Commit 77f2c4b + f971400 Direkt-Test)
 - [x] M10 Auth-Matrix-Test (Commit 77f2c4b)
-- [ ] M1 ConfigSetRequest.value Whitelist — offen
-- [ ] M3 JWT 24h → 2-4h + Secret-Rotation bei PIN-Change — offen
-- [ ] M4 Nginx-Security-Header für Static-Assets — offen (install.sh)
-- [ ] M5 `/system/info` IP/SSID-Maskierung bzw. PARENT-Gate — offen
-- [ ] M6 Backup-Import: Size-Limit, cover_path-Traversal-Check — offen
 
 **Pre-existing Failures gefixt (Commit aa79c94):** test_stream_service, test_gyro, test_playback_dispatcher — Test-Suite komplett grün (222 Tests).
 

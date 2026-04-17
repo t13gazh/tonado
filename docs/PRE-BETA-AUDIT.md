@@ -277,11 +277,12 @@ Kern-Produkt-Verhalten (CLAUDE.md), kein Test. `test_card_scanned_event` nutzt 0
 7. ✅ H2 Globales Rate-Limit (100/min default, 5/min Upload)
 8. ✅ H3 `str(e)` in HTTPException bereinigen
 
-### Phase 2 — Update-Härtung (1 Session)
-9. K5 Unit-Tests `test_system_service.py` (Happy Path + Fehlerpfade + Rollback)
-10. K5 `asyncio.Lock` in SystemService
-11. K5 pip-Rollback: altes pyproject nachinstallieren
-12. K5 Live-E2E auf Pi (Dummy-Commit + kaputter Commit)
+### Phase 2 — Update-Härtung ✅ (2026-04-17, Commit 27f1585)
+9. ✅ K5 Unit-Tests `test_system_service.py` (7 Tests: Happy Path + pip-fail + exception-rollback + serialisation + check-waits-for-apply)
+10. ✅ K5 `asyncio.Lock` in SystemService (`_update_lock` serialisiert check + apply)
+11. ✅ K5 pip-Rollback reinstalliert Dependencies nach `git reset`
+12. ⏳ K5 Live-E2E auf Pi (Dummy-Commit + kaputter Commit) — offen, braucht Hardware
+13. ✅ K5 `/update/check` PARENT-gated (war public → git-fetch DoS-Vektor)
 
 ### Phase 3 — Test-Coverage (2-3 Sessions)
 13. H6 `test_playlist_service.py`

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.dependencies import get_auth_service, get_config_service, require_tier
 from core.schemas.config import ConfigSetRequest, ConfigValueResponse
-from core.schemas.config_whitelist import validate_public_config
+from core.schemas.config_whitelist import PUBLIC_CONFIG_WHITELIST, validate_public_config
 from core.services.auth_service import AuthService, AuthTier
 from core.services.config_service import ConfigService
 
@@ -67,6 +67,10 @@ async def delete_value(
     require_tier(request, AuthTier.PARENT, auth)
     if _is_sensitive(key):
         raise HTTPException(403, "This setting cannot be deleted")
+    # Same whitelist as PUT — otherwise a parent token could delete
+    # backend-owned keys like audio.device or setup.step and brick the box.
+    if key not in PUBLIC_CONFIG_WHITELIST:
+        raise HTTPException(400, f"config key '{key}' is not writeable via API")
     deleted = await svc.delete(key)
     if not deleted:
         raise HTTPException(404, "Setting not found")

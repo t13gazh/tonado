@@ -186,6 +186,24 @@ async def test_config_change_flips_gesture_mode(
         await svc.stop()
 
 
+@pytest.mark.asyncio
+async def test_stop_unsubscribes_config_listener(
+    sensor: ScriptedSensor, event_bus: EventBus, wired_config: ConfigService
+) -> None:
+    """W-2: after stop(), config_changed events must not still flip the mode."""
+    svc = GyroService(sensor, event_bus, config=wired_config, enabled=True)
+    await svc.start()
+    assert svc._config_subscribed is True
+
+    await svc.stop()
+    assert svc._config_subscribed is False
+
+    # Snapshot, then fire a config change — dead subscription must be silent
+    mode_before = svc._keep_playing_mode
+    await wired_config.set("card.remove_pauses", not mode_before)
+    assert svc._keep_playing_mode == mode_before
+
+
 def test_gesture_maps_cover_all_gestures() -> None:
     """Both maps must agree on LEFT/RIGHT/SHAKE and diverge only on FORWARD/BACK."""
     from core.hardware.gyro import Gesture

@@ -190,3 +190,16 @@ async def test_setting_expert_pin_also_rotates_parent_tokens(auth_service: AuthS
 
     await auth_service.set_pin(AuthTier.EXPERT, "9999")
     assert auth_service.verify_token(parent["token"]) is None
+
+
+@pytest.mark.asyncio
+async def test_remove_pin_rotates_secret(auth_service: AuthService) -> None:
+    """W-3: removing a PIN is also a 'change the locks' event → old tokens must die."""
+    await auth_service.set_pin(AuthTier.PARENT, "1234")
+    login = await auth_service.login("1234")
+    assert login is not None
+    token = login["token"]
+    assert auth_service.verify_token(token) is not None
+
+    await auth_service.remove_pin(AuthTier.PARENT)
+    assert auth_service.verify_token(token) is None

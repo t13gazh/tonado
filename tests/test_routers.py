@@ -601,3 +601,78 @@ async def test_system_health_generic_network_detail_when_sealed(client):
     # Whatever the mock wifi reports, the anonymous-caller detail must be
     # either the generic "Verbunden" or the generic "Nicht verbunden".
     assert net.get("detail") in {"Verbunden", "Nicht verbunden"}
+
+
+# --- Post-review regression tests (K-1, K-3, M6 proper OOM check) ---
+
+@pytest.mark.asyncio
+async def test_system_hardware_masks_ssid_when_sealed(client):
+    """K-1: /system/hardware must also drop LAN-identifying wifi fields."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_svc.set_setup_complete(True)
+
+    resp = await c.get("/api/system/hardware")
+    assert resp.status_code == 200
+    wifi = resp.json().get("wifi", {})
+    # Whatever the mock reports, SSID/IP must be wiped for anonymous callers
+    assert wifi.get("ssid") == ""
+    assert wifi.get("ip") == ""
+
+
+@pytest.mark.asyncio
+async def test_system_hardware_full_wifi_for_parent(client):
+    """K-1: PARENT token still gets the full wifi payload."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_svc.set_setup_complete(True)
+    result = await auth_svc.login("1234")
+    headers = {"Authorization": f"Bearer {result['token']}"}
+
+    resp = await c.get("/api/system/hardware", headers=headers)
+    assert resp.status_code == 200
+    wifi = resp.json().get("wifi", {})
+    # Keys present — values depend on the mock
+    assert "ssid" in wifi
+    assert "ip" in wifi
+
+
+@pytest.mark.asyncio
+async def test_config_delete_rejects_non_whitelisted_keys(client):
+    """K-3: DELETE must respect the same whitelist as PUT."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Non-whitelisted backend key — parent token must NOT be able to delete it
+    resp = await c.delete("/api/config/audio.device", headers=headers)
+    assert resp.status_code == 400
+    assert "not writeable" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_config_delete_allows_whitelisted_keys(client):
+    """K-3: legitimate config deletes still work."""
+    c, auth_svc = client
+    # Seed a whitelisted key so DELETE has something to find
+    app_config = c._transport.app.state.config_service  # type: ignore[attr-defined]
+    await app_config.set("player.max_volume", 80)
+
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = await c.delete("/api/config/player.max_volume", headers=headers)
+    assert resp.status_code == 200
+
+
+def test_sanitize_filename_strips_backslashes_and_nulls() -> None:
+    """W-4: both upload endpoints must use the same sanitiser."""
+    from core.routers.library import _sanitize_filename
+
+    # Windows-style path on a Linux runtime
+    assert _sanitize_filename(r"C:\Users\attacker\evil.mp3") == "evil.mp3"
+    # Null byte injection
+    assert _sanitize_filename("clean\x00suffix.mp3") == "cleansuffix.mp3"
+    # Forward-slash parent traversal
+    assert _sanitize_filename("../../etc/passwd") == "passwd"
+    # Harmless name passes through
+    assert _sanitize_filename("Track 01.mp3") == "Track 01.mp3"

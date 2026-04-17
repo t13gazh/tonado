@@ -67,6 +67,10 @@ class GyroService(BaseService):
         # Keep-playing mode (card.remove_pauses=False) repurposes tilt-
         # front/back as volume control. See K8 product decision.
         self._keep_playing_mode = False
+        # Track whether we attached the config listener so stop() can
+        # detach it cleanly — avoids a stale closure firing on a dead
+        # service after restart.
+        self._config_subscribed = False
 
         # Last detected gesture (for test UI)
         self._last_gesture: str | None = None
@@ -130,6 +134,7 @@ class GyroService(BaseService):
             # Default: remove_pauses=False (box keeps playing → volume mode)
             self._keep_playing_mode = (stored is False) or (stored is None)
             self._event_bus.subscribe("config_changed", self._on_config_changed)
+            self._config_subscribed = True
 
         self._poll_task = asyncio.create_task(self._poll_loop())
         logger.info(
@@ -148,6 +153,9 @@ class GyroService(BaseService):
 
     async def stop(self) -> None:
         """Stop gesture detection and release sensor."""
+        if self._config_subscribed:
+            self._event_bus.unsubscribe("config_changed", self._on_config_changed)
+            self._config_subscribed = False
         if self._poll_task:
             self._poll_task.cancel()
             try:

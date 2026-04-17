@@ -19,6 +19,17 @@ router = APIRouter(prefix="/api/library", tags=["library"])
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024
 
 
+def _sanitize_filename(raw: str) -> str:
+    """Reduce an uploaded filename to a safe basename.
+
+    Strips null bytes, collapses Windows backslashes so a Linux runtime
+    cannot leave them verbatim in the saved path, and applies Path.name
+    to drop every parent component.
+    """
+    cleaned = raw.replace("\x00", "").replace("\\", "/")
+    return Path(cleaned).name
+
+
 def _safe_path(folder_name: str, svc: LibraryService) -> str:
     """Validate folder_name against path traversal attacks.
 
@@ -138,11 +149,7 @@ async def upload_file(
     if not file.filename:
         raise HTTPException(400, "No filename provided")
 
-    # Path(..).name only strips the runtime's own separator; we also need
-    # to collapse Windows backslashes and null bytes that a Linux runtime
-    # would otherwise keep verbatim.
-    raw = file.filename.replace("\x00", "").replace("\\", "/")
-    safe_filename = Path(raw).name
+    safe_filename = _sanitize_filename(file.filename)
     if not safe_filename or safe_filename in (".", ".."):
         raise HTTPException(400, "Invalid filename")
     target = svc.get_upload_path(folder_name, safe_filename)
@@ -176,7 +183,11 @@ async def upload_cover(
     if not file.filename:
         raise HTTPException(400, "No filename provided")
 
-    suffix = Path(file.filename).suffix.lower()
+    # Reuse the upload sanitiser — even though we write a fixed basename
+    # (cover.<ext>), the suffix is derived from the user-controlled name
+    # and must not carry null bytes or backslash trickery through.
+    safe_filename = _sanitize_filename(file.filename)
+    suffix = Path(safe_filename).suffix.lower()
     image_extensions = {".jpg", ".jpeg", ".png", ".webp"}
     max_cover_bytes = 10 * 1024 * 1024
 

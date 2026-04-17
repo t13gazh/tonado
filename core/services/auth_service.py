@@ -99,9 +99,15 @@ class AuthService(BaseService):
         logger.info("JWT secret rotated — existing tokens invalidated")
 
     async def remove_pin(self, tier: AuthTier) -> None:
-        """Remove the PIN for a tier (makes it unprotected)."""
+        """Remove the PIN for a tier (makes it unprotected).
+
+        Rotates the JWT secret for the same reason as set_pin(): removing
+        a PIN is usually a "change the locks" moment — old tokens from
+        before the change should not keep working.
+        """
         await self._config.delete(f"auth.pin_hash.{tier}")
         self._pin_cache[tier.value] = False
+        await self._rotate_jwt_secret()
         logger.info("PIN removed for tier: %s", tier)
 
     async def verify_pin(self, tier: AuthTier, pin: str) -> bool:

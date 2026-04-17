@@ -175,12 +175,26 @@ async def system_health(
 
 @router.get("/hardware")
 async def hardware_status(
+    request: Request,
     detector: HardwareDetector = Depends(get_hardware_detector),
     wifi: WifiService = Depends(get_wifi_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
-    """Return cached hardware profile including WiFi status."""
+    """Return cached hardware profile including WiFi status.
+
+    M5 follow-up: anonymous callers do not receive LAN-identifying fields
+    (SSID, IP). The wizard runs pre-setup (auth is None → bootstrap
+    passthrough) or with a PARENT token, so it still gets the full view.
+    """
     data = detector.profile.to_dict()
-    data["wifi"] = await _wifi_status_dict(wifi)
+    wifi_info = await _wifi_status_dict(wifi)
+    if not _caller_has_parent(request, auth):
+        wifi_info = {
+            "connected": wifi_info.get("connected", False),
+            "ssid": "",
+            "ip": "",
+        }
+    data["wifi"] = wifi_info
     return data
 
 
@@ -439,8 +453,10 @@ async def import_backup(
     if not file.filename or not file.filename.endswith(".json"):
         raise HTTPException(400, "Only JSON files allowed")
 
+    # Read at most max+1 so we can detect oversize without buffering a
+    # hostile 500 MB upload into RAM on a Pi Zero W.
     try:
-        content = await file.read()
+        content = await file.read(_BACKUP_MAX_BYTES + 1)
     except Exception:
         raise HTTPException(400, "Could not read backup file")
 

@@ -18,6 +18,7 @@ from core.dependencies import (
     get_hardware_detector,
     get_player,
     get_system_service,
+    get_token,
     get_wifi_service,
     require_tier,
 )
@@ -38,6 +39,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
+def _caller_has_parent(request: Request, auth: AuthService | None) -> bool:
+    """Return True when the caller would pass a PARENT require_tier check.
+
+    Used to decide whether to return LAN-identifying metadata on otherwise
+    public diagnostic endpoints. Returns True during the pre-setup bootstrap
+    phase so the wizard can introspect the box.
+    """
+    if auth is None:
+        return True
+    return auth.check_access(get_token(request), AuthTier.PARENT)
+
+
 async def _wifi_status_dict(wifi: WifiService) -> dict:
     """Get WiFi status via WifiService (handles nmcli/wpa_cli/mock fallback)."""
     status = await wifi.status()
@@ -53,20 +66,33 @@ async def _wifi_status_dict(wifi: WifiService) -> dict:
 # --- System info ---
 
 @router.get("/info")
-async def system_info(svc: SystemService = Depends(get_system_service)) -> dict:
+async def system_info(
+    request: Request,
+    svc: SystemService = Depends(get_system_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
     info = await svc.get_info()
-    return info.to_dict()
+    d = info.to_dict()
+    if not _caller_has_parent(request, auth):
+        # M5: anonymous callers (e.g. waitForServer after reboot) must not
+        # see LAN-identifying metadata. The wizard remains functional — it
+        # either runs during bootstrap (auth is None) or with a PARENT token.
+        d["hostname"] = ""
+        d["ip_address"] = ""
+    return d
 
 
 # --- Health status (hardware resilience) ---
 
 @router.get("/health")
 async def system_health(
+    request: Request,
     player: PlayerService = Depends(get_player),
     card: CardService = Depends(get_card_service),
     gyro: GyroService = Depends(get_gyro_service),
     buttons: ButtonService = Depends(get_button_service),
     wifi: WifiService = Depends(get_wifi_service),
+    auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     """Return health status of all hardware components for UI degraded-state banners."""
     health: dict = {}
@@ -128,13 +154,17 @@ async def system_health(
     except OSError:
         health["storage"] = {"status": "ok", "free_mb": 0, "detail": "Nicht verfügbar"}
 
-    # Network
+    # Network — SSID/IP are LAN-identifying, only share with PARENT-tier callers.
     wifi_info = await _wifi_status_dict(wifi)
     if wifi_info["connected"]:
-        health["network"] = {
-            "status": "connected",
-            "detail": f"{wifi_info['ssid']} ({wifi_info['ip']})" if wifi_info["ip"] else wifi_info["ssid"],
-        }
+        if _caller_has_parent(request, auth):
+            detail = (
+                f"{wifi_info['ssid']} ({wifi_info['ip']})"
+                if wifi_info["ip"] else wifi_info["ssid"]
+            )
+        else:
+            detail = "Verbunden"
+        health["network"] = {"status": "connected", "detail": detail}
     else:
         health["network"] = {"status": "disconnected", "detail": "Nicht verbunden"}
 

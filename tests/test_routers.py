@@ -521,3 +521,67 @@ async def test_config_whitelist_accepts_enum(client):
         headers=headers,
     )
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_system_info_masks_lan_metadata_when_sealed(client):
+    """M5: after setup completion, anonymous /system/info must drop hostname/IP."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_svc.set_setup_complete(True)
+
+    resp = await c.get("/api/system/info")
+    assert resp.status_code == 200
+    body = resp.json()
+    # Non-sensitive fields still present
+    assert "tonado_version" in body
+    # LAN-identifying fields wiped
+    assert body["hostname"] == ""
+    assert body["ip_address"] == ""
+
+
+@pytest.mark.asyncio
+async def test_system_info_full_for_parent(client):
+    """M5: PARENT tokens see the full /system/info response."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_svc.set_setup_complete(True)
+    result = await auth_svc.login("1234")
+    headers = {"Authorization": f"Bearer {result['token']}"}
+
+    resp = await c.get("/api/system/info", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    # hostname/ip come from platform.node / runtime; they may be empty on a
+    # test host, so only assert that the keys are present and untouched by
+    # the masking branch.
+    assert "hostname" in body
+    assert "ip_address" in body
+
+
+@pytest.mark.asyncio
+async def test_system_info_bootstrap_returns_full(client):
+    """M5: before setup completion, anonymous callers still see full info
+    so the wizard's waitForServer/HardwareStep can work."""
+    c, _ = client
+    # No PIN set → bootstrap phase
+    resp = await c.get("/api/system/info")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "hostname" in body
+    assert "ip_address" in body
+
+
+@pytest.mark.asyncio
+async def test_system_health_generic_network_detail_when_sealed(client):
+    """M5: sealed & anonymous callers must not see SSID/IP in health.network.detail."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    auth_svc.set_setup_complete(True)
+
+    resp = await c.get("/api/system/health")
+    assert resp.status_code == 200
+    net = resp.json().get("network", {})
+    # Whatever the mock wifi reports, the anonymous-caller detail must be
+    # either the generic "Verbunden" or the generic "Nicht verbunden".
+    assert net.get("detail") in {"Verbunden", "Nicht verbunden"}

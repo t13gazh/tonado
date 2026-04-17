@@ -19,7 +19,14 @@ async def async_run(
         stdout, stderr = await asyncio.wait_for(
             proc.communicate(), timeout=timeout
         )
-        return proc.returncode or 0, stdout.decode(), stderr.decode()
+        # Some system tools (Windows `hostname -I`, some NetworkManager
+        # locales) emit non-UTF-8 bytes. Don't crash the whole call when
+        # we only need the rough textual output.
+        return (
+            proc.returncode or 0,
+            stdout.decode(errors="replace"),
+            stderr.decode(errors="replace"),
+        )
     except FileNotFoundError:
         return 1, "", f"Command not found: {cmd[0]}"
     except asyncio.TimeoutError:

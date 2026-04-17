@@ -1,6 +1,7 @@
 """Tests for the stream service."""
 
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import aiosqlite
 import pytest
@@ -11,8 +12,18 @@ from core.services.stream_service import StreamService
 @pytest.fixture
 async def stream_service(tmp_db: aiosqlite.Connection, tmp_path: Path):
     service = StreamService(tmp_db, podcast_dir=tmp_path / "podcasts")
+    # Don't hit the network for RSS parsing — tests don't care about feed content
+    service._parse_rss = AsyncMock(return_value=[])
+    service.refresh_podcast = AsyncMock(return_value=None)
+    # validate_url does DNS resolution; also skip it for the synthetic URLs
+    import core.services.stream_service as mod
+    service._patched_validate = mod.validate_url
+    mod.validate_url = lambda url, *a, **kw: None
     await service.start()
-    yield service
+    try:
+        yield service
+    finally:
+        mod.validate_url = service._patched_validate
 
 
 @pytest.mark.asyncio

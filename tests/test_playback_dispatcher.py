@@ -191,6 +191,11 @@ async def test_gesture_volume(setup):
 
 @pytest.mark.asyncio
 async def test_gesture_shuffle(setup):
+    """The shuffle gesture calls player.shuffle_play() — jumping to a
+    random track in the current queue (not toggling the MPD random flag)."""
+    from unittest.mock import AsyncMock
+
     player, _, _, _, bus = setup
+    player.shuffle_play = AsyncMock()
     await bus.publish("gesture_detected", action="shuffle")
-    assert player.state.shuffle is True
+    player.shuffle_play.assert_awaited_once()

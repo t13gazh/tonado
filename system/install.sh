@@ -261,6 +261,15 @@ server {
     # Upload limit (default 1 MB is too small for audio files)
     client_max_body_size 500M;
 
+    # Security headers — FastAPI middleware covers /api and /ws, but SPA
+    # assets served directly by nginx would otherwise ship without them.
+    # "always" keeps them on 4xx/5xx responses too.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: http: https:; font-src 'self'" always;
+
     # API and WebSocket proxy
     location /api/ {
         proxy_pass http://127.0.0.1:8080;

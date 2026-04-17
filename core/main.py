@@ -40,7 +40,7 @@ from core.services.setup_wizard import SetupWizard
 from core.services.stream_service import StreamService
 from core.services.system_service import SystemService
 from core.services.timer_service import TimerService
-from core.services.websocket_hub import WebSocketHub
+from core.services.websocket_hub import MAX_CONNECTIONS, WebSocketHub
 from core.services.wifi_service import WifiService
 from core.services.system_service import VERSION
 from core.settings import Settings
@@ -401,6 +401,16 @@ async def websocket_endpoint(ws: WebSocket) -> None:
         return
 
     hub: WebSocketHub = ws.app.state.ws_hub
+
+    # H10: cap concurrent connections so one misbehaving client can't
+    # OOM a Pi Zero W by opening hundreds of sockets.
+    if hub.is_full:
+        logger.warning(
+            "WebSocket rejected: connection cap reached (%d)", MAX_CONNECTIONS
+        )
+        await ws.close(code=1013, reason="Too many connections")
+        return
+
     await hub.connect(ws)
     try:
         while True:

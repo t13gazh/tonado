@@ -117,6 +117,18 @@ async def test_failed_send_prunes_connection(
 
 
 @pytest.mark.asyncio
+async def test_is_full_reflects_connection_cap(event_bus: EventBus) -> None:
+    """H10: Hub reports is_full once max_connections is reached."""
+    small = WebSocketHub(event_bus, max_connections=2)
+    await small.start()
+    assert small.is_full is False
+    await small.connect(FakeWebSocket())
+    assert small.is_full is False
+    await small.connect(FakeWebSocket())
+    assert small.is_full is True
+
+
+@pytest.mark.asyncio
 async def test_stop_closes_all_connections(hub: WebSocketHub) -> None:
     ws1 = FakeWebSocket()
     ws2 = FakeWebSocket()

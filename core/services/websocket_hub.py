@@ -12,13 +12,21 @@ from core.services.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
 
+MAX_CONNECTIONS = 20
+
+
 class WebSocketHub:
     """Manages WebSocket connections and broadcasts events to all clients."""
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(self, event_bus: EventBus, max_connections: int = MAX_CONNECTIONS) -> None:
         self._event_bus = event_bus
         self._connections: set[WebSocket] = set()
         self._last_state: dict[str, Any] = {}
+        self._max_connections = max_connections
+
+    @property
+    def is_full(self) -> bool:
+        return len(self._connections) >= self._max_connections
 
     async def stop(self) -> None:
         """Close all connections and unsubscribe from events."""

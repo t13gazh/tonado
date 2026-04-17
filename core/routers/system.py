@@ -13,6 +13,7 @@ from core.dependencies import (
     get_backup_service,
     get_button_service,
     get_card_service,
+    get_config_service,
     get_gyro_service,
     get_hardware_detector,
     get_player,
@@ -24,6 +25,7 @@ from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.button_service import ButtonService
 from core.services.card_service import CardService
+from core.services.config_service import ConfigService
 from core.services.gyro_service import GyroService
 from core.services.hardware_detector import HardwareDetector
 from core.services.player_service import PlayerService
@@ -332,15 +334,34 @@ async def apply_update(
     return await svc.apply_update()
 
 
-# --- OverlayFS ---
+# --- OverlayFS (experimental) ---
+#
+# Audit H4: enabling OverlayFS on the reference install will eat every
+# future config/media write (upper layer is tmpfs, reboot throws it
+# away). Hidden behind an explicit config opt-in until the config/media
+# paths are bind-mounted out of the overlay.
+
+async def _require_overlay_opt_in(config_svc) -> None:
+    flag = await config_svc.get("system.overlayfs_experimental")
+    if flag is not True:
+        raise HTTPException(
+            409,
+            "OverlayFS ist experimentell und deaktiviert. "
+            "Setze system.overlayfs_experimental=true in der Konfiguration, "
+            "bevor du es aktivierst — sonst gehen alle Konfigurations- "
+            "und Upload-Änderungen nach einem Neustart verloren.",
+        )
+
 
 @router.post("/overlay/enable")
 async def enable_overlay(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
     svc: SystemService = Depends(get_system_service),
+    config_svc: ConfigService = Depends(get_config_service),
 ) -> dict:
     require_tier(request, AuthTier.EXPERT, auth)
+    await _require_overlay_opt_in(config_svc)
     success = await svc.enable_overlay()
     return {"status": "ok" if success else "error"}
 

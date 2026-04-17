@@ -15,7 +15,7 @@ from dataclasses import asdict
 from enum import StrEnum
 from typing import Any
 
-from core.hardware.detect import HardwareProfile, get_free_gpios
+from core.hardware.detect import HardwareProfile
 from core.services.auth_service import AuthService, AuthTier
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
@@ -99,15 +99,22 @@ class SetupWizard(BaseService):
         await self._config.set("setup.step", step.value)
 
     def _compute_hardware_fingerprint(self, profile: HardwareProfile) -> str:
-        """Compute a hash fingerprint of the hardware configuration."""
+        """Compute a hash fingerprint of the hardware configuration.
+
+        Ignores ALSA card numbers (hw:0/hw:1). Those shift on kernel
+        updates even when the physical hardware is unchanged and were
+        the main false-positive source of "hardware changed" banners.
+        """
         parts = [
             f"rfid:{profile.rfid_reader}",
             f"gyro:{profile.gyro_detected}",
             f"pi:{profile.pi.model}",
-            f"free_gpios:{len(get_free_gpios(profile))}",
         ]
-        for audio in sorted(profile.audio_outputs, key=lambda a: a.device):
-            parts.append(f"audio:{audio.name}:{audio.device}")
+        # Sort by (type, name) — both stable across reboots. Use only
+        # type+name, not device, so hw:0↔hw:1 swaps don't invalidate the
+        # fingerprint.
+        for audio in sorted(profile.audio_outputs, key=lambda a: (a.type, a.name)):
+            parts.append(f"audio:{audio.type}:{audio.name}")
         raw = "|".join(parts)
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
 

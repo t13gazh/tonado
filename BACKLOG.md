@@ -2,7 +2,7 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
-> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. Alle 10 MITTEL-Findings (M1–M10) ✅. K8 Gyro-Tilt ✅ (Kopplung an `card.remove_pauses`). Offen: K5-Live-E2E (Pi-Hardware), K4 Captive-Portal-First-Boot, H5/H9 Install+Hardware-Härtung. Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
+> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. Alle 10 MITTEL-Findings (M1–M10) ✅. K8 Gyro-Tilt ✅ (Kopplung an `card.remove_pauses`). H9 ✅ (Klon-Versionen, HID-Filter, stabiler Fingerprint). Offen: K5-Live-E2E (Pi-Hardware), K4 Captive-Portal-First-Boot, H5 Install-Script-Idempotenz. Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
 
 ## Pre-Beta-Audit (abgearbeitet 2026-04-17)
 
@@ -28,7 +28,7 @@
 - [x] H12 CONTRIBUTING.md, SECURITY.md, docs/UPDATE.md, docs/BACKUP.md (Commit e67766f)
 - [ ] H5 Install-Script Idempotenz + Marker-Datei — offen
 - [ ] H8 Pi-Kompatibilitätsmatrix in README (Commit e67766f) — ✅ auf Doku-Seite; Live-Tests auf Zero W / 4 / 5 offen
-- [ ] H9 Hardware-Detection härten (RC522-Klone, USB-HID VID/PID-Whitelist) — offen
+- [x] H9 Hardware-Detection härten: RC522-Klon-Versionen (0x88, 0xB2) akzeptiert, USB-HID filtert Tastatur/Maus/Gamepad/etc. anhand HID_NAME, Fingerprint ignoriert ALSA-Card-Nummern (hw:0 ↔ hw:1 Swap ist kein Hardware-Wechsel mehr).
 
 **MITTEL:**
 - [x] M1 ConfigSetRequest.value Whitelist (Commit 891b188)

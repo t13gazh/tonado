@@ -160,3 +160,67 @@ async def test_wizard_status(config_service: ConfigService, wifi_service: WifiSe
     assert status["current_step"] == "not_started"
     assert status["is_complete"] is False
     assert status["hardware"] is None
+
+
+# --- H9: hardware fingerprint is stable ---
+
+def _make_wizard_for_fingerprint(config_service, wifi_service) -> SetupWizard:
+    return SetupWizard(config_service, wifi_service)
+
+
+@pytest.mark.asyncio
+async def test_fingerprint_ignores_alsa_card_number(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """H9: hw:0 ↔ hw:1 swaps must not invalidate the fingerprint."""
+    from core.hardware.detect import AudioOutput, HardwareProfile, PiModel
+
+    wizard = _make_wizard_for_fingerprint(config_service, wifi_service)
+
+    base_pi = PiModel(model="Pi 3B+", ram_mb=1024)
+    profile_a = HardwareProfile(
+        pi=base_pi,
+        rfid_reader="rc522",
+        rfid_device="/dev/spidev0.0",
+        audio_outputs=[
+            AudioOutput(name="HifiBerry DAC", type="i2s", device="hw:0"),
+            AudioOutput(name="HDMI Audio", type="hdmi", device="hw:1"),
+        ],
+        gyro_detected=True,
+    )
+    profile_b = HardwareProfile(
+        pi=base_pi,
+        rfid_reader="rc522",
+        rfid_device="/dev/spidev0.0",
+        audio_outputs=[
+            AudioOutput(name="HifiBerry DAC", type="i2s", device="hw:1"),
+            AudioOutput(name="HDMI Audio", type="hdmi", device="hw:0"),
+        ],
+        gyro_detected=True,
+    )
+    assert wizard._compute_hardware_fingerprint(profile_a) == wizard._compute_hardware_fingerprint(profile_b)
+
+
+@pytest.mark.asyncio
+async def test_fingerprint_changes_when_hardware_actually_changes(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """H9: adding or removing real hardware must still flip the fingerprint."""
+    from core.hardware.detect import AudioOutput, HardwareProfile, PiModel
+
+    wizard = _make_wizard_for_fingerprint(config_service, wifi_service)
+    base_pi = PiModel(model="Pi 3B+", ram_mb=1024)
+
+    without_dac = HardwareProfile(
+        pi=base_pi,
+        rfid_reader="rc522",
+        audio_outputs=[AudioOutput(name="Eingebauter Audio-Ausgang (3.5mm)", type="analog", device="hw:0")],
+        gyro_detected=False,
+    )
+    with_dac = HardwareProfile(
+        pi=base_pi,
+        rfid_reader="rc522",
+        audio_outputs=[AudioOutput(name="HifiBerry DAC", type="i2s", device="hw:0")],
+        gyro_detected=False,
+    )
+    assert wizard._compute_hardware_fingerprint(without_dac) != wizard._compute_hardware_fingerprint(with_dac)

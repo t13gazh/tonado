@@ -83,6 +83,31 @@ _PI_MODELS: dict[str, tuple[str, int, bool, bool]] = {
 _UNSUPPORTED_MODELS = {"Pi B+", "Pi A+", "Pi 2B"}
 
 
+# RC522 and commonly sold clones identify themselves via the VersionReg
+# (0x37). NXP original: 0x91/0x92. Fudan/FM17522 clones are widespread
+# in budget RFID kits and report 0x88 or 0xB2 but speak the same
+# protocol — rejecting them broke detection on otherwise-fine hardware.
+_RC522_VERSION_IDS = {0x91, 0x92, 0x88, 0xB2}
+
+# HID names (lowercased) that reveal the device is NOT an RFID reader.
+# USB-RFID readers emulate a keyboard, but they report product names
+# like "HXGCoLtd Human Interface" or "Sycreader USB Reader". Any device
+# that clearly identifies as a keyboard/mouse/touchpad/gamepad/etc. is
+# excluded from the RFID probe so users' keyboards don't get mapped.
+_HID_NON_RFID_HINTS = (
+    "keyboard",
+    "keypad",
+    "mouse",
+    "touchpad",
+    "trackpad",
+    "gamepad",
+    "joystick",
+    "controller",
+    "headset",
+    "webcam",
+)
+
+
 def detect_pi_model() -> PiModel:
     """Detect the Raspberry Pi model from /proc/cpuinfo."""
     cpuinfo = Path("/proc/cpuinfo")
@@ -133,17 +158,52 @@ def detect_pi_model() -> PiModel:
         return PiModel()
 
 
+def _hid_device_name(index: int) -> str:
+    """Read the human-readable HID product name for /dev/hidrawN.
+
+    Returns an empty string if sysfs can't be read (mock systems, old
+    kernels, permission issues).
+    """
+    uevent = Path(f"/sys/class/hidraw/hidraw{index}/device/uevent")
+    if not uevent.exists():
+        return ""
+    try:
+        for line in uevent.read_text().splitlines():
+            if line.startswith("HID_NAME="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _hid_looks_like_rfid(name: str) -> bool:
+    """Reject HID devices that clearly identify as something other than RFID."""
+    if not name:
+        # No name information: cautiously accept — this preserves detection
+        # on systems where sysfs isn't mounted the way we expect.
+        return True
+    lower = name.lower()
+    return not any(hint in lower for hint in _HID_NON_RFID_HINTS)
+
+
 def detect_rfid() -> tuple[str, str]:
     """Detect connected RFID reader. Returns (type, device_path).
 
     Checks USB HID first (no config required), then SPI (RC522), then I2C (PN532).
+    USB HID devices that report as keyboards/mice/etc. are skipped so a
+    plugged-in keyboard doesn't get mis-assigned as the card reader.
     """
     # Check USB HID first — works without SPI/I2C config
     for i in range(4):
         hidraw = Path(f"/dev/hidraw{i}")
-        if hidraw.exists():
-            logger.info("RFID: USB HID reader detected on %s", hidraw)
-            return "usb", str(hidraw)
+        if not hidraw.exists():
+            continue
+        name = _hid_device_name(i)
+        if not _hid_looks_like_rfid(name):
+            logger.debug("RFID: ignoring %s — looks like %s", hidraw, name)
+            continue
+        logger.info("RFID: USB HID reader detected on %s (%s)", hidraw, name or "unknown")
+        return "usb", str(hidraw)
 
     # Check SPI (RC522) — verify chip responds, not just SPI device exists
     spi_device = Path("/dev/spidev0.0")
@@ -162,8 +222,9 @@ def detect_rfid() -> tuple[str, str]:
             version = spi.xfer2([0x37 << 1 | 0x80, 0x00])[1]
             version2 = spi.xfer2([0x37 << 1 | 0x80, 0x00])[1]
             spi.close()
-            # Only accept official MFRC522 versions, require stable read
-            if version == version2 and version in (0x91, 0x92):
+            # Accept official MFRC522 versions AND commonly sold FM17522
+            # clones. Require stable read to filter out SPI noise.
+            if version == version2 and version in _RC522_VERSION_IDS:
                 logger.info("RFID: RC522 detected on SPI (version 0x%02x)", version)
                 return "rc522", str(spi_device)
             else:

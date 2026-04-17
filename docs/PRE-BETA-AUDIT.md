@@ -113,13 +113,12 @@ Exception-Strings landen beim Client (Stacktrace, httpx-URL, File-Paths, SQL). D
 - ARMv6 (Pi Zero W): aiosqlite hat kein Wheel → Source-Build dauert 30+ Min (nicht dokumentiert)
 **Fix:** Kompatibilitätsmatrix explizit in README: "Beta getestet: Pi 3B+. Experimentell: Zero W, Zero 2 W. Ungetestet: Pi 4/5." Auf Pi Zero W: nginx `client_max_body_size` reduzieren, Swap in Install.
 
-### H9 — Hardware-Detection-Fragilität
-**Datei:** `core/hardware/detect.py`
-- RC522-Versions-Check nur 0x91/0x92 (Klone mit 0x88/0xB2 unterstützt ≠ 0)
-- USB-HID: alles unter `/dev/hidraw*` als RFID angenommen → Tastatur/Maus wird falsch-positiv erkannt
-- PN532 nur I2C (UART/SPI-Varianten ignoriert)
-- Hardware-Fingerprint: Audio-Devices-Reihenfolge ändert sich → `hardware_changed=True` obwohl nichts geändert
-**Fix:** USB-HID per VID/PID whitelisten, RC522-Klone-Versions akzeptieren, Fingerprint stabiler gestalten.
+### H9 — Hardware-Detection-Fragilität ✅ BEHOBEN
+**Datei:** `core/hardware/detect.py`, `core/services/setup_wizard.py`
+- ✅ RC522-Versions-Check um 0x88 und 0xB2 (FM17522-Klone) erweitert
+- ✅ USB-HID filtert Tastatur/Maus/Touchpad/Gamepad etc. anhand `HID_NAME` aus sysfs
+- ⏭ PN532 UART/SPI: nicht adressiert (seltene DIY-Variante, Beta-Nachzügler)
+- ✅ Hardware-Fingerprint nutzt nur noch stabile Felder (Typ + Name), keine ALSA-Card-Nummern → `hw:0 ↔ hw:1`-Swaps nach Kernel-Update lösen keinen `hardware_changed` mehr aus
 
 ### H10 — WebSocket ohne Auth, ohne Connection-Limit
 **Datei:** `core/main.py:385`, `core/services/websocket_hub.py`

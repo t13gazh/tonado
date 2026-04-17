@@ -192,6 +192,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         config_service=config_service,
         wifi_service=wifi_service,
         hardware_detector=hardware_detector,
+        auth_service=auth_service,
     )
 
     await asyncio.gather(

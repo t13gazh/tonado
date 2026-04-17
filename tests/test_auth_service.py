@@ -111,3 +111,33 @@ async def test_invalid_token(auth_service: AuthService) -> None:
 async def test_pin_min_length(auth_service: AuthService) -> None:
     with pytest.raises(ValueError, match="mindestens 4"):
         await auth_service.set_pin(AuthTier.PARENT, "12")
+
+
+@pytest.mark.asyncio
+async def test_check_access_bootstrap_open(auth_service: AuthService) -> None:
+    """During initial setup no PIN is set — access must remain open."""
+    assert auth_service.check_access(None, AuthTier.PARENT)
+    assert auth_service.check_access(None, AuthTier.EXPERT)
+
+
+@pytest.mark.asyncio
+async def test_check_access_sealed_after_setup(auth_service: AuthService) -> None:
+    """After setup completion the API must not fall open if a PIN is missing."""
+    auth_service.set_setup_complete(True)
+    assert not auth_service.check_access(None, AuthTier.PARENT)
+    assert not auth_service.check_access(None, AuthTier.EXPERT)
+    # Setting the PIN and logging in still works
+    await auth_service.set_pin(AuthTier.PARENT, "1234")
+    result = await auth_service.login("1234")
+    assert result is not None
+    assert auth_service.check_access(result["token"], AuthTier.PARENT)
+
+
+@pytest.mark.asyncio
+async def test_start_reads_setup_complete(config_service) -> None:
+    """start() must hydrate _setup_complete from config so the seal survives restarts."""
+    await config_service.set("setup.step", "completed")
+    service = AuthService(config_service)
+    await service.start()
+    # No PIN set + setup completed → access must be denied
+    assert not service.check_access(None, AuthTier.PARENT)

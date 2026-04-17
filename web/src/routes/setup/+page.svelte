@@ -10,19 +10,21 @@
 	import AudioStep from '$lib/components/setup/AudioStep.svelte';
 	import ButtonsStep from '$lib/components/setup/ButtonsStep.svelte';
 	import CardStep from '$lib/components/setup/CardStep.svelte';
+	import PinStep from '$lib/components/setup/PinStep.svelte';
 	import CompleteStep from '$lib/components/setup/CompleteStep.svelte';
 	import type { CardStepType } from '$lib/components/setup/CardStep.svelte';
 	import type { ButtonStepType } from '$lib/components/setup/ButtonsStep.svelte';
 
-	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'buttons' | 'card' | 'complete';
+	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'buttons' | 'card' | 'pin' | 'complete';
 
-	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'buttons', 'card', 'complete'];
+	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'buttons', 'card', 'pin', 'complete'];
 	const STEP_LABELS: Record<WizardStep, () => string> = {
 		hardware: () => t('setup.step_hardware'),
 		wifi: () => t('setup.step_wifi'),
 		audio: () => t('setup.step_audio'),
 		buttons: () => t('setup.step_buttons'),
 		card: () => t('setup.step_card'),
+		pin: () => t('setup.step_pin'),
 		complete: () => t('setup.step_done'),
 	};
 
@@ -59,6 +61,10 @@
 	let cardStepRef: CardStep;
 	let existingCardCount = $state(0);
 
+	// PIN
+	let pinSaved = $state(false);
+	let pinStepRef: PinStep;
+
 	const backendDown = $derived(isBackendOffline());
 	const currentIdx = $derived(STEPS.indexOf(currentStep));
 	const hasRfid = $derived(hardware ? hardware.rfid.reader !== 'none' : false);
@@ -78,7 +84,8 @@
 				wifi_setup: 'audio',
 				audio_setup: 'buttons',
 				buttons_setup: 'card',
-				first_card: 'complete',
+				first_card: 'pin',
+				pin_setup: 'complete',
 				completed: 'complete',
 			};
 			const mapped = stepMap[status.current_step];
@@ -273,6 +280,14 @@
 				{hasRfid} {expertMode} {existingCardCount} {error}
 				{onError} {onClearError}
 			/>
+		{:else if currentStep === 'pin'}
+			<PinStep
+				bind:this={pinStepRef}
+				bind:saved={pinSaved}
+				{error}
+				{onError}
+				onSaved={async () => { await nextStep(); }}
+			/>
 		{:else if currentStep === 'complete'}
 			<CompleteStep {hardware} {sysInfo} {wifiStatus} buttonCount={savedButtonLabels.length} buttonLabels={savedButtonLabels} {error} />
 		{/if}
@@ -390,7 +405,7 @@
 							class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
 							{t('general.back')}
 						</button>
-						<button onclick={async () => { try { await setupApi.firstCardDone(); } catch {} await goToStep('complete'); }}
+						<button onclick={async () => { try { await setupApi.firstCardDone(); } catch {} await goToStep('pin'); }}
 							class="flex-1 py-3 {hasRfid && existingCardCount === 0 ? 'bg-surface-light hover:bg-surface-lighter text-text-muted' : 'bg-primary hover:bg-primary-light text-white'} rounded-lg font-medium transition-colors">
 							{hasRfid && existingCardCount === 0 ? t('setup.card_skip') : t('setup.next')}
 						</button>
@@ -414,7 +429,7 @@
 				</div>
 			{:else if cardStep === 'done'}
 				<div class="flex flex-col gap-2">
-					<button onclick={async () => { try { await setupApi.firstCardDone(); } catch {} await goToStep('complete'); }}
+					<button onclick={async () => { try { await setupApi.firstCardDone(); } catch {} await goToStep('pin'); }}
 						class="w-full py-3 bg-primary hover:bg-primary-light text-white rounded-lg font-medium transition-colors">
 						{t('setup.next')}
 					</button>
@@ -424,6 +439,19 @@
 					</button>
 				</div>
 			{/if}
+
+		{:else if currentStep === 'pin'}
+			<div class="flex gap-3">
+				<button onclick={prevStep}
+					class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+					{t('general.back')}
+				</button>
+				<button onclick={async () => { if (pinSaved) { await nextStep(); } else { await pinStepRef.submit(); } }}
+					disabled={backendDown}
+					class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+					{pinSaved ? t('setup.next') : t('general.save')}
+				</button>
+			</div>
 
 		{:else if currentStep === 'complete'}
 			<div class="flex gap-3">

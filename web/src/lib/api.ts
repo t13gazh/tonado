@@ -512,6 +512,7 @@ export const setupApi = {
 		}),
 	testAudio: () => request<{ success: boolean }>('/setup/test-audio', { method: 'POST' }),
 	firstCardDone: () => request<{ success: boolean }>('/setup/first-card-done', { method: 'POST' }),
+	pinDone: () => request<{ success: boolean }>('/setup/pin-done', { method: 'POST' }),
 	complete: () => request<{ success: boolean }>('/setup/complete', { method: 'POST' }),
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 };

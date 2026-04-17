@@ -125,13 +125,27 @@ async def first_card_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> di
     return await wizard.complete_first_card()
 
 
+@router.post("/pin-done")
+async def pin_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
+    """Advance the wizard past the PIN step.
+
+    The actual PIN-setting happens via /api/auth/pin; this endpoint
+    only updates the wizard's own step state so the UI can proceed.
+    """
+    _require_setup_incomplete(wizard)
+    return await wizard.mark_pin_setup_done()
+
+
 @router.post("/complete")
 async def complete_setup(
     wizard: SetupWizard = Depends(get_setup_wizard),
     portal: CaptivePortalService = Depends(get_captive_portal),
 ) -> dict:
     _require_setup_incomplete(wizard)
-    result = await wizard.complete_setup()
+    try:
+        result = await wizard.complete_setup()
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     # Stop captive portal if active
     if portal.active:
         await portal.stop()

@@ -3,7 +3,9 @@
 from pathlib import Path
 
 import pytest
+import pytest_asyncio
 
+from core.services.auth_service import AuthService, AuthTier
 from core.services.config_service import ConfigService
 from core.services.setup_wizard import SetupStep, SetupWizard
 from core.services.wifi_service import WifiService
@@ -16,6 +18,14 @@ def wifi_service() -> WifiService:
     return service
 
 
+@pytest_asyncio.fixture
+async def auth_service_with_pin(config_service: ConfigService) -> AuthService:
+    svc = AuthService(config_service)
+    await svc.start()
+    await svc.set_pin(AuthTier.PARENT, "1234")
+    return svc
+
+
 @pytest.mark.asyncio
 async def test_wizard_starts_not_complete(config_service: ConfigService, wifi_service: WifiService) -> None:
     wizard = SetupWizard(config_service, wifi_service)
@@ -25,8 +35,14 @@ async def test_wizard_starts_not_complete(config_service: ConfigService, wifi_se
 
 
 @pytest.mark.asyncio
-async def test_wizard_step_progression(config_service: ConfigService, wifi_service: WifiService) -> None:
-    wizard = SetupWizard(config_service, wifi_service)
+async def test_wizard_step_progression(
+    config_service: ConfigService,
+    wifi_service: WifiService,
+    auth_service_with_pin: AuthService,
+) -> None:
+    wizard = SetupWizard(
+        config_service, wifi_service, auth_service=auth_service_with_pin
+    )
     await wizard.start()
 
     # Step 1: Hardware detection (returns mock profile on Windows)
@@ -49,10 +65,47 @@ async def test_wizard_step_progression(config_service: ConfigService, wifi_servi
     assert result["success"] is True
     assert wizard.current_step == SetupStep.FIRST_CARD
 
+    # Step 5: PIN setup (wizard progression only; PIN is already set)
+    result = await wizard.mark_pin_setup_done()
+    assert result["success"] is True
+    assert wizard.current_step == SetupStep.PIN_SETUP
+
     # Complete
     result = await wizard.complete_setup()
     assert result["success"] is True
     assert wizard.is_complete
+
+
+@pytest.mark.asyncio
+async def test_complete_requires_parent_pin(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """complete_setup() must fail if the parent PIN has not been set."""
+    auth = AuthService(config_service)
+    await auth.start()
+    wizard = SetupWizard(config_service, wifi_service, auth_service=auth)
+    await wizard.start()
+    with pytest.raises(ValueError, match="Eltern-PIN"):
+        await wizard.complete_setup()
+    assert not wizard.is_complete
+
+
+@pytest.mark.asyncio
+async def test_complete_with_parent_pin_seals_auth(
+    config_service: ConfigService,
+    wifi_service: WifiService,
+    auth_service_with_pin: AuthService,
+) -> None:
+    """complete_setup() should flip AuthService into sealed mode."""
+    wizard = SetupWizard(
+        config_service, wifi_service, auth_service=auth_service_with_pin
+    )
+    await wizard.start()
+    result = await wizard.complete_setup()
+    assert result["success"] is True
+    assert wizard.is_complete
+    # AuthService now seals off missing-PIN tiers
+    assert not auth_service_with_pin.check_access(None, AuthTier.EXPERT)
 
 
 @pytest.mark.asyncio

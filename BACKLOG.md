@@ -2,7 +2,48 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
-> **Pre-Beta-Audit (2026-04-16):** Vollständige Bestandsaufnahme aller Lücken vor Beta in [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md). Dort stehen 8 KRITISCH-Findings (Beta-Blocker), 12 HOCH-Findings (vor Beta) und die abgeleitete Phasen-Reihenfolge (Security-Härtung → Update-Härtung → Test-Coverage → Captive-Portal E2E → Doku → Product-Decisions).
+> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. K5-Live-E2E (braucht Pi-Hardware), K4 Captive-Portal-First-Boot und K8 Gyro-Tilt-Produktentscheidung offen. Details & Status: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
+
+## Pre-Beta-Audit (abgearbeitet 2026-04-17)
+
+**KRITISCH:**
+- [x] K1 Setup-Complete erzwingt Eltern-PIN (AuthService-Seal + Wizard PIN_SETUP-Step, Commits 5366ebe + 287c321)
+- [x] K2 X-Real-IP / X-Forwarded-For hinter nginx (Commit ac1fd09)
+- [x] K3 Path-Validation auf `/api/player/play-folder` (Commit 64b1c2f)
+- [x] K5 `/update/apply` Lock + pip-Rollback + Tests + `/update/check` PARENT-gated (Commit 27f1585) — Live-E2E auf Pi steht noch aus
+- [x] K6 Captive-Portal WPA2 + Auto-Timeout (Commit 975edcd)
+- [x] K7 Hardware-Watchdog deaktiviert bis systemd-Ticker da ist (Commit df3cc09)
+- [ ] K4 Captive-Portal-First-Boot E2E auf 3 SD-Images — braucht Hardware
+- [ ] K8 Gyro Tilt-forward/back: Volume (CLAUDE.md) vs. play_pause (Code) — Product-Owner-Entscheidung nötig
+
+**HOCH:**
+- [x] H1 Tier-Checks auf `/sleep-timer`, `/player/outputs`, `/buttons/scan|test` (Commit 7f8c6aa)
+- [x] H2 Globales Rate-Limit (100/min write, 5/min upload) (Commit f4c793b)
+- [x] H3 `str(e)` in HTTPException bereinigt (streams.py, system.py, Commit 01db72d)
+- [x] H4 OverlayFS hinter explizitem Config-Opt-in (Commit 193b679)
+- [x] H6 Service-Tests (playlist, button, websocket, gyro-service, Commit 3a93b07)
+- [x] H7 Auth-Matrix-Test (Commit 77f2c4b)
+- [x] H10 WebSocket Connection-Limit (Commit 193b679)
+- [x] H11 Doku aktualisiert (ARCHITEKTUR, ROADMAP, BACKLOG, Audit-Archiv, Commit e67766f)
+- [x] H12 CONTRIBUTING.md, SECURITY.md, docs/UPDATE.md, docs/BACKUP.md (Commit e67766f)
+- [ ] H5 Install-Script Idempotenz + Marker-Datei — offen
+- [ ] H8 Pi-Kompatibilitätsmatrix in README (Commit e67766f) — ✅ auf Doku-Seite; Live-Tests auf Zero W / 4 / 5 offen
+- [ ] H9 Hardware-Detection härten (RC522-Klone, USB-HID VID/PID-Whitelist) — offen
+
+**MITTEL:**
+- [x] M2 Library-Filename via `Path(..).name` (Commit 9d0bf0c)
+- [x] M7 RFID-Cooldown live-reconfigurierbar (Commit 9d0bf0c)
+- [x] M8 AuthService-Start-Failure bricht Boot ab (Commit 9d0bf0c)
+- [x] M9 Card-Cooldown 2s Test (Commit 77f2c4b)
+- [x] M10 Auth-Matrix-Test (Commit 77f2c4b)
+- [ ] M1 ConfigSetRequest.value Whitelist — offen
+- [ ] M3 JWT 24h → 2-4h + Secret-Rotation bei PIN-Change — offen
+- [ ] M4 Nginx-Security-Header für Static-Assets — offen (install.sh)
+- [ ] M5 `/system/info` IP/SSID-Maskierung bzw. PARENT-Gate — offen
+- [ ] M6 Backup-Import: Size-Limit, cover_path-Traversal-Check — offen
+
+**Pre-existing Failures gefixt (Commit aa79c94):** test_stream_service, test_gyro, test_playback_dispatcher — Test-Suite komplett grün (222 Tests).
+
 
 ## Offene Bugs
 

@@ -273,7 +273,7 @@ async def test_rate_limit_uses_forwarded_ip_behind_trusted_proxy(client):
 @pytest.mark.asyncio
 async def test_rate_limit_ignores_forwarded_from_untrusted_peer():
     """Spoofed X-Forwarded-For from a non-proxy peer must be ignored."""
-    from core.routers.auth import _extract_client_ip
+    from core.utils.client_ip import extract_client_ip
     from starlette.datastructures import Headers
 
     class _Req:
@@ -282,12 +282,12 @@ async def test_rate_limit_ignores_forwarded_from_untrusted_peer():
             self.headers = Headers(headers)
 
     # Untrusted peer — header ignored
-    ip = _extract_client_ip(_Req("8.8.8.8", {"x-forwarded-for": "1.2.3.4"}))
+    ip = extract_client_ip(_Req("8.8.8.8", {"x-forwarded-for": "1.2.3.4"}))
     assert ip == "8.8.8.8"
     # Trusted loopback — header honoured
-    ip = _extract_client_ip(_Req("127.0.0.1", {"x-forwarded-for": "1.2.3.4, 9.9.9.9"}))
+    ip = extract_client_ip(_Req("127.0.0.1", {"x-forwarded-for": "1.2.3.4, 9.9.9.9"}))
     assert ip == "1.2.3.4"
-    ip = _extract_client_ip(_Req("127.0.0.1", {"x-real-ip": "7.7.7.7"}))
+    ip = extract_client_ip(_Req("127.0.0.1", {"x-real-ip": "7.7.7.7"}))
     assert ip == "7.7.7.7"
 
 

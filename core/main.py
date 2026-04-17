@@ -286,6 +286,14 @@ app = FastAPI(
 )
 
 
+# --- Global rate limit ---
+# 100 write requests/min/IP, uploads capped at 5/min (500 MB bodies).
+# Must be added before route registration so it wraps every handler.
+from core.utils.rate_limit import RateLimitMiddleware  # noqa: E402
+
+app.add_middleware(RateLimitMiddleware)
+
+
 # --- HEAD support middleware ---
 # StaticFiles mount at "/" causes HEAD requests to bypass API routes.
 # Convert HEAD to GET so API handlers match, then strip the body.

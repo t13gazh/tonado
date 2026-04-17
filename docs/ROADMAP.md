@@ -82,6 +82,16 @@
 - Accessibility-Audit ("Leichte Sprache")
 - Dokumentation für Endanwender
 
+## Meilenstein 1.5: Beta-Readiness (v0.2.x → v0.2.0-beta)
+> Pre-Beta-Härtung. Referenz: [`PRE-BETA-AUDIT.md`](PRE-BETA-AUDIT.md). Kein neues Feature, nur Qualität.
+
+- **Security-Härtung** (Phase 1): Auth-Lockdown nach Setup, X-Real-IP hinter nginx, Path-Traversal auf `/play-folder`, Captive-Portal WPA2 + Timeout, Watchdog entschärft, Tier-Checks, globales Rate-Limit, sanitized Error-Responses. ✅ erledigt
+- **Update-Härtung** (Phase 2): `asyncio.Lock` + pip-Rollback + Tests für `/update/apply`, `/update/check` PARENT-gated. ✅ erledigt
+- **Test-Coverage** (Phase 3): playlist/button/websocket/gyro_service Service-Tests, parametrisierter Auth-Matrix-Test, 2s-Cooldown-Test. ✅ erledigt
+- **Captive-Portal + Install E2E** (Phase 4): First-Boot-Flow auf 3 SD-Images, Install-Script Idempotenz, nginx-Limits für Zero W. ⏳ braucht Hardware
+- **Doku + Aufräumen** (Phase 5): CONTRIBUTING, SECURITY, UPDATE, BACKUP, Audit-Archiv, Pi-Kompatibilitätsmatrix. ✅ erledigt
+- **Product-Decisions** (Phase 6): Gyro Tilt-forward/back (Volume vs. play_pause). ⏳ braucht User
+
 ## Meilenstein 2: Erweiterungen (Zukunft)
 
 - Spotify Connect (Box als Receiver)

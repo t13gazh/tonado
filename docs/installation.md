@@ -2,7 +2,7 @@
 
 Vollständige Anleitung zur Installation von Tonado auf einem Raspberry Pi.
 
-> **Schnellstart:** Die Kurzversion findest du in der [README](../README.md#installation).
+> **Schnellstart:** Die Kurzversion findest du in der [README](../README.md#schnellstart).
 
 ## Voraussetzungen
 

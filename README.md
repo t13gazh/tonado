@@ -81,11 +81,21 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
-**Getestet auf:**
-- Raspberry Pi Zero W + HifiBerry MiniAmp + RC522 (SPI)
-- Raspberry Pi 3B+ + HifiBerry MiniAmp + RC522 (SPI) + MPU6050 Gyro + GPIO Buttons
+**Pi-Kompatibilitätsmatrix (Stand 2026-04-17):**
+
+| Modell | Status | Hinweise |
+|--------|--------|----------|
+| Raspberry Pi 3B+ | ✅ Beta-getestet | Referenz-Plattform. HifiBerry MiniAmp + RC522 + MPU6050 + GPIO-Buttons verifiziert. |
+| Raspberry Pi Zero W | ⚠️ Experimentell | Alpha-Installation lief, seit Alpha kein Re-Test. Erster Build 20-30 min wegen aiosqlite-Kompilierung auf ARMv6. |
+| Raspberry Pi Zero 2 W | ⚠️ Experimentell | Nicht getestet, sollte aber ähnlich Pi 3B+ laufen (ARM64). |
+| Raspberry Pi 4 | ❓ Ungetestet | Sollte funktionieren — Rückmeldungen willkommen. |
+| Raspberry Pi 5 | ❓ Ungetestet | Neuer GPIO-Controller (RP1); gpiod v2 sollte abstrahieren, nicht verifiziert. |
 
 **Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, 1.3 MB Frontend.
+
+**Known Issues:**
+- **Browser-Audio bricht bei Stream-Wechsel ab.** Bei aktivem Browser-Audio-Ausgang und Wechsel von Radio/Musik kommt erst nach manuellem Deaktivieren/Aktivieren wieder Ton. [Details im Backlog](BACKLOG.md#offene-bugs).
+- **Captive-Portal-Setup noch nicht mit nicht-technischer Zielgruppe getestet.** Pi aus dem Karton → AP → WLAN einrichten läuft lokal, wurde aber nicht mit einem „frischen" Anwender validiert.
 
 **Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).
 

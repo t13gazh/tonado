@@ -52,6 +52,35 @@ Tonado folgt einer **Service-Architektur**: Unabhängige Python-Services kommuni
                   :6600  SPI   Pins  Bus    WAL
 ```
 
+## Services im Überblick (Stand 2026-04-17)
+
+Tonado hat aktuell 20 Python-Services/Layer. Die wichtigsten acht sind unten detailliert, der Rest folgt in der Kurzübersicht.
+
+| Service | LOC | Zweck |
+|---------|-----|-------|
+| `event_bus` | ~55 | In-process Publish/Subscribe für asynchrone Service-Kommunikation |
+| `config_service` | ~135 | SQLite-basierte Key-Value-Konfiguration mit Type-Inference |
+| `auth_service` | ~180 | PIN-Hash, JWT-Tokens, Tier-Auth, Setup-Seal |
+| `player_service` | ~400 | MPD-Steuerung (Play/Seek/Volume/Outputs) via python-mpd2 |
+| `card_service` | ~270 | RFID-Scan-Loop, Mapping, 2s-Cooldown, Resume-Position |
+| `library_service` | ~210 | Media-Ordner verwalten, Upload-Pfade, Cover-Art, Dauer |
+| `stream_service` | ~330 | Radio + Podcasts (RSS), httpx-basiert mit SSRF-Schutz |
+| `playlist_service` | ~190 | User-Playlists quer über Library/Streams/Podcasts |
+| `timer_service` | ~260 | Sleep-Timer, Volume-Enforcement, Idle-Loop, Resume-Save |
+| `system_service` | ~400 | `/update/*`, Restart/Shutdown/Reboot, Backup-Export, OverlayFS |
+| `backup_service` | ~210 | Export/Import von Config + Cards + Playlists als JSON |
+| `gyro_service` | ~310 | MPU6050-Polling, Gesture-Dispatch, Kalibrierung |
+| `button_service` | ~200 | GPIO-Button-Scanning (Setup) + Runtime-Listener |
+| `wifi_service` | ~340 | NetworkManager-Wrapper (Scan, Connect, Status) |
+| `setup_wizard` | ~230 | First-Boot-State-Machine, Hardware-Fingerprint |
+| `captive_portal` | ~200 | hostapd/dnsmasq-Orchestrierung für AP-Setup-Modus |
+| `hardware_detector` | ~95 | Kombiniert RFID/Audio/Gyro/Pi-Detection in `HardwareProfile` |
+| `websocket_hub` | ~110 | WebSocket-Fanout für Echtzeit-Events (State, Karten, Gesten) |
+| `playback_dispatcher` | ~150 | Mappt Karten/Gesten/Buttons auf konkrete Player-Aktionen |
+| `base_service` | ~25 | Start/Stop-Lifecycle-Mixin für alle oben genannten |
+
+Tests: 221 grün (Stand 2026-04-17). Hardware-Services laufen auf Windows/Mac im Mock-Modus, damit die Suite auch ohne Pi grün bleibt.
+
 ## Services im Detail
 
 ### Player Service

@@ -199,6 +199,13 @@
 
 - [ ] SD-Karten-Portabilität: SD-Karte zwischen verschiedenen Pi-Modellen wechselbar (z.B. auf Pi Zero W vorbereiten, in Pi 3B+ stecken). Hardware-Wizard erkennt neue Hardware beim Boot und rekonfiguriert automatisch (Audio-Output, RFID-Interface etc.)
 
+## Architektur-Refactorings (aus Senior-Review 2026-04-17, Post-Beta)
+- [ ] **InputRouter extrahieren** — GyroService kennt aktuell `card.remove_pauses` (K8-Kopplung) und mappt Gesten auf Playback-Actions selbst. Sobald Buttons, Doppeltipp-RFID oder zukünftige Eingaben dieselbe Kontext-Logik brauchen, duplizierts sich. Sauberer: Gyro emittiert neutrale Gesten (`tilt_forward`, `shake`), ein `InputRouter`/`PlaybackDispatcher` konsumiert alle Input-Quellen und entscheidet kontextabhängig. Macht außerdem das Prio-3-Item "Gyro-Gesten individuell zuweisbar" trivial — nur Dispatcher-Config.
+- [ ] **ConfigKeyRegistry als Single Source of Truth** — Heute gibt es drei Orte, die über Config-Keys entscheiden: `config_whitelist.py` (public writable), `backup_service._RESTORE_CONFIG_SKIP_PREFIXES` (backup-ignore), `gyro_service._on_config_changed` (watcher). Keine Stelle kennt die anderen. Vorschlag: Ein zentrales Registry pro Key mit Metadaten (public-writable, backup-policy, watchers, type, range). Whitelist/Skip/Subscription leiten sich daraus ab, Compiler hilft beim Hinzufügen neuer Keys.
+- [ ] **Response-Schema-Policy statt Feld-Blanking** — M5 maskiert LAN-Metadaten heute händisch (`d["hostname"] = ""`). Skaliert nicht. Sauberer: Zwei Pydantic-Modelle (`SystemInfoPublic` vs. `SystemInfoFull`), Router wählt Modell per Tier. Grenze dokumentiert sich im Schema statt im Handler. Gilt auch für `/system/hardware` und künftige Diagnose-Endpoints.
+- [ ] **JWT-Rotation: Token-in-Response bei PIN-Change** — Aktuell evictet `set_pin()` alle Sessions inklusive der gerade aktiven Wizard-Session. Heute durch Bootstrap-Pass mitigiert, aber fragil. Besser: `set_pin()` gibt optional ein frisches Token zurück; Router reicht es in der Response durch. Client-seitige Session-Recovery wird trivial, Invariante „PIN-Change evictet alles" bleibt explizit.
+- [ ] **Rate-Limit auf /api/system/restore und /api/auth/login** — Heute LAN-Trust-Annahme. PBKDF2 mit 100k Iterationen + 10 MB JSON-Parse sind nette DoS-Vektoren auf Pi Zero W. In-Memory-Token-Bucket (5 Versuche/min für Login, 3/min für Restore) wäre ein Einzeiler mit dem bestehenden RateLimit-Middleware-Pattern. Architektur-entscheidung: wenn wir WAN-Zugang öffnen (Post-Beta?), zwingend nötig.
+
 ## Migrations-Wizard
 - [ ] Phoniebox v2/v3 Daten und Karten-Zuordnungen zu Tonado migrieren
 - [ ] Audio-Dateien (Symlinks), Karten-Mapping, Hardware-Config, Playlisten

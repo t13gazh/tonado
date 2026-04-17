@@ -91,6 +91,7 @@
 - **Captive-Portal + Install E2E** (Phase 4): First-Boot-Flow auf 3 SD-Images, Install-Script Idempotenz, nginx-Limits für Zero W. ⏳ braucht Hardware
 - **Doku + Aufräumen** (Phase 5): CONTRIBUTING, SECURITY, UPDATE, BACKUP, Audit-Archiv, Pi-Kompatibilitätsmatrix. ✅ erledigt
 - **Product-Decisions** (Phase 6): Gyro Tilt-forward/back (Volume vs. play_pause). ⏳ braucht User
+- **WLAN-Rettung** (Post-Audit): `ConnectivityMonitor` startet das bestehende Captive Portal automatisch, wenn das Heim-WLAN anhaltend nicht erreichbar ist. Eltern-UI mit AP-Credentials + druckbarem QR-Code. ✅ erledigt (Live-Test auf Pi offen)
 
 ## Meilenstein 2: Erweiterungen (Zukunft)
 

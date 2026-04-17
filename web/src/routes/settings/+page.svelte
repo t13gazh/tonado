@@ -177,11 +177,24 @@
 		}
 	}
 
+	function escapeHtml(s: string): string {
+		return s
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
 	function printApQr() {
 		if (!apCredentials || !apQrDataUrl) return;
 		// Open a minimal print-only window so the user can stick the QR on the fridge.
+		// SSID is user-controlled (set in the setup wizard) and rendered into inline
+		// HTML here — must be escaped to avoid stored XSS via a hostile SSID.
 		const w = window.open('', '_blank', 'width=400,height=600');
 		if (!w) return;
+		const ssid = escapeHtml(apCredentials.ssid);
+		const password = escapeHtml(apCredentials.password);
 		w.document.write(`<!doctype html><html><head><title>Tonado WLAN-Rettung</title>
 			<style>
 				body { font-family: system-ui, sans-serif; text-align: center; padding: 24px; color: #111; }
@@ -194,8 +207,8 @@
 			<h1>Tonado WLAN-Rettung</h1>
 			<p>Scanne den Code oder verbinde dich manuell:</p>
 			<div class="creds">
-				<div>Netzwerk: <strong>${apCredentials.ssid}</strong></div>
-				<div>Passwort: <strong>${apCredentials.password}</strong></div>
+				<div>Netzwerk: <strong>${ssid}</strong></div>
+				<div>Passwort: <strong>${password}</strong></div>
 			</div>
 			<img src="${apQrDataUrl}" alt="QR" />
 			<script>window.onload = () => { window.print(); };<\/script>

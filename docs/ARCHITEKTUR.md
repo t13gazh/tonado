@@ -71,9 +71,10 @@ Tonado hat aktuell 20 Python-Services/Layer. Die wichtigsten acht sind unten det
 | `backup_service` | ~210 | Export/Import von Config + Cards + Playlists als JSON |
 | `gyro_service` | ~310 | MPU6050-Polling, Gesture-Dispatch, Kalibrierung |
 | `button_service` | ~200 | GPIO-Button-Scanning (Setup) + Runtime-Listener |
-| `wifi_service` | ~340 | NetworkManager-Wrapper (Scan, Connect, Status) |
+| `wifi_service` | ~360 | NetworkManager-Wrapper (Scan, Connect, Status), 10 s Status-Timeout + Subprocess-Cleanup |
 | `setup_wizard` | ~230 | First-Boot-State-Machine, Hardware-Fingerprint |
-| `captive_portal` | ~200 | hostapd/dnsmasq-Orchestrierung für AP-Setup-Modus |
+| `captive_portal` | ~240 | hostapd/dnsmasq-Orchestrierung für AP-Setup-Modus + Auto-Fallback (Owner-Flag: setup/auto/manual) |
+| `connectivity_monitor` | ~330 | WLAN-Watchdog, triggert Captive Portal bei anhaltendem WLAN-Ausfall (Auto-Fallback AP) |
 | `hardware_detector` | ~95 | Kombiniert RFID/Audio/Gyro/Pi-Detection in `HardwareProfile` |
 | `websocket_hub` | ~110 | WebSocket-Fanout für Echtzeit-Events (State, Karten, Gesten) |
 | `playback_dispatcher` | ~150 | Mappt Karten/Gesten/Buttons auf konkrete Player-Aktionen |

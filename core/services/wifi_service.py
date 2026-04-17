@@ -102,6 +102,28 @@ class WifiService(BaseService):
             logger.warning("WiFi status query timed out — treating as unknown")
             return WifiStatus()
 
+    @staticmethod
+    async def _read_subprocess(proc: asyncio.subprocess.Process) -> bytes:
+        """Run `proc.communicate()` and ensure the process is reaped even
+        if the caller is cancelled — otherwise a hung nmcli becomes a zombie
+        that accumulates under the 10s timeout in `status()`.
+        """
+        try:
+            stdout, _ = await proc.communicate()
+            return stdout
+        except asyncio.CancelledError:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        proc.kill()
+                        await proc.wait()
+                except ProcessLookupError:
+                    pass
+            raise
+
     async def forget(self, ssid: str) -> bool:
         """Remove a saved WiFi network."""
         if self._mock:
@@ -188,7 +210,9 @@ class WifiService(BaseService):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await proc.communicate()
+        # Wrapped so a wait_for-cancel in status() reaps the subprocess
+        # instead of leaving an nmcli zombie.
+        stdout = await self._read_subprocess(proc)
 
         status = WifiStatus()
         for line in stdout.decode().strip().splitlines():
@@ -212,7 +236,7 @@ class WifiService(BaseService):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                sig_out, _ = await sig_proc.communicate()
+                sig_out = await self._read_subprocess(sig_proc)
                 for sig_line in sig_out.decode().strip().splitlines():
                     parts = sig_line.split(":")
                     if len(parts) >= 3 and parts[2].strip() == "yes":
@@ -321,7 +345,7 @@ class WifiService(BaseService):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await proc.communicate()
+        stdout = await self._read_subprocess(proc)
 
         status = WifiStatus()
         for line in stdout.decode().strip().splitlines():

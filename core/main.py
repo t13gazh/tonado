@@ -186,7 +186,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
     dispatcher._timer_service = timer_service  # Now available for resume saves
     system_service = SystemService()
     backup_service = BackupService(db, config_service)
-    captive_portal = CaptivePortalService()
+    captive_portal = CaptivePortalService(config_service=config_service)
 
     setup_wizard = SetupWizard(
         config_service=config_service,

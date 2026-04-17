@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 # JWT settings
 _JWT_ALGORITHM = "HS256"
-_JWT_EXPIRE_HOURS = 24
+# Short enough that a stolen token from a lost phone expires within one
+# evening, long enough to cover a parent's normal usage session.
+_JWT_EXPIRE_HOURS = 4
 _JWT_ISSUER = "tonado"
 _JWT_AUDIENCE = "tonado-api"
 
@@ -73,7 +75,12 @@ class AuthService(BaseService):
         return pin_hash is not None and pin_hash != ""
 
     async def set_pin(self, tier: AuthTier, pin: str) -> None:
-        """Set or update the PIN for a tier."""
+        """Set or update the PIN for a tier.
+
+        Rotates the JWT secret so any tokens issued before the PIN change
+        are immediately invalidated — the usual reason to change a PIN is
+        a suspected compromise.
+        """
         if len(pin) < 4:
             raise ValueError("PIN muss mindestens 4 Zeichen lang sein")
         salt = secrets.token_hex(16)
@@ -81,7 +88,15 @@ class AuthService(BaseService):
         pin_hash = f"{salt}${derived}"
         await self._config.set(f"auth.pin_hash.{tier}", pin_hash)
         self._pin_cache[tier.value] = True
+        await self._rotate_jwt_secret()
         logger.info("PIN set for tier: %s", tier)
+
+    async def _rotate_jwt_secret(self) -> None:
+        """Generate a fresh JWT signing secret and invalidate every existing token."""
+        new_secret = secrets.token_hex(32)
+        await self._config.set("auth.jwt_secret", new_secret)
+        self._jwt_secret = new_secret
+        logger.info("JWT secret rotated — existing tokens invalidated")
 
     async def remove_pin(self, tier: AuthTier) -> None:
         """Remove the PIN for a tier (makes it unprotected)."""

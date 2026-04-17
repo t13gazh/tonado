@@ -141,13 +141,23 @@ Die Chips gibt es als Karten, Aufkleber, Schlüsselanhänger oder zum Einbauen i
 
 ## Gyro-Sensor (optional)
 
-Der MPU6050 Gyro-Sensor ermöglicht Gesten-Steuerung:
+Der MPU6050 Gyro-Sensor ermöglicht Gesten-Steuerung.
+
+**Kippen vor/zurück** richtet sich nach dem Figur-Abnahme-Verhalten (**Einstellungen > Karten**):
+
+| Abnahme-Verhalten | Kippen vor | Kippen zurück |
+|---|---|---|
+| **Spielt weiter** (Default — nur sinnvoll mit Magnet-Figuren / Karten im Halter) | Lautstärke + | Lautstärke − |
+| **Pausiert** (normale Figuren, die beim Kippen vom Lesefeld fallen) | Play/Pause | Stop |
+
+**Immer aktiv, unabhängig vom Modus:**
 
 | Geste | Aktion |
 |---|---|
 | Kippen links/rechts | Nächster/Vorheriger Titel |
-| Kippen vor/zurück | Lautstärke ändern |
 | Schütteln | Shuffle |
+
+> **Hintergrund:** Ohne Magnet-Halterung fallen Figuren beim Kippen vom Lesefeld — in diesem Fall wäre eine kontinuierliche Volume-Geste nicht nutzbar. Deshalb schaltet Tonado in diesem Modus auf diskrete Play/Stop-Gesten um.
 
 ### Verkabelung
 

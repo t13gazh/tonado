@@ -18,12 +18,25 @@ from core.services.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
-# Map gestures to event bus actions
+# Gesture → action mapping when removing the figure pauses playback
+# (card.remove_pauses=True). The figure falls off during a tilt anyway,
+# so tilts front/back double as discrete playback toggles.
 GESTURE_ACTIONS = {
     Gesture.TILT_LEFT: "previous_track",
     Gesture.TILT_RIGHT: "next_track",
     Gesture.TILT_FORWARD: "play_pause",
     Gesture.TILT_BACK: "stop",
+    Gesture.SHAKE: "shuffle",
+}
+
+# When playback continues after the figure is removed (typical for
+# magnet-backed figures or a card holder) tilts are usable as a
+# continuous volume dial.
+GESTURE_ACTIONS_KEEP_PLAYING = {
+    Gesture.TILT_LEFT: "previous_track",
+    Gesture.TILT_RIGHT: "next_track",
+    Gesture.TILT_FORWARD: "volume_up",
+    Gesture.TILT_BACK: "volume_down",
     Gesture.SHAKE: "shuffle",
 }
 
@@ -50,6 +63,10 @@ class GyroService(BaseService):
         self._enabled = enabled
         self._hw_failed = False
         self._poll_task: asyncio.Task | None = None
+
+        # Keep-playing mode (card.remove_pauses=False) repurposes tilt-
+        # front/back as volume control. See K8 product decision.
+        self._keep_playing_mode = False
 
         # Last detected gesture (for test UI)
         self._last_gesture: str | None = None
@@ -107,8 +124,27 @@ class GyroService(BaseService):
         # Load calibration from config
         await self._load_calibration()
 
+        # Hydrate keep-playing mode from config and follow live changes
+        if self._config is not None:
+            stored = await self._config.get("card.remove_pauses")
+            # Default: remove_pauses=False (box keeps playing → volume mode)
+            self._keep_playing_mode = (stored is False) or (stored is None)
+            self._event_bus.subscribe("config_changed", self._on_config_changed)
+
         self._poll_task = asyncio.create_task(self._poll_loop())
-        logger.info("Gyro service started (calibrated=%s)", self._calibrated)
+        logger.info(
+            "Gyro service started (calibrated=%s, keep_playing=%s)",
+            self._calibrated, self._keep_playing_mode,
+        )
+
+    async def _on_config_changed(self, key: str = "", value=None, **_) -> None:
+        """Pick up card.remove_pauses changes so the gesture map stays in sync."""
+        if key == "card.remove_pauses":
+            self._keep_playing_mode = value is False
+            logger.info(
+                "Gyro gesture mode updated: %s",
+                "volume (keep-playing)" if self._keep_playing_mode else "playback toggles",
+            )
 
     async def stop(self) -> None:
         """Stop gesture detection and release sensor."""
@@ -294,7 +330,12 @@ class GyroService(BaseService):
                     gesture = self._detector.detect(mapped)
 
                     if gesture is not None:
-                        action = GESTURE_ACTIONS[gesture]
+                        actions = (
+                            GESTURE_ACTIONS_KEEP_PLAYING
+                            if self._keep_playing_mode
+                            else GESTURE_ACTIONS
+                        )
+                        action = actions[gesture]
                         self._last_gesture = gesture.value
                         self._last_gesture_age = 0
                         logger.info("Gesture detected: %s → %s", gesture, action)

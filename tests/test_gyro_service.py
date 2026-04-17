@@ -8,6 +8,7 @@ health reporting, and event publishing.
 import asyncio
 
 import pytest
+import pytest_asyncio
 
 from core.hardware.gyro import AccelData, AxisMapping, MockGyroSensor
 from core.services.config_service import ConfigService
@@ -140,3 +141,61 @@ async def test_stop_when_not_started_is_safe(
     """Stop must tolerate being called without a prior successful start()."""
     svc = GyroService(sensor, event_bus, enabled=False)
     await svc.stop()  # should not raise
+
+
+# --- K8: gesture mapping follows card.remove_pauses ---
+
+@pytest_asyncio.fixture
+async def wired_config(tmp_db, event_bus: EventBus):
+    """ConfigService with an EventBus wired in so config_changed fires."""
+    svc = ConfigService(tmp_db, event_bus)
+    await svc.start()
+    yield svc
+
+
+@pytest.mark.asyncio
+async def test_gyro_starts_in_volume_mode_by_default(
+    sensor: ScriptedSensor, event_bus: EventBus, wired_config: ConfigService
+) -> None:
+    """Default card.remove_pauses=False → tilts route to volume control."""
+    # ConfigService seeds the default (False) at start()
+    assert await wired_config.get("card.remove_pauses") is False
+    svc = GyroService(sensor, event_bus, config=wired_config, enabled=True)
+    try:
+        await svc.start()
+        assert svc._keep_playing_mode is True
+    finally:
+        await svc.stop()
+
+
+@pytest.mark.asyncio
+async def test_config_change_flips_gesture_mode(
+    sensor: ScriptedSensor, event_bus: EventBus, wired_config: ConfigService
+) -> None:
+    """Toggling card.remove_pauses at runtime must re-route tilt gestures."""
+    await wired_config.set("card.remove_pauses", True)
+    svc = GyroService(sensor, event_bus, config=wired_config, enabled=True)
+    try:
+        await svc.start()
+        assert svc._keep_playing_mode is False  # pause-mode → playback toggles
+
+        # User toggles the setting to "keep playing"
+        await wired_config.set("card.remove_pauses", False)
+        assert svc._keep_playing_mode is True  # tilts now control volume
+    finally:
+        await svc.stop()
+
+
+def test_gesture_maps_cover_all_gestures() -> None:
+    """Both maps must agree on LEFT/RIGHT/SHAKE and diverge only on FORWARD/BACK."""
+    from core.hardware.gyro import Gesture
+    from core.services.gyro_service import GESTURE_ACTIONS, GESTURE_ACTIONS_KEEP_PLAYING
+
+    assert set(GESTURE_ACTIONS) == set(GESTURE_ACTIONS_KEEP_PLAYING)
+    for g in (Gesture.TILT_LEFT, Gesture.TILT_RIGHT, Gesture.SHAKE):
+        assert GESTURE_ACTIONS[g] == GESTURE_ACTIONS_KEEP_PLAYING[g]
+    # These are the K8-divergent ones
+    assert GESTURE_ACTIONS[Gesture.TILT_FORWARD] == "play_pause"
+    assert GESTURE_ACTIONS_KEEP_PLAYING[Gesture.TILT_FORWARD] == "volume_up"
+    assert GESTURE_ACTIONS[Gesture.TILT_BACK] == "stop"
+    assert GESTURE_ACTIONS_KEEP_PLAYING[Gesture.TILT_BACK] == "volume_down"

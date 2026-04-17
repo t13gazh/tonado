@@ -109,9 +109,11 @@ Tests: 221 grün (Stand 2026-04-17). Hardware-Services laufen auf Windows/Mac im
 
 ### Gyro Service
 - **Aufgabe:** MPU6050 Gyro-Sensor auslesen, Gesten erkennen
-- **Gesten:** Kippen links/rechts = Skip, Kippen vor/zurück = Volume, Schütteln = Shuffle
+- **Gesten:** Kippen links/rechts = Skip, Schütteln = Shuffle. Kippen vor/zurück ist an `card.remove_pauses` gekoppelt:
+  - Spielt-weiter-Modus (Default, Magnet-Figuren): vor/zurück = Volume +/−
+  - Pausiert-beim-Abnehmen-Modus (normale Karten): vor/zurück = Play/Pause / Stop
 - **Konfigurierbar:** Sensitivity-Profile (sanft/normal/wild) über Web-UI
-- **Events:** Publiziert `gesture_detected(gesture)` → Player Service reagiert
+- **Events:** Publiziert `gesture_detected(gesture, action)` → PlaybackDispatcher führt Aktion aus
 - **Basiert auf:** phonie-gyro Logik (https://github.com/t13gazh/phonie-gyro)
 
 ### Config Service

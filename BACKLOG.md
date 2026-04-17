@@ -2,7 +2,7 @@
 
 > **UX-Leitlinie:** So einfach wie möglich. Kein überladenes UI. Besser als alle anderen Apps. Layouts testen, ausprobieren, verwerfen, umbauen — bis Nutzer sagen: "Das ist durchdacht, das sieht geil aus."
 
-> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. Alle 10 MITTEL-Findings (M1–M10) ✅. Offen: K5-Live-E2E (Pi-Hardware), K4 Captive-Portal-First-Boot, K8 Gyro-Tilt-Produktentscheidung, H5/H9 Install+Hardware-Härtung. Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
+> **Pre-Beta-Audit (2026-04-16 → 2026-04-17):** Phase 1 (Security), Phase 2 (Update), Phase 3 (Test-Coverage), Phase 5 (Doku) ✅ erledigt. Alle 10 MITTEL-Findings (M1–M10) ✅. K8 Gyro-Tilt ✅ (Kopplung an `card.remove_pauses`). Offen: K5-Live-E2E (Pi-Hardware), K4 Captive-Portal-First-Boot, H5/H9 Install+Hardware-Härtung. Details: [`docs/PRE-BETA-AUDIT.md`](docs/PRE-BETA-AUDIT.md).
 
 ## Pre-Beta-Audit (abgearbeitet 2026-04-17)
 
@@ -14,7 +14,7 @@
 - [x] K6 Captive-Portal WPA2 + Auto-Timeout (Commit 975edcd)
 - [x] K7 Hardware-Watchdog deaktiviert bis systemd-Ticker da ist (Commit df3cc09)
 - [ ] K4 Captive-Portal-First-Boot E2E auf 3 SD-Images — braucht Hardware
-- [ ] K8 Gyro Tilt-forward/back: Volume (CLAUDE.md) vs. play_pause (Code) — Product-Owner-Entscheidung nötig
+- [x] K8 Gyro Tilt-forward/back an `card.remove_pauses` gekoppelt: Spielt-weiter-Modus = Volume, Pausiert-Modus = Play/Pause + Stop. Doku + Code + Tests angepasst.
 
 **HOCH:**
 - [x] H1 Tier-Checks auf `/sleep-timer`, `/player/outputs`, `/buttons/scan|test` (Commit 7f8c6aa)
@@ -175,6 +175,7 @@
 - [ ] Vollbackup inkl. Content: Optional alle Audiodateien ins Backup einschließen (nicht nur Config + Kartenzuordnung). Restore muss alles wiederherstellen können. Offene Frage: Merge-Strategie bei Konflikten (bestehende Daten vs. Backup-Daten)
 - [ ] Mehrsprachigkeit der Web-App: i18n aktivieren (Grundstruktur ist vorbereitet), Sprachwahl bei Ersteinrichtung und später in Einstellungen änderbar. Deutsch als Default, Englisch als erste Zweitsprache
 - [ ] Klopf-Modus als Alternative zu Kipp-Gesten: Accelerometer des MPU6050 für Klopf-Erkennung nutzen (1x, 2x, 3x klopfen = verschiedene Aktionen, ggf. Richtung unterscheidbar). In Einstellungen umschaltbar zwischen Kipp-Modus und Klopf-Modus
+- [ ] Gyro-Gesten individuell zuweisbar: Jede der 5 Gesten (Kippen L/R/V/Z, Schütteln) frei mit einer Aktion (Skip, Volume, Play/Pause, Stop, Shuffle, keine) belegbar. Defaults folgen weiter der K8-Kopplung an `card.remove_pauses`. UI als "Erweitert"-Sektion unter Gyro-Einstellungen, damit der Standard-Nutzer nicht überfordert wird.
 - [ ] Startup/Shutdown-Sound: Konfigurierbarer Sound beim Hoch- und Herunterfahren, aktivierbar/deaktivierbar in Einstellungen. Eigene Sounds hochladbar. Standard-Sounds mitliefern (lizenzfrei, z.B. von freesound.org/CC0)
 - [ ] Kindersicherung für physische Tasten: Lautstärke-Tasten / Skip-Tasten deaktivierbar über App
 - [ ] Lautstärke-Schritte: Konfigurierbare Schrittgröße für physische Lautstärke-Knöpfe. Idealerweise intelligent berechnet basierend auf aktuellem Level (unten feinere Schritte, oben gröbere) statt linear

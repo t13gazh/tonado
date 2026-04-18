@@ -33,12 +33,33 @@
 	}
 
 	let sortMode = $state<SortMode>(loadSortMode());
+	// Refs for roving tabindex — focus moves between radios via Arrow keys.
+	let radioRefs = $state<Record<SortMode, HTMLButtonElement | null>>({
+		alpha: null,
+		recent: null,
+		duration: null,
+	});
 
 	function setSortMode(mode: SortMode): void {
 		sortMode = mode;
 		if (typeof localStorage !== 'undefined') {
 			localStorage.setItem(SORT_STORAGE_KEY, mode);
 		}
+	}
+
+	// Arrow-key navigation across the radiogroup. WAI-ARIA pattern:
+	// Arrow{Right,Down} -> next, Arrow{Left,Up} -> prev, wraps around,
+	// selection follows focus so pressing an arrow also activates.
+	function handleRadioKeydown(event: KeyboardEvent, currentMode: SortMode): void {
+		const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
+		if (!keys.includes(event.key)) return;
+		event.preventDefault();
+		const idx = VALID_SORT_MODES.indexOf(currentMode);
+		const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+		const nextIdx = (idx + delta + VALID_SORT_MODES.length) % VALID_SORT_MODES.length;
+		const nextMode = VALID_SORT_MODES[nextIdx];
+		setSortMode(nextMode);
+		radioRefs[nextMode]?.focus();
 	}
 
 	// Derived sorted view — does not mutate the prop array.
@@ -181,15 +202,18 @@
 		Segmented control for sort mode. Radiogroup semantics so keyboard
 		and screen reader users understand "one of three". 44px tap target.
 	-->
-	<div role="radiogroup" aria-label={t('library.sort_label')} class="inline-flex rounded-lg bg-surface-light p-0.5">
+	<div role="radiogroup" aria-label={t('library.sort_label')} class="grid grid-cols-3 flex-1 rounded-lg bg-surface-light p-0.5">
 		{#each [{ id: 'alpha', label: t('library.sort_alpha') }, { id: 'recent', label: t('library.sort_recent') }, { id: 'duration', label: t('library.sort_duration') }] as opt (opt.id)}
 			{@const active = sortMode === opt.id}
 			<button
+				bind:this={radioRefs[opt.id as SortMode]}
 				type="button"
 				role="radio"
 				aria-checked={active}
+				tabindex={active ? 0 : -1}
 				onclick={() => setSortMode(opt.id as SortMode)}
-				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
+				onkeydown={(e) => handleRadioKeydown(e, opt.id as SortMode)}
+				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors text-center {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
 			>
 				{opt.label}
 			</button>

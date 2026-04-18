@@ -50,7 +50,7 @@ PUBLIC_CONFIG_WHITELIST: dict[str, Callable[[Any], Any]] = {
     "card.remove_pauses": _bool,
     "card.rescan_cooldown": _number_range(0.5, 30.0),
     "gyro.enabled": _bool,
-    "gyro.sensitivity": _enum("sanft", "normal", "wild"),
+    "gyro.sensitivity": _enum("gentle", "normal", "wild"),
     "system.idle_shutdown_minutes": _int_range(0, 1440),
     "sleep_fade_duration": _int_range(0, 300),
     "wizard.expert_mode": _bool,

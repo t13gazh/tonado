@@ -152,6 +152,10 @@
 	let sleepActive = $state(false);
 	let sleepRemaining = $state(0);
 	let sleepCancelling = $state(false);
+	let sleepMenuOpen = $state(false);
+	let sleepExtending = $state(false);
+	let sleepPillRef: HTMLDivElement | null = $state(null);
+	let sleepMenuRef: HTMLDivElement | null = $state(null);
 
 	const sleepVisible = $derived(sleepActive && sleepRemaining > 0);
 	const sleepFinalMinute = $derived(sleepVisible && sleepRemaining < 60);
@@ -185,11 +189,48 @@
 			await authApi.cancelSleepTimer();
 			sleepActive = false;
 			sleepRemaining = 0;
+			sleepMenuOpen = false;
 		} catch {
 			addToast(t('player.sleep_cancel_failed'), 'error');
 		} finally {
 			sleepCancelling = false;
 		}
+	}
+
+	function toggleSleepMenu() {
+		if (!sleepVisible) return;
+		sleepMenuOpen = !sleepMenuOpen;
+	}
+
+	async function extendSleepTimer(minutes: number) {
+		if (sleepExtending) return;
+		sleepExtending = true;
+		try {
+			const res = await authApi.extendSleepTimer(minutes);
+			// Optimistic local update using server's truth
+			sleepRemaining = Math.max(0, Math.floor(res.remaining_seconds));
+			sleepActive = sleepRemaining > 0;
+			sleepMenuOpen = false;
+			addToast(t('player.sleep_extended_toast', { minutes }), 'success');
+		} catch {
+			addToast(t('player.sleep_extend_failed'), 'error');
+		} finally {
+			sleepExtending = false;
+		}
+	}
+
+	function handleSleepMenuKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			sleepMenuOpen = false;
+		}
+	}
+
+	function handleSleepDocClick(e: MouseEvent) {
+		if (!sleepMenuOpen) return;
+		const target = e.target as Node;
+		if (sleepMenuRef?.contains(target)) return;
+		if (sleepPillRef?.contains(target)) return;
+		sleepMenuOpen = false;
 	}
 
 	onMount(() => {
@@ -207,10 +248,16 @@
 		const onVisible = () => { if (!document.hidden) pollSleepTimer(); };
 		document.addEventListener('visibilitychange', onVisible);
 
+		// Sleep-menu: Escape + outside click
+		document.addEventListener('keydown', handleSleepMenuKeydown);
+		document.addEventListener('click', handleSleepDocClick);
+
 		return () => {
 			clearInterval(pollId);
 			clearInterval(tickId);
 			document.removeEventListener('visibilitychange', onVisible);
+			document.removeEventListener('keydown', handleSleepMenuKeydown);
+			document.removeEventListener('click', handleSleepDocClick);
 		};
 	});
 
@@ -257,25 +304,63 @@
 
 	<!-- Sleep timer indicator: absolute so it does not push cover art down -->
 	{#if sleepVisible}
-		<div
-			class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 pl-3 pr-1 py-1 rounded-full text-xs shadow-sm transition-colors {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
-		>
-			<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-				<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-			</svg>
-			<span class="font-medium" aria-hidden="true">{t('player.sleep_remaining', { time: sleepLabel })}</span>
-			<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
+		<div bind:this={sleepPillRef} class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
 			<button
-				onclick={cancelSleepTimer}
-				disabled={sleepCancelling}
-				class="p-2 -my-1 text-current hover:opacity-70 transition-opacity disabled:opacity-40 touch-manipulation"
-				aria-label={t('player.sleep_cancel')}
+				type="button"
+				onclick={toggleSleepMenu}
+				aria-haspopup="menu"
+				aria-expanded={sleepMenuOpen}
+				aria-label={t('player.sleep_menu_aria')}
+				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-colors min-h-[32px] touch-manipulation {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'} hover:opacity-90 active:scale-95"
 			>
-				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<line x1="18" y1="6" x2="6" y2="18"/>
-					<line x1="6" y1="6" x2="18" y2="18"/>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 				</svg>
+				<span class="font-medium" aria-hidden="true">{t('player.sleep_remaining', { time: sleepLabel })}</span>
+				<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
 			</button>
+
+			{#if sleepMenuOpen}
+				<div
+					bind:this={sleepMenuRef}
+					role="menu"
+					class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-1 p-1 rounded-full bg-surface-light shadow-lg border border-surface-lighter animate-fade-up"
+				>
+					<button
+						type="button"
+						role="menuitem"
+						onclick={() => extendSleepTimer(5)}
+						disabled={sleepExtending}
+						class="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
+						aria-label={t('player.sleep_extend_5_aria')}
+					>
+						{t('player.sleep_extend_5')}
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						onclick={() => extendSleepTimer(10)}
+						disabled={sleepExtending}
+						class="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
+						aria-label={t('player.sleep_extend_10_aria')}
+					>
+						{t('player.sleep_extend_10')}
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						onclick={cancelSleepTimer}
+						disabled={sleepCancelling}
+						class="p-2 min-h-[32px] min-w-[32px] flex items-center justify-center rounded-full text-text-muted hover:bg-surface-lighter hover:text-text transition-colors disabled:opacity-40 touch-manipulation"
+						aria-label={t('player.sleep_cancel')}
+					>
+						<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<line x1="18" y1="6" x2="6" y2="18"/>
+							<line x1="6" y1="6" x2="18" y2="18"/>
+						</svg>
+					</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 

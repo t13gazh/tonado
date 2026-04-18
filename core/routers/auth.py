@@ -178,6 +178,31 @@ async def cancel_sleep_timer(
     return {"status": "ok"}
 
 
+class SleepTimerExtendRequest(BaseModel):
+    minutes: float = Field(gt=0, le=60)
+
+
+@router.post("/sleep-timer/extend")
+async def extend_sleep_timer(
+    req: SleepTimerExtendRequest,
+    request: Request,
+    timer: TimerService = Depends(get_timer_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    """Extend the running sleep timer by N minutes (typical values 5, 10)."""
+    require_tier(request, AuthTier.PARENT, auth)
+    try:
+        remaining = await timer.extend_sleep_timer(req.minutes)
+    except RuntimeError as exc:
+        reason = str(exc)
+        if reason == "no_active_timer":
+            raise HTTPException(409, "Es läuft kein Einschlaftimer")
+        if reason == "timer_fading":
+            raise HTTPException(409, "Ausblenden hat bereits begonnen")
+        raise HTTPException(409, reason)
+    return {"status": "ok", "remaining_seconds": remaining}
+
+
 @router.get("/sleep-timer")
 async def sleep_timer_status(timer: TimerService = Depends(get_timer_service)) -> dict:
     return timer.sleep_timer_status()

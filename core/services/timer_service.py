@@ -72,6 +72,32 @@ class TimerService(BaseService):
         self._sleep_task = asyncio.create_task(self._sleep_countdown())
         logger.info("Sleep timer started: %.0f minutes", minutes)
 
+    # Maximum total remaining time allowed when extending the sleep timer.
+    # Matches the upper bound of SleepTimerRequest (minutes: le=120).
+    MAX_SLEEP_MINUTES = 120
+
+    async def extend_sleep_timer(self, minutes: float) -> float:
+        """Add minutes to the running sleep timer.
+
+        Returns the new total remaining seconds.
+        Raises RuntimeError if no timer is active or a fade-out is in progress.
+        The resulting remaining time is clamped to MAX_SLEEP_MINUTES.
+        """
+        if not self._sleep_active:
+            raise RuntimeError("no_active_timer")
+        if self._fading:
+            raise RuntimeError("timer_fading")
+        if minutes <= 0:
+            raise ValueError("minutes must be positive")
+
+        max_seconds = self.MAX_SLEEP_MINUTES * 60
+        self._sleep_remaining = min(max_seconds, self._sleep_remaining + minutes * 60)
+        logger.info(
+            "Sleep timer extended by %.0f min, new remaining: %.0fs",
+            minutes, self._sleep_remaining,
+        )
+        return self._sleep_remaining
+
     async def cancel_sleep_timer(self) -> None:
         """Cancel the active sleep timer and any ongoing fade-out."""
         if self._fade_task:

@@ -73,6 +73,49 @@ async def test_sleep_timer_stops_playback(timer_setup):
     assert timer.sleep_timer_status()["active"] is False
 
 
+# --- Sleep timer extend ---
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_extend_adds_minutes(timer_setup):
+    timer, _, _, _ = timer_setup
+    await timer.start_sleep_timer(5)
+    before = timer.sleep_timer_status()["remaining_seconds"]
+    new_remaining = await timer.extend_sleep_timer(10)
+    after = timer.sleep_timer_status()["remaining_seconds"]
+    assert new_remaining == after
+    # Should have gained ~10 minutes (600s), allow for 1s tick drift
+    assert after - before >= 600 - 1
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_extend_requires_active(timer_setup):
+    timer, _, _, _ = timer_setup
+    with pytest.raises(RuntimeError, match="no_active_timer"):
+        await timer.extend_sleep_timer(5)
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_extend_clamps_to_max(timer_setup):
+    timer, _, _, _ = timer_setup
+    await timer.start_sleep_timer(115)
+    await timer.extend_sleep_timer(30)  # would be 145, must clamp to 120
+    remaining = timer.sleep_timer_status()["remaining_seconds"]
+    assert remaining <= timer.MAX_SLEEP_MINUTES * 60
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_extend_rejects_during_fade(timer_setup):
+    timer, _, _, _ = timer_setup
+    await timer.start_sleep_timer(5)
+    # Simulate "fade in progress" — a real fade is racy to observe
+    timer._fading = True
+    with pytest.raises(RuntimeError, match="timer_fading"):
+        await timer.extend_sleep_timer(5)
+    timer._fading = False
+    await timer.cancel_sleep_timer()
+
+
 # --- Sleep timer fade-out ---
 
 

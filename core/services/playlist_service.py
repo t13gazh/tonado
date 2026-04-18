@@ -5,6 +5,7 @@ Stored in SQLite alongside other config.
 """
 
 import logging
+import sqlite3
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,10 @@ from core.schemas.common import ContentType
 from core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
+
+
+class DuplicatePlaylistName(ValueError):
+    """Raised when a playlist name collides case-insensitively with an existing one."""
 
 
 
@@ -98,10 +103,22 @@ class PlaylistService(BaseService):
         return p
 
     async def create_playlist(self, name: str) -> Playlist:
+        # Pre-check: case-insensitive duplicate
         cursor = await self._db.execute(
-            "INSERT INTO playlists (name) VALUES (?)", (name,)
+            "SELECT id FROM playlists WHERE LOWER(name) = LOWER(?) LIMIT 1",
+            (name,),
         )
-        await self._db.commit()
+        if await cursor.fetchone() is not None:
+            raise DuplicatePlaylistName(name)
+
+        try:
+            cursor = await self._db.execute(
+                "INSERT INTO playlists (name) VALUES (?)", (name,)
+            )
+            await self._db.commit()
+        except sqlite3.IntegrityError as exc:
+            # Race between pre-check and INSERT, or legacy duplicate. Surface cleanly.
+            raise DuplicatePlaylistName(name) from exc
         return Playlist(id=cursor.lastrowid or 0, name=name)
 
     async def delete_playlist(self, playlist_id: int) -> bool:
@@ -112,10 +129,22 @@ class PlaylistService(BaseService):
         return cursor.rowcount > 0
 
     async def rename_playlist(self, playlist_id: int, name: str) -> bool:
+        # Pre-check: case-insensitive duplicate against a different playlist
         cursor = await self._db.execute(
-            "UPDATE playlists SET name = ? WHERE id = ?", (name, playlist_id)
+            "SELECT id FROM playlists WHERE LOWER(name) = LOWER(?) AND id <> ? LIMIT 1",
+            (name, playlist_id),
         )
-        await self._db.commit()
+        if await cursor.fetchone() is not None:
+            raise DuplicatePlaylistName(name)
+
+        try:
+            cursor = await self._db.execute(
+                "UPDATE playlists SET name = ? WHERE id = ?", (name, playlist_id)
+            )
+            await self._db.commit()
+        except sqlite3.IntegrityError as exc:
+            # Race between pre-check and UPDATE. Surface cleanly.
+            raise DuplicatePlaylistName(name) from exc
         return cursor.rowcount > 0
 
     async def add_item(

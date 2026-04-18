@@ -6,7 +6,7 @@ import aiosqlite
 import pytest
 
 from core.schemas.common import ContentType
-from core.services.playlist_service import PlaylistService
+from core.services.playlist_service import DuplicatePlaylistName, PlaylistService
 
 
 @pytest.fixture
@@ -96,3 +96,32 @@ async def test_list_summaries_include_item_count(service: PlaylistService) -> No
     mine = next(pl for pl in lists if pl.id == p.id)
     # Summaries must reflect items (list_playlists loads them)
     assert len(mine.items) == 2
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_duplicate_case_insensitive(service: PlaylistService) -> None:
+    """F1: creating a second playlist with a case-variant name must raise."""
+    await service.create_playlist("Favoriten")
+    with pytest.raises(DuplicatePlaylistName):
+        await service.create_playlist("favoriten")
+    with pytest.raises(DuplicatePlaylistName):
+        await service.create_playlist("FAVORITEN")
+
+
+@pytest.mark.asyncio
+async def test_rename_rejects_duplicate_case_insensitive(service: PlaylistService) -> None:
+    """F1: renaming onto an existing name (other case) must raise."""
+    await service.create_playlist("Alpha")
+    b = await service.create_playlist("Beta")
+    with pytest.raises(DuplicatePlaylistName):
+        await service.rename_playlist(b.id, "alpha")
+
+
+@pytest.mark.asyncio
+async def test_rename_to_own_name_different_case_is_allowed(service: PlaylistService) -> None:
+    """Changing only the case of one's own playlist must not collide with itself."""
+    p = await service.create_playlist("Mix")
+    ok = await service.rename_playlist(p.id, "MIX")
+    assert ok is True
+    got = await service.get_playlist(p.id)
+    assert got is not None and got.name == "MIX"

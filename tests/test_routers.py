@@ -676,6 +676,39 @@ async def test_playlist_rename_nonexistent_returns_404(client):
     assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_create_playlist_duplicate_case_insensitive(client):
+    """F1: POST with a case-variant of an existing name → 409 with kid-friendly message."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.post("/api/playlists/", json={"name": "Favoriten"}, headers=headers)
+    assert resp.status_code == 201
+
+    resp = await c.post("/api/playlists/", json={"name": "favoriten"}, headers=headers)
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Diese Playlist gibt es schon"
+
+
+@pytest.mark.asyncio
+async def test_rename_playlist_duplicate_case_insensitive(client):
+    """F1: PUT renaming onto an existing name (other case) → 409."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.post("/api/playlists/", json={"name": "Alpha"}, headers=headers)
+    assert resp.status_code == 201
+    resp = await c.post("/api/playlists/", json={"name": "Beta"}, headers=headers)
+    assert resp.status_code == 201
+    beta_id = resp.json()["id"]
+
+    resp = await c.put(f"/api/playlists/{beta_id}", json={"name": "ALPHA"}, headers=headers)
+    assert resp.status_code == 409
+    assert resp.json()["detail"] == "Diese Playlist gibt es schon"
+
+
 # --- Post-review regression tests (K-1, K-3, M6 proper OOM check) ---
 
 @pytest.mark.asyncio

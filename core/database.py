@@ -76,6 +76,12 @@ CREATE TABLE IF NOT EXISTS playlist_items (
     title TEXT,
     UNIQUE(playlist_id, position)
 );
+
+-- Case-insensitive uniqueness for playlist names (prevents e.g. "Mix" vs "mix").
+-- Migration-safe: if legacy duplicates exist, index creation fails gracefully
+-- and is handled by DatabaseManager.start().
+CREATE UNIQUE INDEX IF NOT EXISTS idx_playlists_name_nocase
+    ON playlists(name COLLATE NOCASE);
 """
 
 

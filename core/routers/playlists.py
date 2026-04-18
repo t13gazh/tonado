@@ -7,7 +7,9 @@ from core.dependencies import get_auth_service, get_player, get_playlist_service
 from core.services.auth_service import AuthService, AuthTier
 from core.schemas.common import ContentType
 from core.services.player_service import PlayerService
-from core.services.playlist_service import PlaylistService
+from core.services.playlist_service import DuplicatePlaylistName, PlaylistService
+
+_DUPLICATE_NAME_MSG = "Diese Playlist gibt es schon"
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 
@@ -38,7 +40,13 @@ async def create_playlist(
     auth: AuthService = Depends(get_auth_service),
 ) -> dict:
     require_tier(request, AuthTier.PARENT, auth)
-    p = await svc.create_playlist(req.name)
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "Name must not be empty")
+    try:
+        p = await svc.create_playlist(name)
+    except DuplicatePlaylistName:
+        raise HTTPException(409, _DUPLICATE_NAME_MSG)
     return p.to_summary()
 
 
@@ -58,7 +66,11 @@ async def rename_playlist(
     new_name = req.name.strip()
     if not new_name:
         raise HTTPException(400, "Name must not be empty")
-    if not await svc.rename_playlist(playlist_id, new_name):
+    try:
+        renamed = await svc.rename_playlist(playlist_id, new_name)
+    except DuplicatePlaylistName:
+        raise HTTPException(409, _DUPLICATE_NAME_MSG)
+    if not renamed:
         raise HTTPException(404, "Playlist not found")
     p = await svc.get_playlist(playlist_id)
     if p is None:

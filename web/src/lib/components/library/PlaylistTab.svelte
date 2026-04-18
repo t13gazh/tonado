@@ -3,9 +3,11 @@
 	import { playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import { addToast } from '$lib/stores/toast.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
@@ -26,6 +28,11 @@
 	let showAddItem = $state(false);
 	let newItemPath = $state('');
 	let newItemTitle = $state('');
+
+	// Rename state
+	let renamingId = $state<number | null>(null);
+	let renameValue = $state('');
+	let renameInput = $state<HTMLInputElement | null>(null);
 
 	// Login sheet state
 	let loginSheetOpen = $state(false);
@@ -69,6 +76,48 @@
 			if (expandedPlaylist?.id === id) expandedPlaylist = null;
 			await onReloadPlaylists();
 		} catch { onError(t('error.delete_failed')); }
+	}
+
+	async function startRename(pl: PlaylistSummary) {
+		renamingId = pl.id;
+		renameValue = pl.name;
+		await tick();
+		renameInput?.focus();
+		renameInput?.select();
+	}
+
+	function cancelRename() {
+		renamingId = null;
+		renameValue = '';
+	}
+
+	async function submitRename(pl: PlaylistSummary) {
+		const trimmed = renameValue.trim();
+		if (!trimmed) { onError(t('library.playlist_name_required')); return; }
+		if (trimmed === pl.name) { cancelRename(); return; }
+		// Duplicate check (client side; backend enforces too)
+		if (allPlaylists.some(p => p.id !== pl.id && p.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+			onError(t('library.playlist_name_duplicate'));
+			return;
+		}
+		const id = pl.id;
+		try {
+			await playlistsApi.rename(id, trimmed);
+			renamingId = null;
+			renameValue = '';
+			if (expandedPlaylist?.id === id) {
+				expandedPlaylist = { ...expandedPlaylist, name: trimmed };
+			}
+			await onReloadPlaylists();
+			addToast(t('library.playlist_renamed'), 'success');
+		} catch {
+			onError(t('error.save_failed'));
+		}
+	}
+
+	function onRenameKeydown(e: KeyboardEvent, pl: PlaylistSummary) {
+		if (e.key === 'Enter') { e.preventDefault(); requireAuth(() => submitRename(pl)); }
+		else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
 	}
 
 	async function togglePlaylist(id: number) {
@@ -115,6 +164,7 @@
 	<div class="flex flex-col gap-2">
 		{#each allPlaylists as pl (pl.id)}
 			{@const expanded = expandedPlaylist?.id === pl.id}
+			{@const isRenaming = renamingId === pl.id}
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(async () => { await playlistsApi.play(pl.id); goto('/'); }, pl.item_count === 0)}
@@ -127,6 +177,32 @@
 				</div>
 				{#if expanded}
 					<div class="px-3 pb-3 border-t border-surface-lighter">
+						<div class="py-2">
+							{#if isRenaming}
+								<div class="flex flex-col gap-2 p-2 bg-surface rounded-lg">
+									<label class="text-[10px] text-text-muted uppercase tracking-wider" for="rename-input-{pl.id}">{t('library.playlist_rename')}</label>
+									<input
+										id="rename-input-{pl.id}"
+										bind:this={renameInput}
+										bind:value={renameValue}
+										onkeydown={(e) => onRenameKeydown(e, pl)}
+										type="text"
+										maxlength="100"
+										placeholder={t('content.playlist_name')}
+										class="px-3 py-2 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+									/>
+									<div class="flex gap-2 justify-end">
+										<button onclick={cancelRename} class="min-h-[44px] px-3 text-sm text-text-muted">{t('general.cancel')}</button>
+										<button onclick={() => requireAuth(() => submitRename(pl))} disabled={!renameValue.trim()} class="min-h-[44px] px-4 bg-primary disabled:opacity-30 text-white rounded-lg text-sm">{t('general.save')}</button>
+									</div>
+								</div>
+							{:else}
+								<button onclick={() => requireAuth(() => startRename(pl))} class="flex items-center gap-1.5 text-xs text-text-muted hover:text-text min-h-[44px]">
+									<Icon name="edit" size={14} />
+									{t('library.playlist_rename')}
+								</button>
+							{/if}
+						</div>
 						<div class="py-2">
 							{#if showAddItem}
 								<div class="flex flex-col gap-2 p-2 bg-surface rounded-lg">

@@ -27,7 +27,7 @@ async def get_playlist(playlist_id: int, svc: PlaylistService = Depends(get_play
 
 
 class CreatePlaylistRequest(BaseModel):
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
 
 
 @router.post("/", status_code=201)
@@ -39,6 +39,30 @@ async def create_playlist(
 ) -> dict:
     require_tier(request, AuthTier.PARENT, auth)
     p = await svc.create_playlist(req.name)
+    return p.to_summary()
+
+
+class RenamePlaylistRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+@router.put("/{playlist_id}")
+async def rename_playlist(
+    playlist_id: int,
+    req: RenamePlaylistRequest,
+    request: Request,
+    svc: PlaylistService = Depends(get_playlist_service),
+    auth: AuthService = Depends(get_auth_service),
+) -> dict:
+    require_tier(request, AuthTier.PARENT, auth)
+    new_name = req.name.strip()
+    if not new_name:
+        raise HTTPException(400, "Name must not be empty")
+    if not await svc.rename_playlist(playlist_id, new_name):
+        raise HTTPException(404, "Playlist not found")
+    p = await svc.get_playlist(playlist_id)
+    if p is None:
+        raise HTTPException(404, "Playlist not found")
     return p.to_summary()
 
 

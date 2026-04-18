@@ -358,6 +358,7 @@ _PROTECTED: list[tuple[str, str, AuthTier, dict]] = [
     # Auth / timer
     ("POST", "/api/auth/sleep-timer", AuthTier.PARENT, {"json": {"minutes": 10}}),
     ("DELETE", "/api/auth/sleep-timer", AuthTier.PARENT, {}),
+    ("POST", "/api/auth/sleep-timer/extend", AuthTier.PARENT, {"json": {"minutes": 5}}),
 
     # Cards
     ("DELETE", "/api/cards/does-not-exist", AuthTier.PARENT, {}),
@@ -373,6 +374,7 @@ _PROTECTED: list[tuple[str, str, AuthTier, dict]] = [
 
     # Playlists
     ("POST", "/api/playlists/", AuthTier.PARENT, {"json": {"name": "test"}}),
+    ("PUT", "/api/playlists/1", AuthTier.PARENT, {"json": {"name": "renamed"}}),
 
     # Streams
     ("POST", "/api/streams/radio", AuthTier.PARENT, {"json": {"name": "x", "url": "http://x.com"}}),
@@ -610,6 +612,68 @@ async def test_system_health_generic_network_detail_when_sealed(client):
     # Whatever the mock wifi reports, the anonymous-caller detail must be
     # either the generic "Verbunden" or the generic "Nicht verbunden".
     assert net.get("detail") in {"Verbunden", "Nicht verbunden"}
+
+
+@pytest.mark.asyncio
+async def test_playlist_rename_happy_path(client):
+    """Playlist rename: PUT /api/playlists/{id} returns updated summary."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Create
+    resp = await c.post("/api/playlists/", json={"name": "Alt"}, headers=headers)
+    assert resp.status_code == 201
+    pid = resp.json()["id"]
+
+    # Rename
+    resp = await c.put(f"/api/playlists/{pid}", json={"name": "Neu"}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Neu"
+
+    # Verify persisted
+    resp = await c.get(f"/api/playlists/{pid}")
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Neu"
+
+
+@pytest.mark.asyncio
+async def test_playlist_rename_empty_name_rejected(client):
+    """Playlist rename: empty name → 422 (pydantic min_length)."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.post("/api/playlists/", json={"name": "Alt"}, headers=headers)
+    pid = resp.json()["id"]
+
+    resp = await c.put(f"/api/playlists/{pid}", json={"name": ""}, headers=headers)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_playlist_rename_whitespace_only_rejected(client):
+    """Playlist rename: whitespace-only name → 400 after strip."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.post("/api/playlists/", json={"name": "Alt"}, headers=headers)
+    pid = resp.json()["id"]
+
+    resp = await c.put(f"/api/playlists/{pid}", json={"name": "   "}, headers=headers)
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_playlist_rename_nonexistent_returns_404(client):
+    """Playlist rename: missing ID → 404."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.put("/api/playlists/99999", json={"name": "x"}, headers=headers)
+    assert resp.status_code == 404
 
 
 # --- Post-review regression tests (K-1, K-3, M6 proper OOM check) ---

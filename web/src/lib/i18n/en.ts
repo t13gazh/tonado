@@ -321,6 +321,10 @@ export default {
 	'library.upload': 'Upload',
 	'library.no_tracks': 'No tracks in this folder.',
 	'library.delete_folder': 'Delete folder',
+	'library.sort_label': 'Sort',
+	'library.sort_alpha': 'A–Z',
+	'library.sort_recent': 'Newest first',
+	'library.sort_duration': 'Duration',
 	'library.no_stations': 'No radio stations yet.',
 	'library.station_kinder': 'Kids stations',
 	'library.station_general': 'Radio',
@@ -337,6 +341,10 @@ export default {
 	'library.add_entry': '+ Add entry',
 	'library.no_entries': 'No entries yet.',
 	'library.delete_playlist': 'Delete playlist',
+	'library.playlist_rename': 'Rename',
+	'library.playlist_renamed': 'Playlist renamed',
+	'library.playlist_name_required': 'Please enter a name.',
+	'library.playlist_name_duplicate': 'A playlist with this name already exists. Please choose another.',
 	'library.upload_progress': 'File {current} of {total}...',
 	// Auth (login sheet)
 	// Gyro calibration
@@ -394,6 +402,13 @@ export default {
 	'player.sleep_announce_final': 'Music ending soon',
 	'player.sleep_cancel': 'Cancel sleep timer',
 	'player.sleep_cancel_failed': 'Cancel failed',
+	'player.sleep_menu_aria': 'Adjust sleep timer',
+	'player.sleep_extend_5': '+5 min',
+	'player.sleep_extend_10': '+10 min',
+	'player.sleep_extend_5_aria': 'Five more minutes of music',
+	'player.sleep_extend_10_aria': 'Ten more minutes of music',
+	'player.sleep_extend_failed': 'Could not extend timer',
+	'player.sleep_extended_toast': '+{minutes} min of music',
 	'wizard.name_placeholder': 'My Favorite Album',
 
 	// Content picker (additional)

@@ -206,6 +206,7 @@ export interface MediaFolder {
 	track_count: number;
 	cover_path: string | null;
 	duration_seconds: number;
+	mtime: number;
 }
 
 export interface MediaTrack {
@@ -306,6 +307,8 @@ export const playlistsApi = {
 	get: (id: number) => request<PlaylistDetail>(`/playlists/${id}`),
 	create: (name: string) =>
 		request<PlaylistSummary>('/playlists/', { method: 'POST', body: JSON.stringify({ name }) }),
+	rename: (id: number, name: string) =>
+		request<PlaylistSummary>(`/playlists/${id}`, { method: 'PUT', body: JSON.stringify({ name }) }),
 	delete: (id: number) => request<void>(`/playlists/${id}`, { method: 'DELETE' }),
 	play: (id: number) => request<void>(`/playlists/${id}/play`, { method: 'POST' }),
 	addItem: (id: number, content_type: string, content_path: string, title?: string) =>
@@ -362,6 +365,11 @@ export const authApi = {
 	startSleepTimer: (minutes: number) =>
 		request<void>('/auth/sleep-timer', { method: 'POST', body: JSON.stringify({ minutes }) }),
 	cancelSleepTimer: () => request<void>('/auth/sleep-timer', { method: 'DELETE' }),
+	extendSleepTimer: (minutes: number) =>
+		request<{ status: string; remaining_seconds: number }>('/auth/sleep-timer/extend', {
+			method: 'POST',
+			body: JSON.stringify({ minutes }),
+		}),
 };
 
 // System API

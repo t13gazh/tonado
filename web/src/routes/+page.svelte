@@ -156,6 +156,10 @@
 	let sleepExtending = $state(false);
 	let sleepPillRef: HTMLDivElement | null = $state(null);
 	let sleepMenuRef: HTMLDivElement | null = $state(null);
+	let sleepTriggerRef: HTMLButtonElement | null = $state(null);
+	let sleepExtend5Ref: HTMLButtonElement | null = $state(null);
+	let sleepExtend10Ref: HTMLButtonElement | null = $state(null);
+	let sleepCancelRef: HTMLButtonElement | null = $state(null);
 
 	const sleepVisible = $derived(sleepActive && sleepRemaining > 0);
 	const sleepFinalMinute = $derived(sleepVisible && sleepRemaining < 60);
@@ -202,6 +206,50 @@
 		sleepMenuOpen = !sleepMenuOpen;
 	}
 
+	function closeSleepMenu(returnFocus: boolean = true) {
+		if (!sleepMenuOpen) return;
+		sleepMenuOpen = false;
+		if (returnFocus) {
+			// Return focus to the trigger pill (WAI-ARIA APG menu pattern)
+			queueMicrotask(() => sleepTriggerRef?.focus());
+		}
+	}
+
+	// Auto-focus first menu item when menu opens (WAI-ARIA APG menu pattern)
+	$effect(() => {
+		if (sleepMenuOpen) {
+			queueMicrotask(() => sleepExtend5Ref?.focus());
+		}
+	});
+
+	function sleepMenuItems(): HTMLButtonElement[] {
+		return [sleepExtend5Ref, sleepExtend10Ref, sleepCancelRef].filter(
+			(el): el is HTMLButtonElement => el !== null,
+		);
+	}
+
+	function handleSleepMenuItemKeydown(e: KeyboardEvent) {
+		const items = sleepMenuItems();
+		if (items.length === 0) return;
+		const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+		if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+			e.preventDefault();
+			const next = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length;
+			items[next]?.focus();
+		} else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+			e.preventDefault();
+			const prev = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+			items[prev]?.focus();
+		} else if (e.key === 'Home') {
+			e.preventDefault();
+			items[0]?.focus();
+		} else if (e.key === 'End') {
+			e.preventDefault();
+			items[items.length - 1]?.focus();
+		}
+		// Tab is NOT intercepted — lets focus leave the menu naturally.
+	}
+
 	async function extendSleepTimer(minutes: number) {
 		if (sleepExtending) return;
 		sleepExtending = true;
@@ -210,7 +258,7 @@
 			// Optimistic local update using server's truth
 			sleepRemaining = Math.max(0, Math.floor(res.remaining_seconds));
 			sleepActive = sleepRemaining > 0;
-			sleepMenuOpen = false;
+			closeSleepMenu(true);
 			addToast(t('player.sleep_extended_toast', { minutes }), 'success');
 		} catch {
 			addToast(t('player.sleep_extend_failed'), 'error');
@@ -220,8 +268,8 @@
 	}
 
 	function handleSleepMenuKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
-			sleepMenuOpen = false;
+		if (e.key === 'Escape' && sleepMenuOpen) {
+			closeSleepMenu(true);
 		}
 	}
 
@@ -230,7 +278,8 @@
 		const target = e.target as Node;
 		if (sleepMenuRef?.contains(target)) return;
 		if (sleepPillRef?.contains(target)) return;
-		sleepMenuOpen = false;
+		// Outside click → close without stealing focus from the clicked element
+		closeSleepMenu(false);
 	}
 
 	onMount(() => {
@@ -306,12 +355,13 @@
 	{#if sleepVisible}
 		<div bind:this={sleepPillRef} class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
 			<button
+				bind:this={sleepTriggerRef}
 				type="button"
 				onclick={toggleSleepMenu}
 				aria-haspopup="menu"
 				aria-expanded={sleepMenuOpen}
 				aria-label={t('player.sleep_menu_aria')}
-				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-colors min-h-[32px] touch-manipulation {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'} hover:opacity-90 active:scale-95"
+				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-colors min-h-11 touch-manipulation {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'} hover:opacity-90 active:scale-95"
 			>
 				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -324,34 +374,38 @@
 				<div
 					bind:this={sleepMenuRef}
 					role="menu"
+					onkeydown={handleSleepMenuItemKeydown}
 					class="absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-1 p-1 rounded-full bg-surface-light shadow-lg border border-surface-lighter animate-fade-up"
 				>
 					<button
+						bind:this={sleepExtend5Ref}
 						type="button"
 						role="menuitem"
 						onclick={() => extendSleepTimer(5)}
 						disabled={sleepExtending}
-						class="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
+						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_extend_5_aria')}
 					>
 						{t('player.sleep_extend_5')}
 					</button>
 					<button
+						bind:this={sleepExtend10Ref}
 						type="button"
 						role="menuitem"
 						onclick={() => extendSleepTimer(10)}
 						disabled={sleepExtending}
-						class="px-3 py-1.5 min-h-[32px] rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
+						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-colors disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_extend_10_aria')}
 					>
 						{t('player.sleep_extend_10')}
 					</button>
 					<button
+						bind:this={sleepCancelRef}
 						type="button"
 						role="menuitem"
 						onclick={cancelSleepTimer}
 						disabled={sleepCancelling}
-						class="p-2 min-h-[32px] min-w-[32px] flex items-center justify-center rounded-full text-text-muted hover:bg-surface-lighter hover:text-text transition-colors disabled:opacity-40 touch-manipulation"
+						class="p-2 min-h-11 min-w-11 flex items-center justify-center rounded-full text-text-muted hover:bg-surface-lighter hover:text-text transition-colors disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_cancel')}
 					>
 						<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

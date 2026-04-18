@@ -24,6 +24,10 @@ class TimerService(BaseService):
     # Default fade-out duration in seconds
     DEFAULT_FADE_DURATION = 30
 
+    # Maximum total remaining time allowed when extending the sleep timer.
+    # Matches the upper bound of SleepTimerRequest (minutes: le=120).
+    MAX_SLEEP_MINUTES = 120
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -71,10 +75,6 @@ class TimerService(BaseService):
         self._sleep_active = True
         self._sleep_task = asyncio.create_task(self._sleep_countdown())
         logger.info("Sleep timer started: %.0f minutes", minutes)
-
-    # Maximum total remaining time allowed when extending the sleep timer.
-    # Matches the upper bound of SleepTimerRequest (minutes: le=120).
-    MAX_SLEEP_MINUTES = 120
 
     async def extend_sleep_timer(self, minutes: float) -> float:
         """Add minutes to the running sleep timer.

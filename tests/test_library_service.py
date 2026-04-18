@@ -37,6 +37,22 @@ async def test_list_folders(lib_service: LibraryService) -> None:
     assert folders[1].name == "Album B"
     assert folders[1].track_count == 5
     assert folders[1].cover_path is None
+    # mtime populated so the frontend can sort by "newest first".
+    assert folders[0].mtime > 0
+    assert folders[1].mtime > 0
+
+
+@pytest.mark.asyncio
+async def test_folder_mtime_in_dict(lib_service: LibraryService) -> None:
+    """mtime is serialised via to_dict() — frontend depends on it."""
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Album A", tracks=1)
+
+    folders = await lib_service.list_folders()
+    d = folders[0].to_dict()
+    assert "mtime" in d
+    assert isinstance(d["mtime"], (int, float))
+    assert d["mtime"] > 0
 
 
 @pytest.mark.asyncio

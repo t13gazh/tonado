@@ -36,6 +36,7 @@ class MediaFolder:
     track_count: int = 0
     cover_path: str | None = None
     duration_seconds: float = 0
+    mtime: float = 0  # Folder modification timestamp (unix seconds); drives "newest first" sort.
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -90,6 +91,15 @@ class LibraryService(BaseService):
             tracks = [f for f in entry.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
             cover = self._find_cover(entry)
             total_duration = sum(get_duration(f) for f in tracks)
+            # Folder mtime: use max mtime of contents (audio + cover) to reflect
+            # "when did this album last change"; fall back to directory mtime.
+            try:
+                content_mtimes = [f.stat().st_mtime for f in tracks]
+                if cover:
+                    content_mtimes.append(cover.stat().st_mtime)
+                mtime = max(content_mtimes) if content_mtimes else entry.stat().st_mtime
+            except OSError:
+                mtime = 0
 
             folders.append(MediaFolder(
                 name=entry.name,
@@ -97,6 +107,7 @@ class LibraryService(BaseService):
                 track_count=len(tracks),
                 cover_path=f"/api/library/{entry.name}/cover" if cover else None,
                 duration_seconds=total_duration,
+                mtime=mtime,
             ))
 
         return folders
@@ -110,6 +121,13 @@ class LibraryService(BaseService):
         tracks = [f for f in folder_path.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
         cover = self._find_cover(folder_path)
         total_duration = sum(get_duration(f) for f in tracks)
+        try:
+            content_mtimes = [f.stat().st_mtime for f in tracks]
+            if cover:
+                content_mtimes.append(cover.stat().st_mtime)
+            mtime = max(content_mtimes) if content_mtimes else folder_path.stat().st_mtime
+        except OSError:
+            mtime = 0
 
         return MediaFolder(
             name=folder_name,
@@ -117,6 +135,7 @@ class LibraryService(BaseService):
             track_count=len(tracks),
             cover_path=f"/api/library/{folder_name}/cover" if cover else None,
             duration_seconds=total_duration,
+            mtime=mtime,
         )
 
     def list_tracks(self, folder_name: str) -> list[MediaTrack]:

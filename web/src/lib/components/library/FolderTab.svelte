@@ -21,6 +21,42 @@
 
 	let { folders, onError, onReloadFolders, playCircle, thumbnail, chevron }: Props = $props();
 
+	// Sort mode (persisted in localStorage). Default: alphabetical — matches prior behaviour.
+	type SortMode = 'alpha' | 'recent' | 'duration';
+	const SORT_STORAGE_KEY = 'tonado.library.folder_sort';
+	const VALID_SORT_MODES: SortMode[] = ['alpha', 'recent', 'duration'];
+
+	function loadSortMode(): SortMode {
+		if (typeof localStorage === 'undefined') return 'alpha';
+		const stored = localStorage.getItem(SORT_STORAGE_KEY);
+		return VALID_SORT_MODES.includes(stored as SortMode) ? (stored as SortMode) : 'alpha';
+	}
+
+	let sortMode = $state<SortMode>(loadSortMode());
+
+	function setSortMode(mode: SortMode): void {
+		sortMode = mode;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(SORT_STORAGE_KEY, mode);
+		}
+	}
+
+	// Derived sorted view — does not mutate the prop array.
+	const sortedFolders = $derived.by(() => {
+		const arr = [...folders];
+		if (sortMode === 'recent') {
+			// Newest first: highest mtime at the top. Undefined/0 falls to the end.
+			arr.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));
+		} else if (sortMode === 'duration') {
+			// Longest first — what the user likely cares about when scanning by time.
+			arr.sort((a, b) => (b.duration_seconds ?? 0) - (a.duration_seconds ?? 0));
+		} else {
+			// Alphabetical, locale-aware, case-insensitive.
+			arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+		}
+		return arr;
+	});
+
 	const playerState = $derived(getPlayerState());
 	const nowPlayingUri = $derived(playerState.current_uri);
 	const isPlaying = $derived(playerState.state === 'playing');
@@ -140,7 +176,25 @@
 	}
 </script>
 
-<div class="flex justify-end mb-3">
+<div class="flex items-center justify-between gap-2 mb-3">
+	<!--
+		Segmented control for sort mode. Radiogroup semantics so keyboard
+		and screen reader users understand "one of three". 44px tap target.
+	-->
+	<div role="radiogroup" aria-label={t('library.sort_label')} class="inline-flex rounded-lg bg-surface-light p-0.5">
+		{#each [{ id: 'alpha', label: t('library.sort_alpha') }, { id: 'recent', label: t('library.sort_recent') }, { id: 'duration', label: t('library.sort_duration') }] as opt (opt.id)}
+			{@const active = sortMode === opt.id}
+			<button
+				type="button"
+				role="radio"
+				aria-checked={active}
+				onclick={() => setSortMode(opt.id as SortMode)}
+				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
+			>
+				{opt.label}
+			</button>
+		{/each}
+	</div>
 	{#if showNewFolder}
 		<button onclick={() => (showNewFolder = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
@@ -157,7 +211,7 @@
 	<div class="text-center py-16 text-text-muted"><p class="text-sm">{t('library.empty')}</p><p class="text-xs mt-1">{t('library.empty_hint')}</p></div>
 {:else}
 	<div class="flex flex-col gap-2">
-		{#each folders as folder (folder.path)}
+		{#each sortedFolders as folder (folder.path)}
 			{@const expanded = expandedFolder === folder.path}
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">

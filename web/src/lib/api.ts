@@ -331,12 +331,12 @@ let _authToken: string | null = null;
 
 export function setAuthToken(token: string | null): void {
 	_authToken = token;
-	if (token) localStorage.setItem('tonado_token', token);
-	else localStorage.removeItem('tonado_token');
+	if (token) localStorage.setItem('tonado.auth.token', token);
+	else localStorage.removeItem('tonado.auth.token');
 }
 
 export function getAuthToken(): string | null {
-	if (!_authToken) _authToken = localStorage.getItem('tonado_token');
+	if (!_authToken) _authToken = localStorage.getItem('tonado.auth.token');
 	return _authToken;
 }
 

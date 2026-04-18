@@ -31,7 +31,7 @@ const languageRegistry: Language[] = [
 // TODO: Make reactive with $state when migrating to .svelte.ts
 // Currently language changes require a page reload to take effect.
 let currentLang = (typeof localStorage !== 'undefined'
-	? localStorage.getItem('tonado-lang')
+	? localStorage.getItem('tonado.lang')
 	: null) || 'de';
 
 function getMessages(code: string): Messages | undefined {
@@ -45,7 +45,7 @@ export function setLanguage(code: string): void {
 	if (getMessages(code)) {
 		currentLang = code;
 		if (typeof localStorage !== 'undefined') {
-			localStorage.setItem('tonado-lang', code);
+			localStorage.setItem('tonado.lang', code);
 		}
 	}
 }

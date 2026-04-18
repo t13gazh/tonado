@@ -80,7 +80,7 @@
 						inputmode="numeric"
 						maxlength="10"
 						autocomplete="off"
-						placeholder="PIN"
+						placeholder={t('auth.pin_placeholder')}
 						class="w-full px-4 py-3 bg-surface border rounded-lg text-text text-center text-lg tracking-widest focus:outline-none focus:border-primary {error ? 'border-red-400' : 'border-surface-lighter'} {shake ? 'animate-shake' : ''}"
 					/>
 					{#if error}

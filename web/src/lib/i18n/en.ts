@@ -147,6 +147,12 @@ export default {
 	'setup.homescreen_hint': 'Tip: Add this page to your home screen — Tonado will open like an app.',
 	'setup.complete_button': "Let's go",
 	'setup.hardware_changed': 'Hardware change detected. Please check setup.',
+	'setup.hardware_detect_failed': 'Hardware detection failed.',
+	'setup.completion_failed': 'Setup completion failed.',
+	'setup.audio_setup_failed': 'Audio setup failed.',
+	'setup.wifi_scan_failed': 'WiFi scan failed.',
+	'setup.wifi_password_show': 'Show password',
+	'setup.wifi_password_hide': 'Hide password',
 
 	// Settings
 	'settings.title': 'Settings',
@@ -227,6 +233,8 @@ export default {
 	'settings.wlan_rescue_ap_copied': 'Password copied',
 	'settings.wlan_rescue_ap_qr_hint': 'Printable QR code: phone scans and connects directly.',
 	'settings.wlan_rescue_ap_qr_print': 'Print QR',
+	'settings.wlan_rescue_print_title': 'Tonado WiFi Rescue',
+	'settings.wlan_rescue_print_intro': 'Scan the code or connect manually:',
 	'settings.wlan_rescue_off_warning': 'Without rescue you have to reflash the SD card if the WiFi is lost.',
 	'settings.wlan_rescue_interval': 'Wait time',
 	'settings.wlan_rescue_interval_short': '2 min',
@@ -367,6 +375,7 @@ export default {
 	'auth.login_button': 'Log in',
 	'auth.wrong_pin': 'Wrong PIN',
 	'auth.cancel': 'Cancel',
+	'auth.pin_placeholder': 'PIN',
 
 	// Player (additional)
 	'player.repeat_aria': 'Repeat',
@@ -395,6 +404,7 @@ export default {
 	'content_picker.show_tracks_aria': 'Show tracks',
 	'content_picker.show_episodes_aria': 'Show episodes',
 	'content_picker.manual_placeholder': 'Folder/file.mp3',
+	'content_picker.manual_stream_placeholder': 'https://...',
 
 	// System (additional)
 	'system.connection_lost': 'Connection lost',
@@ -459,4 +469,6 @@ export default {
 	'general.cancel': 'Cancel',
 	'general.delete': 'Delete',
 	'general.back': 'Back',
+	'general.duration_hours': '{h} h {m} min',
+	'general.duration_minutes': '{m} min',
 } as Record<string, string>;

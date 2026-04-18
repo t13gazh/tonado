@@ -147,6 +147,12 @@ export default {
 	'setup.homescreen_hint': 'Tipp: Füge diese Seite zum Homescreen deines Smartphones hinzu — dann öffnet sich Tonado wie eine App.',
 	'setup.complete_button': "Los geht's",
 	'setup.hardware_changed': 'Hardware-Änderung erkannt. Bitte Setup prüfen.',
+	'setup.hardware_detect_failed': 'Hardware-Erkennung fehlgeschlagen.',
+	'setup.completion_failed': 'Einrichtung konnte nicht abgeschlossen werden.',
+	'setup.audio_setup_failed': 'Audio-Einrichtung fehlgeschlagen.',
+	'setup.wifi_scan_failed': 'WLAN-Suche fehlgeschlagen.',
+	'setup.wifi_password_show': 'Passwort anzeigen',
+	'setup.wifi_password_hide': 'Passwort verbergen',
 
 	// Settings
 	'settings.title': 'Einstellungen',
@@ -227,6 +233,8 @@ export default {
 	'settings.wlan_rescue_ap_copied': 'Passwort kopiert',
 	'settings.wlan_rescue_ap_qr_hint': 'QR-Code zum Ausdrucken: Handy scannt und verbindet sich direkt.',
 	'settings.wlan_rescue_ap_qr_print': 'QR drucken',
+	'settings.wlan_rescue_print_title': 'Tonado WLAN-Rettung',
+	'settings.wlan_rescue_print_intro': 'Scanne den Code oder verbinde dich manuell:',
 	'settings.wlan_rescue_off_warning': 'Ohne Rettung musst du bei WLAN-Verlust die SD-Karte neu flashen.',
 	'settings.wlan_rescue_interval': 'Wartezeit',
 	'settings.wlan_rescue_interval_short': '2 Min.',
@@ -367,6 +375,7 @@ export default {
 	'auth.login_button': 'Anmelden',
 	'auth.wrong_pin': 'PIN ist falsch',
 	'auth.cancel': 'Abbrechen',
+	'auth.pin_placeholder': 'PIN',
 
 	// Player (additional)
 	'player.repeat_aria': 'Wiederholung',
@@ -395,6 +404,7 @@ export default {
 	'content_picker.show_tracks_aria': 'Titel anzeigen',
 	'content_picker.show_episodes_aria': 'Folgen anzeigen',
 	'content_picker.manual_placeholder': 'Ordner/Datei.mp3',
+	'content_picker.manual_stream_placeholder': 'https://...',
 
 	// System (additional)
 	'system.connection_lost': 'Verbindung verloren',
@@ -459,4 +469,6 @@ export default {
 	'general.cancel': 'Abbrechen',
 	'general.delete': 'Löschen',
 	'general.back': 'Zurück',
+	'general.duration_hours': '{h} Std. {m} Min.',
+	'general.duration_minutes': '{m} Min.',
 } as Record<string, string>;

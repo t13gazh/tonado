@@ -59,7 +59,7 @@
 
 			onAudioChange(output.device);
 		} catch (e) {
-			onError(e instanceof Error ? e.message : 'Audio setup failed');
+			onError(e instanceof Error ? e.message : t('setup.audio_setup_failed'));
 		}
 	}
 </script>
@@ -98,7 +98,7 @@
 			<button
 				onclick={testAudio}
 				disabled={testing}
-				aria-label="Ton testen"
+				aria-label={t('setup.audio_test')}
 				class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-surface-light text-text hover:bg-surface-lighter disabled:opacity-50"
 			>
 				{#if testing}

@@ -25,7 +25,7 @@
 	async function scanWifi() {
 		wifiScanning = true;
 		try { wifiNetworks = await setupApi.wifiScan(); showWifiList = true; }
-		catch (e) { onError(e instanceof Error ? e.message : 'WiFi scan failed'); }
+		catch (e) { onError(e instanceof Error ? e.message : t('setup.wifi_scan_failed')); }
 		finally { wifiScanning = false; }
 	}
 
@@ -103,7 +103,7 @@
 									class="w-full px-3 py-2.5 pr-10 bg-surface border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
 								<button type="button"
 									onclick={() => showPassword = !showPassword}
-									aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+									aria-label={showPassword ? t('setup.wifi_password_hide') : t('setup.wifi_password_show')}
 									class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2 rounded transition-colors">
 									<Icon name={showPassword ? 'eye-off' : 'eye'} size={18} />
 								</button>

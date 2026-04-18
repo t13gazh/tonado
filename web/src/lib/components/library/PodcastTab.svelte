@@ -70,16 +70,16 @@
 			const parts = dur.split(':').map(Number);
 			if (parts.length === 3) {
 				const [h, m] = parts;
-				return h > 0 ? `${h} Std. ${m} Min.` : `${m} Min.`;
+				return h > 0 ? t('general.duration_hours', { h, m }) : t('general.duration_minutes', { m });
 			}
-			return `${parts[0]} Min.`;
+			return t('general.duration_minutes', { m: parts[0] });
 		}
 		// Seconds as string
 		const sec = parseInt(dur, 10);
 		if (isNaN(sec)) return null;
 		const m = Math.floor(sec / 60);
 		const h = Math.floor(m / 60);
-		return h > 0 ? `${h} Std. ${m % 60} Min.` : `${m} Min.`;
+		return h > 0 ? t('general.duration_hours', { h, m: m % 60 }) : t('general.duration_minutes', { m });
 	}
 
 	function isNowPlaying(path: string): boolean {

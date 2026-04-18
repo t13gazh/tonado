@@ -115,7 +115,7 @@
 			hardware = hw;
 			sysInfo = info;
 		}
-		catch (e) { if (!backendDown) error = e instanceof Error ? e.message : 'Hardware detection failed'; }
+		catch (e) { if (!backendDown) error = e instanceof Error ? e.message : t('setup.hardware_detect_failed'); }
 		finally { detectingHardware = false; }
 	}
 
@@ -210,7 +210,7 @@
 	async function completeSetup() {
 		loading = true;
 		try { await setupApi.complete(); goto('/'); }
-		catch (e) { error = e instanceof Error ? e.message : 'Setup completion failed'; loading = false; }
+		catch (e) { error = e instanceof Error ? e.message : t('setup.completion_failed'); loading = false; }
 	}
 </script>
 

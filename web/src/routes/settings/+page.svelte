@@ -195,7 +195,11 @@
 		if (!w) return;
 		const ssid = escapeHtml(apCredentials.ssid);
 		const password = escapeHtml(apCredentials.password);
-		w.document.write(`<!doctype html><html><head><title>Tonado WLAN-Rettung</title>
+		const printTitle = escapeHtml(t('settings.wlan_rescue_print_title'));
+		const printIntro = escapeHtml(t('settings.wlan_rescue_print_intro'));
+		const networkLabel = escapeHtml(t('settings.wlan_rescue_ap_network'));
+		const passwordLabel = escapeHtml(t('settings.wlan_rescue_ap_password'));
+		w.document.write(`<!doctype html><html><head><title>${printTitle}</title>
 			<style>
 				body { font-family: system-ui, sans-serif; text-align: center; padding: 24px; color: #111; }
 				h1 { font-size: 18px; margin-bottom: 8px; }
@@ -204,11 +208,11 @@
 				.creds { margin-top: 16px; font-family: monospace; font-size: 13px; }
 			</style>
 			</head><body>
-			<h1>Tonado WLAN-Rettung</h1>
-			<p>Scanne den Code oder verbinde dich manuell:</p>
+			<h1>${printTitle}</h1>
+			<p>${printIntro}</p>
 			<div class="creds">
-				<div>Netzwerk: <strong>${ssid}</strong></div>
-				<div>Passwort: <strong>${password}</strong></div>
+				<div>${networkLabel}: <strong>${ssid}</strong></div>
+				<div>${passwordLabel}: <strong>${password}</strong></div>
 			</div>
 			<img src="${apQrDataUrl}" alt="QR" />
 			<script>window.onload = () => { window.print(); };<\/script>

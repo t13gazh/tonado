@@ -378,6 +378,13 @@ export default {
 	'player.browser_audio_off': 'Listen on this device',
 	'player.play_again': 'Play again',
 	'player.seek': 'Seek position',
+	'player.sleep_remaining': '{time} of music left',
+	'player.sleep_minutes': '{minutes} min',
+	'player.sleep_seconds': '{seconds} sec',
+	'player.sleep_announce_minutes': '{minutes} minutes of music left',
+	'player.sleep_announce_final': 'Music ending soon',
+	'player.sleep_cancel': 'Cancel sleep timer',
+	'player.sleep_cancel_failed': 'Cancel failed',
 	'wizard.name_placeholder': 'My Favorite Album',
 
 	// Content picker (additional)

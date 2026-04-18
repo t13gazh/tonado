@@ -147,6 +147,7 @@
 
 ## Prio 1 — Kernfunktionen
 - [x] Sleep-Timer mit Fade-Out: Lautstärke sanft runterfahren statt abrupt stoppen
+- [ ] Sleep-Timer verlängern aus dem Player-Pill: Klick auf den Pill öffnet Mini-Sheet mit „+5 Min / +10 Min / Abbrechen". Typischer Eltern-Workflow wenn Kind noch wach ist. Aktuell nur Abbrechen möglich, Neustart nur über Einstellungen
 - [x] Auto-Fallback auf AP-Modus: `ConnectivityMonitor`-Service pollt WLAN-Status, startet nach Timeout automatisch das bestehende Captive Portal als Rettungs-AP. Owner-Flag (`setup`/`auto`/`manual`) verhindert dass Monitor fremdgestartete Portale anfasst. State-Machine mit Boot-Grace, Double-Check, Post-Recovery-Cooldown, Circuit-Breaker. Eltern-UI in `/settings` mit Toggle, AP-Credentials, QR-Code zum Ausdrucken (WIFI:-URI-Scheme). Backend-Tests (11 neue State-Machine-Tests, 2 Owner-Flag-Tests für das Portal), Frontend-Build grün. Live-Test auf Pi-Hardware offen.
 
 ## Prio 2 — Differenzierung

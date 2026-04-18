@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { player } from '$lib/api';
+	import { player, authApi } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
 	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio, reloadBrowserAudio } from '$lib/stores/browser-audio.svelte';
 	import { isMpdConnected } from '$lib/stores/health.svelte';
+	import { addToast } from '$lib/stores/toast.svelte';
 	import { tick, onMount } from 'svelte';
 
 	const mpdOk = $derived(isMpdConnected());
@@ -147,8 +148,70 @@
 	let lastTrackUri = $state('');
 	let lastPlayState = $state('');
 
-	onMount(async () => {
-		try { outputs = await player.outputs(); } catch {}
+	// Sleep timer state
+	let sleepActive = $state(false);
+	let sleepRemaining = $state(0);
+	let sleepCancelling = $state(false);
+
+	const sleepVisible = $derived(sleepActive && sleepRemaining > 0);
+	const sleepFinalMinute = $derived(sleepVisible && sleepRemaining < 60);
+	const sleepLabel = $derived(
+		sleepRemaining >= 60
+			? t('player.sleep_minutes', { minutes: Math.floor(sleepRemaining / 60) })
+			: t('player.sleep_seconds', { seconds: Math.max(0, Math.floor(sleepRemaining)) })
+	);
+	// Stable text for screen readers: only changes on minute boundaries or final-minute entry
+	const sleepAnnounce = $derived.by(() => {
+		if (!sleepVisible) return '';
+		if (sleepRemaining < 60) return t('player.sleep_announce_final');
+		return t('player.sleep_announce_minutes', { minutes: Math.floor(sleepRemaining / 60) });
+	});
+
+	async function pollSleepTimer() {
+		if (sleepCancelling) return; // avoid overwriting optimistic cancel state
+		try {
+			const res = await authApi.sleepTimer();
+			sleepActive = res.active;
+			sleepRemaining = Math.max(0, Math.floor(res.remaining_seconds));
+		} catch {
+			// On failure: keep last known state to avoid flicker
+		}
+	}
+
+	async function cancelSleepTimer() {
+		if (sleepCancelling) return;
+		sleepCancelling = true;
+		try {
+			await authApi.cancelSleepTimer();
+			sleepActive = false;
+			sleepRemaining = 0;
+		} catch {
+			addToast(t('player.sleep_cancel_failed'), 'error');
+		} finally {
+			sleepCancelling = false;
+		}
+	}
+
+	onMount(() => {
+		player.outputs().then(o => { outputs = o; }).catch(() => {});
+
+		pollSleepTimer();
+		const pollId = setInterval(pollSleepTimer, 10_000);
+		const tickId = setInterval(() => {
+			if (sleepActive && sleepRemaining > 0) {
+				sleepRemaining = Math.max(0, sleepRemaining - 1);
+				if (sleepRemaining === 0) sleepActive = false;
+			}
+		}, 1000);
+		// Resync on tab focus: setInterval throttles to ~1/min in hidden tabs
+		const onVisible = () => { if (!document.hidden) pollSleepTimer(); };
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			clearInterval(pollId);
+			clearInterval(tickId);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
 	// Reload browser audio stream when the current track changes
@@ -190,7 +253,31 @@
 
 </script>
 
-<div class="flex flex-col items-center justify-center h-full px-6 py-8 gap-6">
+<div class="relative flex flex-col items-center justify-center h-full px-6 py-8 gap-6">
+
+	<!-- Sleep timer indicator: absolute so it does not push cover art down -->
+	{#if sleepVisible}
+		<div
+			class="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-1 pl-3 pr-1 py-1 rounded-full text-xs shadow-sm transition-colors {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
+		>
+			<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+			</svg>
+			<span class="font-medium" aria-hidden="true">{t('player.sleep_remaining', { time: sleepLabel })}</span>
+			<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
+			<button
+				onclick={cancelSleepTimer}
+				disabled={sleepCancelling}
+				class="p-2 -my-1 text-current hover:opacity-70 transition-opacity disabled:opacity-40 touch-manipulation"
+				aria-label={t('player.sleep_cancel')}
+			>
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<line x1="18" y1="6" x2="6" y2="18"/>
+					<line x1="6" y1="6" x2="18" y2="18"/>
+				</svg>
+			</button>
+		</div>
+	{/if}
 
 	<!-- Cover Art -->
 	<div class="w-64 h-64 sm:w-72 sm:h-72 rounded-2xl bg-surface-light flex items-center justify-center shadow-xl overflow-hidden">

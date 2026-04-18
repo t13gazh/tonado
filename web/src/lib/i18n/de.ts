@@ -378,6 +378,13 @@ export default {
 	'player.browser_audio_off': 'Auf diesem Gerät hören',
 	'player.play_again': 'Nochmal abspielen',
 	'player.seek': 'Position',
+	'player.sleep_remaining': 'Noch {time} Musik',
+	'player.sleep_minutes': '{minutes} Min.',
+	'player.sleep_seconds': '{seconds} Sek.',
+	'player.sleep_announce_minutes': 'Noch {minutes} Minuten Musik',
+	'player.sleep_announce_final': 'Musik endet gleich',
+	'player.sleep_cancel': 'Einschlaftimer abbrechen',
+	'player.sleep_cancel_failed': 'Abbrechen fehlgeschlagen',
 	'wizard.name_placeholder': 'Die drei ???, Folge 1',
 
 	// Content picker (additional)

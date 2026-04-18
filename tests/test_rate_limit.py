@@ -27,6 +27,14 @@ def _build_app(**middleware_kwargs) -> FastAPI:
     async def stream() -> dict:
         return {"ok": True}
 
+    @app.post("/api/auth/login")
+    async def login() -> dict:
+        return {"ok": True}
+
+    @app.post("/api/system/restore")
+    async def restore() -> dict:
+        return {"ok": True}
+
     return app
 
 
@@ -91,4 +99,37 @@ async def test_limit_is_per_ip():
         assert resp.status_code == 429
         # 6.6.6.6 still has quota
         resp = await c.post("/echo", headers={"X-Forwarded-For": "6.6.6.6"})
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_login_bucket_stricter_than_default():
+    """Login must not fall through to the 100/min default — PBKDF2 burns CPU
+    on the Pi even when the PIN is correct."""
+    app = _build_app(default_limit=100, login_limit=2, login_window=60)
+    transport = ASGITransport(app=app, client=("7.7.7.7", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(2):
+            resp = await c.post("/api/auth/login")
+            assert resp.status_code == 200
+        resp = await c.post("/api/auth/login")
+        assert resp.status_code == 429
+        # Unrelated endpoint must still work
+        resp = await c.post("/echo")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_restore_bucket_stricter_than_default():
+    """Backup restore parses up to 10 MB JSON — own bucket so a single IP
+    can't DoS the Pi Zero W."""
+    app = _build_app(default_limit=100, restore_limit=1, restore_window=60)
+    transport = ASGITransport(app=app, client=("8.8.8.8", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post("/api/system/restore")
+        assert resp.status_code == 200
+        resp = await c.post("/api/system/restore")
+        assert resp.status_code == 429
+        # Login bucket is separate
+        resp = await c.post("/api/auth/login")
         assert resp.status_code == 200

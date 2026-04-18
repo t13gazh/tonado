@@ -26,6 +26,14 @@ _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _EXEMPT_PREFIXES = ("/api/player/stream",)
 _UPLOAD_PREFIX = "/api/library/upload"
 
+# Expensive endpoints get their own tiny buckets so a single IP can't
+# starve the box with PBKDF2 logins (~100k iterations) or large
+# restore-payload parses (up to 10 MB JSON). The existing per-account
+# login lockout catches wrong PINs; this limit also catches right-PIN
+# hammering that would still burn CPU on a Pi Zero W.
+_LOGIN_PATH = "/api/auth/login"
+_RESTORE_PATH = "/api/system/restore"
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
@@ -36,10 +44,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         default_window: int = 60,
         upload_limit: int = 5,
         upload_window: int = 60,
+        login_limit: int = 5,
+        login_window: int = 60,
+        restore_limit: int = 3,
+        restore_window: int = 60,
     ) -> None:
         super().__init__(app)
         self._default = (default_limit, default_window)
         self._upload = (upload_limit, upload_window)
+        self._login = (login_limit, login_window)
+        self._restore = (restore_limit, restore_window)
         self._buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -49,9 +63,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(prefix) for prefix in _EXEMPT_PREFIXES):
             return await call_next(request)
 
-        is_upload = path.startswith(_UPLOAD_PREFIX)
-        limit, window = self._upload if is_upload else self._default
-        bucket_key = (extract_client_ip(request), "upload" if is_upload else "default")
+        # Order matters: login and restore have their own tighter limits
+        # and must not fall through to the generic 100/min default.
+        if path == _LOGIN_PATH:
+            bucket_name = "login"
+            limit, window = self._login
+        elif path == _RESTORE_PATH:
+            bucket_name = "restore"
+            limit, window = self._restore
+        elif path.startswith(_UPLOAD_PREFIX):
+            bucket_name = "upload"
+            limit, window = self._upload
+        else:
+            bucket_name = "default"
+            limit, window = self._default
+
+        bucket_key = (extract_client_ip(request), bucket_name)
 
         now = time.monotonic()
         bucket = self._buckets[bucket_key]

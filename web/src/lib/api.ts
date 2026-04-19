@@ -230,6 +230,11 @@ export const library = {
 		}).then((r) => r.json());
 	},
 	deleteFolder: (name: string) => request<void>(`/library/folders/${name}`, { method: 'DELETE' }),
+	renameFolder: (oldName: string, newName: string) =>
+		request<MediaFolder>(`/library/folders/${encodeURIComponent(oldName)}`, {
+			method: 'PUT',
+			body: JSON.stringify({ new_name: newName }),
+		}),
 	upload: (folder: string, file: File, onProgress?: (pct: number) => void) => {
 		return new Promise<void>((resolve, reject) => {
 			const xhr = new XMLHttpRequest();
@@ -249,6 +254,15 @@ export const library = {
 		});
 	},
 	stats: () => request<{ total_bytes: number; file_count: number; folder_count: number }>('/library/stats'),
+	/**
+	 * Build the cover-art URL for a folder or track. Returned URL hits
+	 * `GET /api/library/cover?path=…&kind=…`; the backend resolves on-disk
+	 * cover.jpg first, embedded APIC/Picture tags as fallback, 404 otherwise.
+	 * Callers should feed this into `<CoverArt src=…>` which gracefully falls
+	 * back to the deterministic gradient on 404 / missing art.
+	 */
+	coverUrl: (path: string, kind: 'folder' | 'track'): string =>
+		`${BASE}/library/cover?path=${encodeURIComponent(path)}&kind=${kind}`,
 };
 
 // Streams API
@@ -362,7 +376,8 @@ export const authApi = {
 			method: 'DELETE',
 			body: JSON.stringify({ tier }),
 		}),
-	sleepTimer: () => request<{ active: boolean; remaining_seconds: number }>('/auth/sleep-timer'),
+	sleepTimer: () =>
+		request<{ active: boolean; remaining_seconds: number; fading: boolean }>('/auth/sleep-timer'),
 	startSleepTimer: (minutes: number) =>
 		request<void>('/auth/sleep-timer', { method: 'POST', body: JSON.stringify({ minutes }) }),
 	cancelSleepTimer: () => request<void>('/auth/sleep-timer', { method: 'DELETE' }),

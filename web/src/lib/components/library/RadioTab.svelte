@@ -4,6 +4,7 @@
 	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import CoverArt from '$lib/components/CoverArt.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -182,7 +183,15 @@
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(() => playContent(station.url), false, isNowPlaying(station.url))}
-					{@render thumbnail(station.logo_url, 'radio')}
+					<!--
+					  Radio station logo: `logo_url` is populated for preset stations
+					  (kinder/allgemein catalog) and may be null for custom streams.
+					  CoverArt falls back to gradient + initial for missing logos.
+					  Audio-stream covers are never auto-generated — no endpoint call.
+					-->
+					<div class="w-10 h-10 flex-shrink-0">
+						<CoverArt src={station.logo_url ?? undefined} title={station.name} size="sm" />
+					</div>
 					<button onclick={() => (expandedRadio = expanded ? null : station.id)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{station.name}</p>
 						<p class="text-xs text-text-muted">{station.category === 'kinder' ? t('library.station_kinder') : station.category === 'allgemein' ? t('library.station_general') : t('library.station_custom')}</p>

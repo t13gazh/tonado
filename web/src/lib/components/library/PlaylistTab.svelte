@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
+	import { library, playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
 	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
+	import CoverArt from '$lib/components/CoverArt.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
@@ -240,7 +241,14 @@
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(async () => { await playlistsApi.play(pl.id); goto('/'); }, pl.item_count === 0)}
-					{@render thumbnail(null, 'playlist')}
+					<!--
+					  Top-level playlist row: backend has no dedicated cover field on
+					  PlaylistSummary — render gradient + initial fallback only.
+					  (Backlog: PlaylistSummary.cover_track_path for first-item cover.)
+					-->
+					<div class="w-10 h-10 flex-shrink-0">
+						<CoverArt title={pl.name} size="sm" />
+					</div>
 					<button onclick={() => togglePlaylist(pl.id)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{pl.name}</p>
 						<p class="text-xs text-text-muted">{t('library.entries', { count: pl.item_count })}{pl.duration_seconds ? ` · ${formatDuration(pl.duration_seconds)}` : ''}</p>
@@ -302,11 +310,19 @@
 						{#if expandedPlaylist && expandedPlaylist.items.length > 0}
 							<div class="flex flex-col">
 								{#each expandedPlaylist.items as item, i}
+									{@const itemTitle = item.title || parseTrackName(item.content_path).title}
+									{@const coverKind = item.content_type === 'folder' ? 'folder' : 'track'}
+									{@const coverSrc = (item.content_type === 'folder' || item.content_type === 'track')
+										? library.coverUrl(item.content_path, coverKind)
+										: undefined}
 									<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 										<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
-										<span class="flex-1 text-text truncate">{item.title || parseTrackName(item.content_path).title}</span>
+										<div class="w-8 h-8 flex-shrink-0">
+											<CoverArt src={coverSrc} title={itemTitle} size="sm" />
+										</div>
+										<span class="flex-1 text-text truncate">{itemTitle}</span>
 										{#if item.duration_seconds}<span class="text-text-muted tabular-nums shrink-0">{formatDuration(item.duration_seconds)}</span>{/if}
-										<button onclick={() => requireAuth(() => removePlaylistItem(item.id))} class="p-0.5 text-text-muted/40 hover:text-red-400">
+										<button onclick={() => requireAuth(() => removePlaylistItem(item.id))} class="p-0.5 text-text-muted/40 hover:text-red-400 min-h-[44px] min-w-[44px] flex items-center justify-center">
 											<Icon name="x" size={14} />
 										</button>
 									</div>

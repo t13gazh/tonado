@@ -4,6 +4,7 @@
 	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import CoverArt from '$lib/components/CoverArt.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { goto } from '$app/navigation';
@@ -220,7 +221,14 @@
 						if (expandedPodcast !== podcast.id) await togglePodcast(podcast.id);
 						if (podcastEpisodes.length > 0) await playPodcastEpisode(0);
 					})}
-					{@render thumbnail(podcast.logo_url, 'podcast')}
+					<!--
+					  Podcast show cover: backend exposes `logo_url` (nullable).
+					  CoverArt falls back to the gradient + initial when the URL
+					  errors or is absent.
+					-->
+					<div class="w-10 h-10 flex-shrink-0">
+						<CoverArt src={podcast.logo_url ?? undefined} title={podcast.name} size="sm" />
+					</div>
 					<button onclick={() => togglePodcast(podcast.id)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{podcast.name}</p>
 						<p class="text-xs text-text-muted">{t('library.episodes', { count: podcast.episode_count })}</p>
@@ -236,7 +244,7 @@
 								{#each podcastEpisodes as ep, i}
 									<button
 										onclick={() => playPodcastEpisode(i)}
-										class="flex items-center gap-2 py-2 text-left {i > 0 ? 'border-t border-surface-lighter/50' : ''}"
+										class="flex items-center gap-2 py-2 text-left min-h-[44px] {i > 0 ? 'border-t border-surface-lighter/50' : ''}"
 									>
 										<span class="w-5 flex-shrink-0 flex items-center justify-center">
 											{#if isNowPlaying(ep.audio_url) && isPlaying}
@@ -245,6 +253,16 @@
 												<svg class="w-3.5 h-3.5 text-text-muted" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
 											{/if}
 										</span>
+										<!--
+										  Episode row cover: feed has no per-episode image field
+										  (Backlog: parse `<itunes:image>` per episode in RSS).
+										  Falls back to the show's `logo_url`, which already covers
+										  the common case — the show-level art *is* the episode
+										  identity for most podcasts.
+										-->
+										<div class="w-8 h-8 flex-shrink-0">
+											<CoverArt src={podcast.logo_url ?? undefined} title={ep.title} size="sm" />
+										</div>
 										<span class="flex-1 min-w-0">
 											<span class="text-xs block truncate {isNowPlaying(ep.audio_url) ? 'text-primary font-medium' : 'text-text'}">{ep.title}</span>
 											<span class="text-[10px] text-text-muted">

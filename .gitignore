@@ -64,3 +64,6 @@ agents/
 # Junk file fragments (accidental shell/editor artifacts)
 # Cleaned by junk-file-detector hook at session start
 .carl/
+
+# Review artifacts (screenshots/metrics produced by UX-review agents)
+.tmp-review-out/

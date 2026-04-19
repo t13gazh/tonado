@@ -11,11 +11,12 @@ Schön, dass du mithelfen willst. Tonado ist ein Open-Source-Projekt, das eine K
 ## Bevor du anfängst
 
 1. **Issue durchsuchen / öffnen.** Für größere Änderungen bitte vorher ein Issue, damit wir die Richtung klären bevor Code geschrieben wird.
-2. **`CLAUDE.md` beachten.** Die Datei liegt im Repo-Root (nur lokal — nicht im öffentlichen Clone) und erklärt Namenskonventionen, Commit-Format und Sprachregeln. Die wichtigsten Punkte:
+2. **Namenskonventionen beachten.** Die verbindlichen Regeln stehen in dieser Datei:
    - Code, Commits, Kommentare: Englisch.
    - UI-Strings und User-Doku: Deutsch mit echten Umlauten (ä/ö/ü/ß — nie ae/oe/ue).
    - Branch: `main` (nicht `master`).
 3. **Lokal aufsetzen.** [docs/installation.md](docs/installation.md) für den Pi, [docs/entwicklung.md](docs/entwicklung.md) für die Dev-Umgebung (Backend: `pip install -e ".[dev]"`, Frontend: `cd web && npm install`).
+4. **Git-Hooks installieren.** Einmalig nach dem Clone: `bash scripts/install-hooks.sh`. Der Pre-Commit-Hook blockiert `feat:`/`fix:`-Commits, die Source-Code (core/ oder web/src/) ändern, aber keinen CHANGELOG.md-Eintrag mitbringen. Ohne Hook geht dir das durch — das ist dann aber ein PR-Blocker im Review.
 
 ## Workflow
 
@@ -43,7 +44,7 @@ Vor einem PR mit Security-Impact bitte erst [SECURITY.md](SECURITY.md) lesen. Vu
 
 ## Hardware
 
-Wir supportet offiziell Pi 3B+ (getestet). Pi Zero W / Zero 2 W / Pi 4 / 5 laufen experimentell — wer sie testet: Bitte Ergebnisse im Issue-Tracker dokumentieren (Backlog unter "Pi-Kompatibilitätsmatrix").
+Wir supporten offiziell Pi 3B+ (getestet). Pi Zero W / Zero 2 W / Pi 4 / 5 laufen experimentell — wer sie testet: Bitte Ergebnisse im Issue-Tracker dokumentieren (Backlog unter "Pi-Kompatibilitätsmatrix").
 
 ## Fragen
 

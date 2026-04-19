@@ -5,6 +5,23 @@ Alle nennenswerten Änderungen an Tonado werden hier dokumentiert.
 Format basiert auf [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Hinzugefügt
+
+- **Cover-Art im Player und in der Bibliothek:** Bilder aus ID3-Tags (MP3, FLAC, OGG, MP4, WMA) oder einer `cover.jpg`/`cover.png` im Ordner werden automatisch angezeigt. Fallback: farbige Kachel mit Anfangsbuchstabe.
+- **Suche in der Bibliothek:** Freitext-Suche über alle vier Tabs (Ordner, Radio, Podcasts, Playlisten) mit Tab-Treffer-Zählern und Umlaut-/Diacritic-toleranter Suche ("uber" findet "Über").
+- **Sleep-Timer-Countdown im Player:** Verbleibende Zeit erscheint dezent zwischen Fortschrittsbalken und Wiedergabe-Steuerung. Wechselt unter einer Minute auf Sekunden-Takt und färbt sich in der letzten Minute warm.
+
+### Verbessert
+
+- **Player-Layout auf kleinen Smartphones:** Safe-Area-Handling (Notch / Dynamic Island), flexibles Cover-Sizing (skaliert mit Viewport), Landscape-Modus und sanftere Druck-Feedbacks an allen Bedienelementen. Kein Abschneiden mehr oben/unten auf iPhone SE, kleineren Android-Geräten oder im Querformat.
+- **Banner-Einblendung:** Gesundheits-Banner (Backend-Offline, MPD-Trennung, Speicher-Warnung) gleiten jetzt sanft ein statt instant aufzupoppen — Verhalten respektiert `prefers-reduced-motion`.
+
+### Infrastruktur (Entwickler)
+
+- **Doku-Disziplin per Hook:** Neuer Git-Pre-Commit-Hook (`scripts/hooks/pre-commit`, Installation via `scripts/install-hooks.sh`) blockiert `feat:`/`fix:`-Commits, die Source unter `core/` oder `web/src/` ändern, aber keinen Eintrag in `CHANGELOG.md` mitbringen. Dazu Claude-PostToolUse-Reminder bei Source-Edits. Bypass `SKIP_DOC_CHECK=1 git commit …` für begründete Ausnahmen.
+
 ## [0.2.1-alpha] — 2026-04-08
 
 ### Hinzugefügt

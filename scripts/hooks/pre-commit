@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Tonado pre-commit hook — enforces documentation discipline.
+#
+# Blocks `feat:` / `fix:` commits that touch user-visible source code
+# but forget to update CHANGELOG.md. The hook is opt-in: install via
+# `scripts/install-hooks.sh`.
+#
+# Bypass (rare, document why):
+#   SKIP_DOC_CHECK=1 git commit ...
+#
+# Triggering conditions (ALL must match):
+#   1. Commit message subject starts with `feat` or `fix`
+#      (Conventional Commits: with or without scope/breaking marker)
+#   2. At least one staged file lives under core/ or web/src/
+#   3. CHANGELOG.md is NOT among the staged files
+#
+# Commit types that are *never* checked:
+#   chore, docs, refactor, test, style, ci, build, perf, revert
+
+set -euo pipefail
+
+if [[ "${SKIP_DOC_CHECK:-0}" == "1" ]]; then
+  exit 0
+fi
+
+# Resolve the commit message: prefer prepared message, fall back to the
+# message being edited via -m. Git invokes the commit-msg hook with the
+# message path; pre-commit doesn't receive it, so we read .git/COMMIT_EDITMSG
+# if present (git stages the typed-in message there before calling us).
+msg_file=".git/COMMIT_EDITMSG"
+if [[ ! -f "$msg_file" ]]; then
+  # No message yet — nothing to gate on.
+  exit 0
+fi
+
+subject=$(head -n1 "$msg_file" | tr -d '\r')
+
+# Only gate feat/fix commits. Regex in a variable so bash parses it
+# as pattern rather than a conditional expression with literal parens.
+gate_re='^(feat|fix)(\([^)]*\))?!?:'
+if [[ ! "$subject" =~ $gate_re ]]; then
+  exit 0
+fi
+
+# Collect staged file list (added/copied/modified/renamed — excludes deletes
+# of rename partners). NUL-separated for safety against unusual filenames.
+mapfile -d '' -t staged < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+if [[ ${#staged[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+touched_source=0
+changelog_staged=0
+
+for f in "${staged[@]}"; do
+  case "$f" in
+    CHANGELOG.md)
+      changelog_staged=1
+      ;;
+    core/*|web/src/*)
+      touched_source=1
+      ;;
+  esac
+done
+
+if [[ $touched_source -eq 0 ]]; then
+  exit 0
+fi
+
+if [[ $changelog_staged -eq 1 ]]; then
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+
+  Tonado doc-discipline gate
+  --------------------------
+  Dieser Commit aendert Source (core/ oder web/src/), hat aber keinen
+  CHANGELOG.md-Eintrag. Feat/Fix-Commits muessen im Changelog landen,
+  damit Eltern im Update-Dialog lesen koennen was sich aendert.
+
+  Bitte:
+    - CHANGELOG.md unter der aktuellen Alpha/Beta-Version erweitern
+      (Sektion "Hinzugefuegt" / "Verbessert" / "Behoben")
+    - danach erneut committen
+
+  Bypass (nur mit Grund, z.B. Hotfix ohne User-Impact):
+    SKIP_DOC_CHECK=1 git commit ...
+
+EOF
+
+exit 1

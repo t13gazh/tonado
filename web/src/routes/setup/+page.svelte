@@ -12,6 +12,9 @@
 	import CardStep from '$lib/components/setup/CardStep.svelte';
 	import PinStep from '$lib/components/setup/PinStep.svelte';
 	import CompleteStep from '$lib/components/setup/CompleteStep.svelte';
+	import HelpSheet from '$lib/components/HelpSheet.svelte';
+	import Icon from '$lib/components/Icon.svelte';
+	import { getHelpEntry, type HelpEntry } from '$lib/help/entries';
 	import type { CardStepType } from '$lib/components/setup/CardStep.svelte';
 	import type { ButtonStepType } from '$lib/components/setup/ButtonsStep.svelte';
 
@@ -68,6 +71,25 @@
 	const backendDown = $derived(isBackendOffline());
 	const currentIdx = $derived(STEPS.indexOf(currentStep));
 	const hasRfid = $derived(hardware ? hardware.rfid.reader !== 'none' : false);
+
+	// Help-sheet state — bundled troubleshooting tips available offline.
+	// PIN + complete deliberately have no entry (content too trivial / redundant).
+	const STEP_HELP_KEY: Partial<Record<WizardStep, string>> = {
+		hardware: 'hardware_incomplete',
+		wifi: 'wifi_not_found',
+		audio: 'no_sound',
+		buttons: 'hardware_incomplete',
+		card: 'figure_not_recognized',
+	};
+	let helpOpen = $state(false);
+	let helpEntry = $state<HelpEntry | null>(null);
+	const currentHelpKey = $derived(STEP_HELP_KEY[currentStep] ?? null);
+
+	function openHelp() {
+		if (!currentHelpKey) return;
+		helpEntry = getHelpEntry(currentHelpKey);
+		if (helpEntry) helpOpen = true;
+	}
 
 	onMount(async () => {
 		try {
@@ -216,8 +238,18 @@
 
 <div class="flex flex-col h-dvh">
 	<!-- Fixed header -->
-	<div class="shrink-0 px-4 pt-4 pb-2">
+	<div class="shrink-0 px-4 pt-4 pb-2 relative">
 		<h1 class="text-xl font-bold text-text text-center">{t('setup.title')}</h1>
+		{#if currentHelpKey}
+			<button
+				type="button"
+				onclick={openHelp}
+				aria-label={t('help.open_aria')}
+				class="absolute top-3 right-3 p-2 text-text-muted hover:text-text rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+			>
+				<Icon name="help-circle" size={20} />
+			</button>
+		{/if}
 	</div>
 
 	<!-- Step indicator (clickable) -->
@@ -468,3 +500,5 @@
 		{/if}
 	</div>
 </div>
+
+<HelpSheet bind:open={helpOpen} entry={helpEntry} onClose={() => { helpOpen = false; }} />

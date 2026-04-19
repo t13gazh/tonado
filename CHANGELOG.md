@@ -16,6 +16,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Hinzugefügt
 
+- **Hilfe im Setup-Wizard:** Fragezeichen-Icon in jedem Schritt öffnet ein Info-Sheet mit Troubleshooting-Tipps (WLAN nicht gefunden, Figur wird nicht erkannt, kein Ton, App findet Box nicht, Hardware unvollständig). Funktioniert offline — kein Netz nötig.
 - **Cover-Art im Player und in der Bibliothek:** Bilder aus ID3-Tags (MP3, FLAC, OGG, MP4, WMA) oder einer `cover.jpg`/`cover.png` im Ordner werden automatisch angezeigt. Fallback: farbige Kachel mit Anfangsbuchstabe.
 - **Suche in der Bibliothek:** Freitext-Suche über alle vier Tabs (Ordner, Radio, Podcasts, Playlisten) mit Tab-Treffer-Zählern und Umlaut-/Diacritic-toleranter Suche ("uber" findet "Über").
 - **Sleep-Timer-Countdown im Player:** Verbleibende Zeit erscheint dezent zwischen Fortschrittsbalken und Wiedergabe-Steuerung. Wechselt unter einer Minute auf Sekunden-Takt und färbt sich in der letzten Minute warm.

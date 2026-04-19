@@ -488,6 +488,36 @@ export default {
 	'setup.pin_save_failed': 'PIN konnte nicht gespeichert werden.',
 	'setup.pin_saved': 'PIN gespeichert.',
 
+	// Help (Setup-Wizard Troubleshooting)
+	'help.open_aria': 'Hilfe öffnen',
+	'help.close_aria': 'Hilfe schließen',
+	'help.learn_more': 'Mehr erfahren',
+
+	'help.wifi_not_found.title': 'WLAN wird nicht gefunden',
+	'help.wifi_not_found.body_1': 'Tonado funkt auf **2,4 GHz**. Reine 5-GHz-Netze werden nicht angezeigt. An deinem Router kannst du in der Regel beide Bänder aktivieren — das 2,4-GHz-Netz braucht denselben oder einen leicht abweichenden Namen.',
+	'help.wifi_not_found.body_2': 'Die Box sollte beim Einrichten **höchstens zwei Zimmer** vom Router entfernt sein. Dicke Wände, Kühlschränke oder Stahlregale schlucken das Signal.',
+	'help.wifi_not_found.body_3': 'Beim Passwort zählen Groß- und Kleinschreibung. Sonderzeichen wie „ß" oder „€" klappen nicht überall — im Zweifel vorher ein Passwort nur mit Buchstaben und Ziffern setzen.',
+
+	'help.figure_not_recognized.title': 'Figur wird nicht erkannt',
+	'help.figure_not_recognized.body_1': 'Die Figur muss **direkt** auf dem markierten Lesefeld liegen — ein paar Zentimeter Abstand reichen schon, damit der Chip nicht mehr antwortet.',
+	'help.figure_not_recognized.body_2': 'Metall in der Nähe stört das Funksignal. Alufolie, ein Kühlschrank oder eine Metallplatte unter der Box können die Erkennung lahmlegen. Stell die Box auf eine Holz- oder Kunststoff-Fläche.',
+	'help.figure_not_recognized.body_3': 'Klappt es immer noch nicht, kannst du die **Empfindlichkeit** des Lesers später in den Einstellungen erhöhen. Ältere oder sehr kleine Chips sind manchmal zu schwach — eine andere Figur oder Karte ausprobieren hilft schnell.',
+
+	'help.no_sound.title': 'Kein Ton oder zu leise',
+	'help.no_sound.body_1': 'Prüf zuerst die **Lautstärke** am Player und am angeschlossenen Lautsprecher. Die Box startet bewusst leise, damit Kinder nicht erschrecken.',
+	'help.no_sound.body_2': 'Im Audio-Schritt muss der **richtige Ausgang** ausgewählt sein. Mit einem HifiBerry oder USB-Lautsprecher wählst du genau diesen aus, nicht die Klinkenbuchse. Der Test-Knopf spielt einen kurzen Ton ab.',
+	'help.no_sound.body_3': 'Der eingebaute **3,5-mm-Klinkenausgang** rauscht hörbar und klingt generell dünn. Wenn du einen HifiBerry oder USB-DAC angeschlossen hast, nimm den — das ist ein riesiger Qualitätssprung.',
+
+	'help.app_not_finding_box.title': 'App findet die Box nicht',
+	'help.app_not_finding_box.body_1': 'Handy und Box müssen im **gleichen WLAN** sein. Gast-Netze und „für Kinder"-Netze vieler Router sind oft vom Haupt-WLAN isoliert — dort findet das Handy die Box nicht.',
+	'help.app_not_finding_box.body_2': 'Im Browser `http://tonado.local` eingeben. Klappt die Adresse nicht, hilft die **IP-Adresse** direkt: die siehst du im letzten Schritt der Einrichtung oder an deinem Router unter „verbundene Geräte".',
+	'help.app_not_finding_box.body_3': 'Wenn alles richtig aussieht, **Browser-Tab neu laden** (nicht nur zurück). Manche Handys halten alte DNS-Einträge fest — WLAN am Handy kurz aus und wieder an löst das zuverlässig.',
+
+	'help.hardware_incomplete.title': 'Hardware nicht vollständig erkannt',
+	'help.hardware_incomplete.body_1': 'Ein fehlender Leser oder Sensor heißt meist: **Kabel lose** oder falsch aufgesteckt. Box stromlos machen, Aufsteckplatinen nochmal fest andrücken, wieder einstecken.',
+	'help.hardware_incomplete.body_2': 'Nach einem **Neustart** werden alle Komponenten neu geprüft. Oft reicht das schon — die Erkennung lässt sich später in den Einstellungen erneut anstoßen.',
+	'help.hardware_incomplete.body_3': 'Wenn eine Komponente dauerhaft fehlt, ist sie vielleicht gar nicht verbaut oder defekt. Details und Verkabelung stehen in der **Bastler-Anleitung** im Hardware-Abschnitt auf GitHub.',
+
 	// General
 	'general.loading': 'Laden...',
 	'general.error': 'Fehler',

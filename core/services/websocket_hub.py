@@ -22,6 +22,12 @@ class WebSocketHub:
         self._event_bus = event_bus
         self._connections: set[WebSocket] = set()
         self._last_state: dict[str, Any] = {}
+        # Last authoritative sleep-timer snapshot. Hydrates late joiners so a
+        # parent opening a second tab mid-countdown sees the pill immediately
+        # instead of waiting for the next minute boundary. `None` means no
+        # sleep-timer event has fired yet this process — in that case the
+        # frontend's REST poll on mount still fills the gap.
+        self._last_sleep_state: dict[str, Any] | None = None
         self._max_connections = max_connections
 
     @property
@@ -58,9 +64,13 @@ class WebSocketHub:
         await ws.accept()
         self._connections.add(ws)
         logger.debug("WebSocket client connected (%d total)", len(self._connections))
-        # Send current state immediately
+        # Send current state immediately so late joiners hydrate without waiting
+        # for the next broadcast. Player state first (hero is most visible),
+        # then sleep-timer snapshot if a countdown is running.
         if self._last_state:
             await self._send(ws, {"type": "player_state", "data": self._last_state})
+        if self._last_sleep_state is not None:
+            await self._send(ws, {"type": "sleep_timer", "data": self._last_sleep_state})
 
     async def disconnect(self, ws: WebSocket) -> None:
         """Remove a WebSocket connection."""
@@ -126,12 +136,14 @@ class WebSocketHub:
         **_: Any,
     ) -> None:
         """Forward sleep-timer state changes so all parent phones stay in sync."""
-        await self._broadcast({
-            "type": "sleep_timer",
-            "data": {
-                "active": active,
-                "remaining_seconds": max(0, int(remaining_seconds)),
-                "fading": fading,
-                "duration_seconds": duration_seconds,
-            },
-        })
+        payload = {
+            "active": active,
+            "remaining_seconds": max(0, int(remaining_seconds)),
+            "fading": fading,
+            "duration_seconds": duration_seconds,
+        }
+        # Cache the latest snapshot so new connections hydrate on connect(),
+        # not on the next tick. Cancel events (active=False) are kept too so
+        # a tab opened right after cancellation doesn't show a stale pill.
+        self._last_sleep_state = payload
+        await self._broadcast({"type": "sleep_timer", "data": payload})

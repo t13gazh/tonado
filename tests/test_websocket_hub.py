@@ -123,6 +123,54 @@ async def test_sleep_timer_broadcast(hub: WebSocketHub, event_bus: EventBus) -> 
 
 
 @pytest.mark.asyncio
+async def test_new_client_receives_last_sleep_state(
+    hub: WebSocketHub, event_bus: EventBus
+) -> None:
+    """A second device opening the app mid-countdown must see the pill
+    immediately — without the hydration the next tick only arrives when the
+    backend re-publishes (on expiry, extend, or cancel), leaving the parent
+    UI blank for up to the full countdown."""
+    await event_bus.publish(
+        "sleep_timer_updated",
+        remaining_seconds=180,
+        fading=False,
+        active=True,
+        duration_seconds=300,
+    )
+    ws = FakeWebSocket()
+    await hub.connect(ws)
+    # Two frames: player_state (empty last_state skipped) + sleep_timer snapshot.
+    # In this fixture _last_state is still empty, so only the sleep snapshot arrives.
+    assert len(ws.sent) == 1
+    msg = json.loads(ws.sent[0])
+    assert msg["type"] == "sleep_timer"
+    assert msg["data"]["active"] is True
+    assert msg["data"]["remaining_seconds"] == 180
+    assert msg["data"]["duration_seconds"] == 300
+
+
+@pytest.mark.asyncio
+async def test_new_client_receives_both_player_and_sleep_state(
+    hub: WebSocketHub, event_bus: EventBus
+) -> None:
+    """Combined hydration: the hero (player_state) and the sleep pill must
+    both reconstruct from a single connect() call."""
+    await event_bus.publish("player_state_changed", state={"volume": 50})
+    await event_bus.publish(
+        "sleep_timer_updated",
+        remaining_seconds=60,
+        fading=False,
+        active=True,
+        duration_seconds=120,
+    )
+    ws = FakeWebSocket()
+    await hub.connect(ws)
+    assert len(ws.sent) == 2
+    types = [json.loads(m)["type"] for m in ws.sent]
+    assert types == ["player_state", "sleep_timer"]
+
+
+@pytest.mark.asyncio
 async def test_failed_send_prunes_connection(
     hub: WebSocketHub, event_bus: EventBus
 ) -> None:

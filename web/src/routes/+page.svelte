@@ -323,18 +323,18 @@
 		closeSleepMenu(false);
 	}
 
-	// Adaptive tick cadence:
-	//   < 60s remaining → 1000ms (per-second countdown)
-	//   >= 60s remaining → 30000ms (minute label only flips on minute boundaries)
-	// Avoids re-rendering the pill 60× per minute when a single flip every
-	// 30s is enough. During fade-out no tick is needed — the countdown is
-	// replaced by a static "Fade-Out läuft …" label.
+	// Constant 1s tick — keeps the 60s boundary transition crisp (an adaptive
+	// 30s/1s cadence could leave the pill stuck at "1 Min." for up to 29s past
+	// the boundary before re-binding at 1s). The re-render cost is negligible:
+	// `sleepLabel` only changes on minute boundaries (>60s) or per-second in
+	// the final minute, and `sleepAnnounce` stays stable across whole minutes
+	// so aria-live screen readers only speak on minute flips / final-minute
+	// entry / fade entry. During fade-out no tick is needed.
 	$effect(() => {
 		if (!sleepSnapshot.active || sleepSnapshot.fading) return;
 		// Re-enter on each snapshot change (start/extend/cancel/fade)
 		void sleepSnapshot.received_at;
-		const interval = sleepRemaining < 60 ? 1000 : 30000;
-		const id = setInterval(() => { sleepTick = performance.now(); }, interval);
+		const id = setInterval(() => { sleepTick = performance.now(); }, 1000);
 		return () => clearInterval(id);
 	});
 

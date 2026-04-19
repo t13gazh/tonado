@@ -120,19 +120,22 @@
 		{#if loadingRadio}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<RadioTab {stations} {onError} onReloadRadio={loadRadio} {playCircle} {thumbnail} {chevron} />
+			<!-- `thumbnail` not forwarded: radio rows render CoverArt directly. -->
+			<RadioTab {stations} {onError} onReloadRadio={loadRadio} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'podcasts'}
 		{#if loadingPodcasts}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<PodcastTab {podcasts} {onError} onReloadPodcasts={loadPodcasts} {playCircle} {thumbnail} {chevron} />
+			<!-- `thumbnail` not forwarded: podcast rows render CoverArt directly. -->
+			<PodcastTab {podcasts} {onError} onReloadPodcasts={loadPodcasts} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'playlists'}
 		{#if loadingPlaylists}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<PlaylistTab {allPlaylists} {folders} {onError} onReloadPlaylists={loadPlaylists} {playCircle} {thumbnail} {chevron} />
+			<!-- `thumbnail` not forwarded: playlist rows render CoverArt directly. -->
+			<PlaylistTab {allPlaylists} {folders} {onError} onReloadPlaylists={loadPlaylists} {playCircle} {chevron} />
 		{/if}
 	{/if}
 </div>

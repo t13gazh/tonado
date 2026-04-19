@@ -18,11 +18,12 @@
 		onError: (msg: string) => void;
 		onReloadPlaylists: () => Promise<void>;
 		playCircle: Snippet<[onclick: () => void, disabled?: boolean, nowActive?: boolean]>;
-		thumbnail: Snippet<[src: string | null, fallbackIcon: string]>;
 		chevron: Snippet<[expanded: boolean, onclick: () => void]>;
 	}
 
-	let { allPlaylists, folders, onError, onReloadPlaylists, playCircle, thumbnail, chevron }: Props = $props();
+	// Thumbnail snippet was dropped when CoverArt replaced the generic icon
+	// placeholders (commit de38552). Only FolderTab still renders a thumbnail.
+	let { allPlaylists, folders, onError, onReloadPlaylists, playCircle, chevron }: Props = $props();
 
 	// Sort mode (persisted in localStorage). Default: alphabetical.
 	type SortMode = 'alpha' | 'recent' | 'duration';
@@ -309,11 +310,20 @@
 						</div>
 						{#if expandedPlaylist && expandedPlaylist.items.length > 0}
 							<div class="flex flex-col">
+								<!--
+								  coverSrc only for filesystem-backed items. Backend playlist
+								  content_types are folder | stream | podcast | playlist | command;
+								  only `folder` maps to a real cover endpoint. stream/podcast/
+								  playlist/command have no cover route — hitting the endpoint would
+								  404 and force the CoverArt gradient fallback anyway, so skip the
+								  request and render the initial straight away. The stored
+								  `item.title` already carries the station/show/playlist name for a
+								  meaningful first letter.
+								-->
 								{#each expandedPlaylist.items as item, i}
 									{@const itemTitle = item.title || parseTrackName(item.content_path).title}
-									{@const coverKind = item.content_type === 'folder' ? 'folder' : 'track'}
-									{@const coverSrc = (item.content_type === 'folder' || item.content_type === 'track')
-										? library.coverUrl(item.content_path, coverKind)
+									{@const coverSrc = item.content_type === 'folder'
+										? library.coverUrl(item.content_path, 'folder')
 										: undefined}
 									<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 										<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>

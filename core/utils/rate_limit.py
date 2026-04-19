@@ -38,7 +38,15 @@ _RESTORE_PATH = "/api/system/restore"
 # right next to a child's thumb — without its own bucket a single IP
 # can pop 100 writes/min into the log. 20/min still allows parent-app
 # spam-tap plus normal start/extend/cancel cycles.
-_SLEEP_TIMER_PREFIX = "/api/auth/sleep-timer"
+#
+# Exact path list (analogous to _LOGIN_PATH / _RESTORE_PATH) so future
+# sibling routes like `/sleep-timer-history` don't silently inherit this
+# bucket by prefix match. Add new sleep-timer write routes here explicitly.
+# GET /sleep-timer is exempt via _SAFE_METHODS.
+_SLEEP_TIMER_PATHS = frozenset({
+    "/api/auth/sleep-timer",          # POST start, DELETE cancel
+    "/api/auth/sleep-timer/extend",   # POST extend
+})
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -83,7 +91,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         elif path.startswith(_UPLOAD_PREFIX):
             bucket_name = "upload"
             limit, window = self._upload
-        elif path.startswith(_SLEEP_TIMER_PREFIX):
+        elif path in _SLEEP_TIMER_PATHS:
             bucket_name = "sleep_timer"
             limit, window = self._sleep_timer
         else:

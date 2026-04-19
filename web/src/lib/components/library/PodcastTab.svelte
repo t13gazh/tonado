@@ -15,11 +15,12 @@
 		onError: (msg: string) => void;
 		onReloadPodcasts: () => Promise<void>;
 		playCircle: Snippet<[onclick: () => void, disabled?: boolean, nowActive?: boolean]>;
-		thumbnail: Snippet<[src: string | null, fallbackIcon: string]>;
 		chevron: Snippet<[expanded: boolean, onclick: () => void]>;
 	}
 
-	let { podcasts, onError, onReloadPodcasts, playCircle, thumbnail, chevron }: Props = $props();
+	// Thumbnail snippet was dropped when CoverArt replaced the generic icon
+	// placeholders (commit de38552). Only FolderTab still renders a thumbnail.
+	let { podcasts, onError, onReloadPodcasts, playCircle, chevron }: Props = $props();
 
 	// Sort mode (persisted). Podcasts have no added_at column; id DESC is a
 	// stable proxy for "newly added". "episodes" = descending episode count.

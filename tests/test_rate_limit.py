@@ -47,6 +47,11 @@ def _build_app(**middleware_kwargs) -> FastAPI:
     async def sleep_extend() -> dict:
         return {"ok": True}
 
+    # Future sibling that must NOT inherit the sleep-timer bucket by prefix.
+    @app.post("/api/auth/sleep-timer-history")
+    async def sleep_history() -> dict:
+        return {"ok": True}
+
     return app
 
 
@@ -189,4 +194,28 @@ async def test_sleep_timer_bucket_isolated_from_other_endpoints():
         assert resp.status_code == 200
         # Login bucket stays open
         resp = await c.post("/api/auth/login")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_prefix_does_not_capture_siblings():
+    """Regression guard: exhausting the sleep-timer bucket must NOT block a
+    sibling route like `/sleep-timer-history` that merely shares the prefix.
+    We use `path in _SLEEP_TIMER_PATHS` exactly like the login/restore paths
+    so new sibling endpoints opt in explicitly."""
+    app = _build_app(
+        default_limit=100,
+        sleep_timer_limit=1,
+        sleep_timer_window=60,
+    )
+    transport = ASGITransport(app=app, client=("11.11.11.11", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        # Exhaust sleep-timer bucket with the real write endpoint.
+        resp = await c.post("/api/auth/sleep-timer")
+        assert resp.status_code == 200
+        resp = await c.post("/api/auth/sleep-timer")
+        assert resp.status_code == 429
+        # Sibling route shares the prefix but falls into the default bucket,
+        # so it stays open even though the sleep-timer bucket is saturated.
+        resp = await c.post("/api/auth/sleep-timer-history")
         assert resp.status_code == 200

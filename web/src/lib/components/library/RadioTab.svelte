@@ -14,11 +14,12 @@
 		onError: (msg: string) => void;
 		onReloadRadio: () => Promise<void>;
 		playCircle: Snippet<[onclick: () => void, disabled?: boolean, nowActive?: boolean]>;
-		thumbnail: Snippet<[src: string | null, fallbackIcon: string]>;
 		chevron: Snippet<[expanded: boolean, onclick: () => void]>;
 	}
 
-	let { stations, onError, onReloadRadio, playCircle, thumbnail, chevron }: Props = $props();
+	// Thumbnail snippet was dropped when CoverArt replaced the generic icon
+	// placeholders (commit de38552). Only FolderTab still renders a thumbnail.
+	let { stations, onError, onReloadRadio, playCircle, chevron }: Props = $props();
 
 	// Sort mode (persisted). Radio has no created_at column; use id DESC as
 	// a proxy for "newest first" (AUTOINCREMENT is monotonic). Only two options

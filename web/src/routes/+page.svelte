@@ -548,10 +548,16 @@
 			<span>{formatTime(state.duration)}</span>
 		</div>
 		{/if}
-		<!-- Inline sleep countdown near progress bar: fixed height prevents layout shift -->
+		<!-- Inline sleep countdown near progress bar: fixed height prevents layout shift.
+		     Intentional divergence from the pill above: the pill uses natural-language
+		     "X Min." / "Noch X Sek." for at-a-glance primary status, while the inline
+		     countdown renders mm:ss (via formatTime) for a compact secondary glance
+		     near the progress bar. Both are kept in sync via the same sleepRemaining
+		     source; only the formatting differs. Final-minute colour is amber-400,
+		     matching the Warnung token in docs/UI-GUIDELINES.md section 1. -->
 		<div class="h-4 flex items-center justify-center text-xs mt-1" aria-hidden="true">
 			{#if sleepVisible && !sleepFading}
-				<span class={sleepFinalMinute ? 'text-amber-300 font-medium' : 'text-text-muted'}>
+				<span class={sleepFinalMinute ? 'text-amber-400 font-medium' : 'text-text-muted'}>
 					{#if sleepRemaining < 60}
 						{t('player.sleep_countdown_seconds', { time: formatTime(Math.max(0, sleepRemaining)) })}
 					{:else}

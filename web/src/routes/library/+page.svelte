@@ -94,22 +94,6 @@
 	</button>
 {/snippet}
 
-{#snippet thumbnail(src: string | null, fallbackIcon: string)}
-	<div class="w-10 h-10 rounded-lg bg-surface-lighter flex-shrink-0 overflow-hidden flex items-center justify-center">
-		{#if src}
-			<img {src} alt="" class="w-full h-full object-cover" />
-		{:else if fallbackIcon === 'folder'}
-			<svg class="w-5 h-5 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-		{:else if fallbackIcon === 'radio'}
-			<svg class="w-5 h-5 text-accent opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
-		{:else if fallbackIcon === 'podcast'}
-			<svg class="w-5 h-5 text-accent opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.69 2 6 4.69 6 8s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm-1.5 6.5v3h3v-3h-3z"/></svg>
-		{:else}
-			<svg class="w-5 h-5 text-primary opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
-		{/if}
-	</div>
-{/snippet}
-
 {#snippet chevron(expanded: boolean, onclick: () => void)}
 	<button {onclick} class="p-1">
 		<svg class="w-4 h-4 text-text-muted transition-transform {expanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
@@ -183,28 +167,24 @@
 		{#if loadingFolders}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<!-- `thumbnail` not forwarded: folder rows render CoverArt directly. -->
 			<FolderTab {folders} {onError} onReloadFolders={loadFolders} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'radio'}
 		{#if loadingRadio}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<!-- `thumbnail` not forwarded: radio rows render CoverArt directly. -->
 			<RadioTab {stations} {onError} onReloadRadio={loadRadio} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'podcasts'}
 		{#if loadingPodcasts}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<!-- `thumbnail` not forwarded: podcast rows render CoverArt directly. -->
 			<PodcastTab {podcasts} {onError} onReloadPodcasts={loadPodcasts} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'playlists'}
 		{#if loadingPlaylists}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<!-- `thumbnail` not forwarded: playlist rows render CoverArt directly. -->
 			<PlaylistTab {allPlaylists} {folders} {onError} onReloadPlaylists={loadPlaylists} {playCircle} {chevron} />
 		{/if}
 	{/if}

@@ -72,9 +72,11 @@
 	function handleError(e: Event) {
 		// Race-safety: a stale response from the previous `src` must not clobber
 		// the current load state. If the image that errored is no longer the one
-		// bound to the element, ignore the event.
+		// bound to the element, ignore the event. We compare via getAttribute
+		// because `el.src` is a fully-resolved URL while `src` is the raw prop —
+		// endsWith() would be fragile for URLs that share a suffix.
 		const el = e.currentTarget as HTMLImageElement | null;
-		if (el && src && !el.src.endsWith(src)) return;
+		if (el && src && el.getAttribute('src') !== src) return;
 		failed = true;
 		loaded = false;
 	}
@@ -84,8 +86,10 @@
 		// deliver, a prior response may arrive after `src` already points at the
 		// next cover. Only flip `loaded` on if the loaded image matches the
 		// current `src` prop — otherwise we would flash the previous track's art.
+		// getAttribute('src') returns the raw value as set in the template, which
+		// matches the `src` prop exactly (no resolution / no query-suffix overlap).
 		const el = e.currentTarget as HTMLImageElement | null;
-		if (el && src && !el.src.endsWith(src)) return;
+		if (el && src && el.getAttribute('src') !== src) return;
 		loaded = true;
 	}
 

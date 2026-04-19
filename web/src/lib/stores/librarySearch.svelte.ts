@@ -10,7 +10,7 @@
 // Why Runes instead of a writable store: Svelte 5's `$state` in module scope
 // produces a reactive singleton that participates in `$derived` / `$effect`
 // chains without the ceremony of subscribe/unsubscribe. Consumers read
-// `librarySearch.query` and write via `setQuery(...)` / `clearQuery()`.
+// `librarySearch.query` and write via `setQuery(...)` / `clear()`.
 
 // State object is exported as a single reactive holder so consumers can do
 // `$derived(librarySearch.query.toLowerCase())` without importing the setter.

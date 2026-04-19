@@ -22,6 +22,18 @@
 		if (value !== draft) draft = value;
 	});
 
+	// Cancel any pending debounce when the component unmounts — otherwise a
+	// setTimeout scheduled right before navigation would fire against an
+	// unmounted component and call the parent's `oninput` into the void.
+	$effect(() => {
+		return () => {
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+			}
+		};
+	});
+
 	function scheduleEmit(next: string) {
 		draft = next;
 		if (timer) clearTimeout(timer);

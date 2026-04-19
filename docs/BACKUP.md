@@ -1,6 +1,6 @@
 # Backup & Wiederherstellung
 
-Sicherst du deine Konfiguration, deine Figuren-Zuordnungen und deine eigenen Radio/Podcast-Streams. Audio-Dateien selbst sind aktuell **nicht** Teil des Backups.
+Ein Backup sichert deine Konfiguration, deine Figuren-Zuordnungen und deine eigenen Radio/Podcast-Streams. Audio-Dateien selbst sind aktuell **nicht** Teil des Backups.
 
 ## Backup erstellen
 

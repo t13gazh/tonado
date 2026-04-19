@@ -61,7 +61,7 @@ Beim ersten Verbinden fragt SSH nach dem Fingerprint — mit `yes` bestätigen.
 | Problem | Lösung |
 |---|---|
 | `<hostname>.local` wird nicht gefunden | Im Router nach der IP-Adresse des Pi suchen, dann `ssh pi@192.168.x.x` verwenden |
-| Windows findet `.local` nicht | Bonjour installieren (kommt z.B. mit iTunes) oder IP-Adresse verwenden |
+| Windows findet `.local` nicht | [Bonjour Print Services für Windows](https://support.apple.com/kb/DL999) installieren oder IP-Adresse verwenden |
 | Verbindung abgelehnt | Noch 1–2 Minuten warten, der Pi ist noch nicht fertig |
 | Falsches Passwort | Im Imager nochmal prüfen, SD-Karte ggf. neu schreiben |
 
@@ -73,21 +73,34 @@ Auf dem Pi folgenden Befehl ausführen:
 curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
 ```
 
+### Alternative: Script vorher prüfen
+
+Wenn du das Installations-Script zuerst anschauen möchtest (empfohlen für Sicherheits-bewusste Eltern — `curl | sudo bash` führt Code direkt als Root aus):
+
+```bash
+curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh -o install.sh
+less install.sh              # Script lesen
+sudo bash install.sh         # wenn OK: ausführen
+```
+
+Siehe auch [SECURITY.md](../SECURITY.md) für unser Sicherheitsmodell.
+
 ### Was das Script macht
 
 | Schritt | Beschreibung |
 |---|---|
-| 1/11 | System-Pakete installieren (MPD, Python, Nginx, Git) |
-| 2/11 | Verzeichnisse erstellen (Musik, Konfiguration) |
-| 3/11 | Tonado von GitHub klonen und Python-Umgebung einrichten |
-| 4/11 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
-| 5/11 | MPD (Music Player Daemon) konfigurieren |
-| 6/11 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C) |
-| 7/11 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
-| 8/11 | Frontend prüfen (ist im Repository enthalten) |
-| 9/11 | Nginx als Webserver einrichten (Port 80, Upload-Limit 500 MB) |
-| 10/11 | Berechtigungen setzen |
-| 11/11 | Hardware-Erkennung ausführen |
+| 1/12 | System-Pakete installieren (MPD, Python, Nginx, Git) |
+| 2/12 | Verzeichnisse erstellen (Musik, Konfiguration) |
+| 3/12 | Tonado von GitHub klonen und Python-Umgebung einrichten |
+| 4/12 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
+| 5/12 | MPD (Music Player Daemon) konfigurieren |
+| 6/12 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C, OnOff SHIM falls vorhanden) |
+| 7/12 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
+| 8/12 | Frontend prüfen (ist im Repository enthalten) |
+| 9/12 | Nginx als Webserver einrichten (Port 80, Upload-Limit 500 MB) |
+| 10/12 | Kernel-Overlays für OnOff SHIM schreiben (GPIO 17 Shutdown-Button, GPIO 4 Power-Off) |
+| 11/12 | Berechtigungen setzen |
+| 12/12 | Hardware-Erkennung ausführen |
 
 ### Dauer
 
@@ -118,8 +131,8 @@ Nach dem Neustart (ca. 30 Sekunden warten):
 ## Schritt 4: Musik aufspielen und loslegen
 
 1. Im Tab **Bibliothek** Musik hochladen (MP3, FLAC, OGG, WAV)
-2. Optional: Im Tab **Figuren** eine RFID-Karte oder -Figur scannen und Musik zuweisen
-3. Karte auflegen — Musik spielt!
+2. Optional: Im Tab **Figuren** eine Figur oder Karte scannen und Musik zuweisen
+3. Figur auflegen — Musik spielt!
 
 > **Kein RFID-Reader?** Kein Problem — Tonado funktioniert auch ohne. Musik lässt sich komplett über die App steuern. Der RFID-Reader ist optional und kann jederzeit nachgerüstet werden.
 
@@ -150,7 +163,7 @@ sudo rm /etc/nginx/sites-enabled/tonado
 sudo systemctl restart nginx
 ```
 
-Die Musik-Dateien liegen unter `/home/pi/tonado/media/` und werden nicht automatisch gelöscht.
+Die Musik-Dateien liegen unter `/home/<benutzer>/tonado/media/` (Standard: `/home/pi/tonado/media/`, wenn du den Benutzer `pi` angelegt hast) und werden nicht automatisch gelöscht.
 
 ## Fehlerbehebung
 

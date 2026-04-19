@@ -2,11 +2,13 @@
 
 > Die Musikbox, die dir gehört.
 
-Open-Source Kinder-Musikbox mit RFID-Figuren, gesteuert vom Smartphone. Raspberry Pi basiert, kein Abo, keine Cloud, keine Limits.
+Open-Source Kinder-Musikbox mit Figuren und Karten, gesteuert vom Smartphone. Raspberry Pi basiert, kein Abo, keine Cloud, keine Limits.
+
+Jede Figur oder Karte enthält einen kleinen RFID-Chip (13.56 MHz), den die Box beim Auflegen erkennt. Ab hier im Text nur noch „Figur".
 
 ## Features
 
-- **Figur auflegen, Musik hört los** — Kinder legen eine RFID-Figur oder -Karte auf, der Rest passiert von allein
+- **Figur auflegen, Musik spielt** — Kinder legen eine Figur oder Karte auf, der Rest passiert von allein
 - **Smartphone als Fernbedienung** — Musik verwalten, Figuren zuweisen, Lautstärke begrenzen, Einschlaftimer setzen
 - **Eigene Musik, eigene Regeln** — MP3s hochladen, Internetradio, Podcasts — alles auf deinem Pi, nichts in der Cloud
 - **Kindersicher** — PIN-geschützte Eltern-Einstellungen, maximale Lautstärke, automatischer Einschlaftimer
@@ -22,7 +24,7 @@ Open-Source Kinder-Musikbox mit RFID-Figuren, gesteuert vom Smartphone. Raspberr
 | microSD-Karte | mind. 16 GB, Class 10 | 8 € |
 | Lautsprecher | HifiBerry MiniAmp + kleiner Lautsprecher | 15–25 € |
 | RFID-Reader | RC522 (SPI) oder USB-RFID-Reader | 5–10 € |
-| RFID-Figuren oder -Karten | 13.56 MHz (MIFARE Classic o.ä.) | 5 € / 10 Stk |
+| Figuren oder Karten | 13.56 MHz RFID-Chips (MIFARE Classic o.ä.) | 5 € / 10 Stk |
 | USB-Netzteil | 5V, passend zum Pi-Modell | 10 € |
 | **Optional:** Gyro-Sensor | MPU6050 — für Gesten-Steuerung | 3 € |
 | **Optional:** Tasten | Arcade Buttons o.ä. — für Lautstärke, Skip | 5 € |
@@ -86,7 +88,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 | Modell | Status | Hinweise |
 |--------|--------|----------|
 | Raspberry Pi 3B+ | ✅ Beta-getestet | Referenz-Plattform. HifiBerry MiniAmp + RC522 + MPU6050 + GPIO-Buttons verifiziert. |
-| Raspberry Pi Zero W | ⚠️ Experimentell | Alpha-Installation lief, seit Alpha kein Re-Test. Erster Build 20-30 min wegen aiosqlite-Kompilierung auf ARMv6. |
+| Raspberry Pi Zero W | ⚠️ Experimentell | Installation auf 0.1.0-alpha verifiziert, für 0.2.x nicht re-getestet. Erster Build 20-30 min wegen aiosqlite-Kompilierung auf ARMv6. |
 | Raspberry Pi Zero 2 W | ⚠️ Experimentell | Nicht getestet, sollte aber ähnlich Pi 3B+ laufen (ARM64). |
 | Raspberry Pi 4 | ❓ Ungetestet | Sollte funktionieren — Rückmeldungen willkommen. |
 | Raspberry Pi 5 | ❓ Ungetestet | Neuer GPIO-Controller (RP1); gpiod v2 sollte abstrahieren, nicht verifiziert. |

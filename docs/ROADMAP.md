@@ -69,9 +69,10 @@
 - Update-Mechanismus (via Web-App, kein SSH)
 - Backup/Export (Config + Karten-Zuweisungen)
 - Restore/Import
-- OverlayFS (Read-Only Root)
-- Watchdog — verschoben auf Post-Beta (systemd-notify-Integration offen, K7)
+- OverlayFS (Read-Only Root) — opt-in hinter Config-Flag
 - System-Info, Restart, Shutdown im Experten-Bereich
+
+> **Verschoben auf Post-Beta:** Hardware-Watchdog mit systemd-notify-Integration (siehe BACKLOG K7).
 
 ### Phase 8: PWA & Polish ✓
 > Nach dieser Phase: App zum Homescreen hinzufügen, Offline-fähig, Performance optimiert.
@@ -79,7 +80,7 @@
 - Service Worker (Offline-Cache für App-Shell)
 - PWA Manifest + Icons
 - Performance-Optimierung (Pi Zero W Target)
-- Accessibility-Audit ("Leichte Sprache")
+- Accessibility-Audit (Basis-A11y: ARIA, Focus, Kontrast — "Leichte Sprache" bleibt im Backlog für Post-Beta)
 - Dokumentation für Endanwender
 
 ## Meilenstein 1.5: Beta-Readiness (v0.2.x → v0.2.0-beta)
@@ -95,16 +96,18 @@
 
 ## Meilenstein 2: Erweiterungen (Zukunft)
 
-- Spotify Connect (Box als Receiver)
-- AirPlay / Chromecast Receiver
-- TeddyCloud / TAF-Kompatibilität
-- BLE-Provisioning (WiFi-Setup via App)
+> **Leitplanke:** Tonado bleibt eine Kinder-Musikbox, kein Smart-Home-Hub (siehe [VISION](VISION.md#was-tonado-nicht-ist)). Erweiterungen, die das Kernerlebnis „Figur auflegen → Musik spielt" erweitern, nicht ersetzen.
+
+- Spotify Connect — **nur als Receiver** (Box erscheint in der Spotify-App als Abspielziel). Keine Spotify-Player-Logik in Tonado selbst.
+- AirPlay / Chromecast — ebenfalls Receiver-Modus
+- TeddyCloud / TAF-Kompatibilität (Import fremder Figur-Zuordnungen)
+- BLE-Provisioning (WiFi-Setup via App statt Captive Portal)
 - 3D-Druck-Gehäuse-Vorlagen
 - LED-Ring Integration
 - Display-Support (E-Ink oder kleines LCD)
 - Community-Plugin-System
 - Englische Dokumentation
-- Pi-Image zum direkten Flashen (pi-gen)
+- Pi-Image zum direkten Flashen (pi-gen) — **Kernziel für nicht-technische Eltern**
 
 ## Prinzipien für die Umsetzung
 

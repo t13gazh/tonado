@@ -60,4 +60,4 @@ Die Web-App prüft **nicht automatisch** auf Updates. Du musst sie manuell ansto
 
 ## Release-Kanäle
 
-Aktuell gibt es nur `main` (entwickelte Version). Eine stabile Release-Schiene kommt mit `v0.2.0-beta`.
+Tonado ist aktuell in der Alpha-Phase: Das Update-Verfahren zieht jeden neuen Commit auf dem `main`-Branch. Ab Beta (`v0.2.0-beta`) gibt es getaggte Releases mit Changelog und optional manueller Freigabe pro Update.

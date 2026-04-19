@@ -119,7 +119,7 @@ Vielseitiger Reader mit I2C-Anschluss. Kann auch NFC-Tags lesen.
 | GND | Pin 6 | GND | Masse |
 | VCC | Pin 1 | 3.3V | Strom |
 
-> **Hinweis:** Am PN532-Board den DIP-Switch auf I2C stellen (nicht SPI oder UART).
+> **Hinweis:** Am PN532-Board den DIP-Switch auf I2C stellen (nicht SPI oder UART). I2C-Adresse ist typischerweise `0x24`, Prüfung mit `i2cdetect -y 1`.
 
 **Voraussetzung:** I2C muss aktiviert sein. Das Install-Script macht das automatisch.
 
@@ -256,12 +256,14 @@ Pin 17 (3.3V)   ← RC522 3.3V
 Pin 19 (MOSI)   ← RC522 MOSI
 Pin 20 (GND)    ← RC522 GND
 Pin 21 (MISO)   ← RC522 MISO
-Pin 22 (GPIO25) ← RC522 RST (+ HifiBerry Amp-Enable, Doppelnutzung OK)
+Pin 22 (GPIO25) ← RC522 RST (+ HifiBerry Amp-Enable, Doppelnutzung OK — s. unten)
 Pin 23 (SCLK)   ← RC522 SCK
 Pin 24 (CE0)    ← RC522 SDA
 
 HifiBerry MiniAmp belegt zusätzlich: GPIO 18, 19 (I2S)
 ```
+
+> **Doppelnutzung GPIO 25 (RC522 RST + HifiBerry Amp-Enable):** Der HifiBerry MiniAmp nutzt GPIO 25 nur als statisches „Amp einschalten"-Signal (high = Verstärker an). Der RC522-Reset ist bei Tonado im Normalbetrieb ebenfalls permanent high — Resets werden nur beim Start und nach Fehlern gepulst, und diese Pulse sind so kurz, dass der Verstärker nicht hörbar abfällt. Die Kombination ist auf Pi 3B+ verifiziert.
 
 ## Troubleshooting
 

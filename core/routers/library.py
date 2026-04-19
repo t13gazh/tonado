@@ -12,9 +12,11 @@ from pydantic import BaseModel, Field
 from core.dependencies import (
     get_auth_service,
     get_library_service,
-    get_player,
+    get_playback_dispatcher,
     require_tier,
 )
+from core.playback_dispatcher import PlaybackDispatcher
+from core.schemas.common import ContentType
 from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import (
     DuplicateFolderName,
@@ -22,7 +24,6 @@ from core.services.library_service import (
     InvalidFolderName,
     LibraryService,
 )
-from core.services.player_service import PlayerService
 from core.utils.audio import AUDIO_EXTENSIONS, cover_etag, detect_image_mime, extract_cover
 from core.utils.upload import stream_to_disk
 
@@ -315,7 +316,7 @@ async def rename_folder(
     request: Request,
     svc: LibraryService = Depends(get_library_service),
     auth: AuthService = Depends(get_auth_service),
-    player: PlayerService = Depends(get_player),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
 ) -> dict:
     """Rename a media folder and atomically update all path references.
 
@@ -332,12 +333,15 @@ async def rename_folder(
 
     # Block rename while the player is actively using content from this
     # folder — a running playback would otherwise lose its source.
-    state = player.state
-    if state.current_uri and (
-        state.current_uri == folder_name
-        or state.current_uri.startswith(f"{folder_name}/")
-    ):
-        raise HTTPException(409, "Ordner wird gerade abgespielt")
+    # We check the dispatcher's logical source (type + content_path) rather
+    # than the MPD file URI: the latter is whatever MPD decided to resolve
+    # the folder to and only matches the folder name by coincidence.
+    if dispatcher is not None:
+        src = dispatcher.current_source
+        if src is not None and src.get("type") == str(ContentType.FOLDER):
+            src_path = src.get("content_path") or ""
+            if src_path == folder_name or src_path.startswith(f"{folder_name}/"):
+                raise HTTPException(409, "Ordner wird gerade abgespielt")
 
     db: aiosqlite.Connection = request.app.state.db_manager.connection
 

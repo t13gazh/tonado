@@ -15,9 +15,12 @@ from pydantic import BaseModel
 from core.dependencies import (
     get_auth_service,
     get_library_service,
+    get_playback_dispatcher,
     get_player,
     require_tier,
 )
+from core.playback_dispatcher import PlaybackDispatcher
+from core.schemas.common import ContentType
 from core.schemas.player import PlayerStateResponse, SeekRequest, VolumeRequest
 from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import LibraryService
@@ -51,8 +54,13 @@ async def toggle(player: PlayerService = Depends(get_player)) -> dict:
 
 
 @router.post("/stop")
-async def stop(player: PlayerService = Depends(get_player)) -> dict:
+async def stop(
+    player: PlayerService = Depends(get_player),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
+) -> dict:
     await player.stop_playback()
+    if dispatcher is not None:
+        dispatcher.clear_source()
     return {"status": "ok"}
 
 
@@ -176,7 +184,11 @@ class PlayUrlsRequest(BaseModel):
 
 
 @router.post("/play-urls")
-async def play_urls(req: PlayUrlsRequest, player: PlayerService = Depends(get_player)) -> dict:
+async def play_urls(
+    req: PlayUrlsRequest,
+    player: PlayerService = Depends(get_player),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
+) -> dict:
     """Play multiple URLs as a queue, starting at given index."""
     for url in req.urls:
         try:
@@ -184,6 +196,10 @@ async def play_urls(req: PlayUrlsRequest, player: PlayerService = Depends(get_pl
         except SSRFError as e:
             raise HTTPException(400, str(e))
     await player.play_urls(req.urls, req.start_index)
+    # A raw URL queue has no single logical source — clear any stale one so
+    # rename_folder etc. don't falsely block.
+    if dispatcher is not None:
+        dispatcher.clear_source()
     return {"status": "ok"}
 
 
@@ -217,11 +233,14 @@ async def play_folder(
     req: PlayFolderRequest,
     player: PlayerService = Depends(get_player),
     library: LibraryService = Depends(get_library_service),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
 ) -> dict:
     """Play all tracks in a media folder, optionally starting at a specific track."""
     _validate_folder_path(req.path, library)
     logger.info("play_folder called with path: %r, start_index: %d", req.path, req.start_index)
     await player.play_folder(req.path, start_index=req.start_index)
+    if dispatcher is not None:
+        dispatcher.set_source(ContentType.FOLDER, req.path)
     return {"status": "ok"}
 
 
@@ -230,11 +249,21 @@ class PlayUrlRequest(BaseModel):
 
 
 @router.post("/play-url")
-async def play_url(req: PlayUrlRequest, player: PlayerService = Depends(get_player)) -> dict:
+async def play_url(
+    req: PlayUrlRequest,
+    player: PlayerService = Depends(get_player),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
+) -> dict:
     """Play a stream URL (radio, podcast)."""
     try:
         validate_url(req.url, resolve_dns=False)
     except SSRFError as e:
         raise HTTPException(400, str(e))
     await player.play_url(req.url)
+    # Treat a bare URL as a generic stream source. This is a best-effort
+    # label — radio vs. podcast disambiguation would require matching
+    # the URL against the catalog tables, which callers can do explicitly
+    # via the dispatcher if needed.
+    if dispatcher is not None:
+        dispatcher.set_source(ContentType.STREAM, req.url)
     return {"status": "ok"}

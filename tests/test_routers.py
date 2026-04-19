@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from core.database import DatabaseManager
 from core.hardware.gpio_buttons import MockGpioButtonListener, MockGpioButtonScanner
 from core.hardware.rfid import MockRfidReader
+from core.playback_dispatcher import PlaybackDispatcher
 from core.routers import auth, buttons, cards, config, library, player, playlists, setup, streams, system
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
@@ -90,6 +91,15 @@ async def client(tmp_path: Path):
     )
     await button_svc.start()
 
+    dispatcher = PlaybackDispatcher(
+        event_bus=event_bus,
+        player=player_svc,
+        card_service=card_svc,
+        stream_service=stream_svc,
+        playlist_service=playlist_svc,
+        timer_service=timer_svc,
+    )
+
     # Wire app.state
     app.state.player_service = player_svc
     app.state.card_service = card_svc
@@ -108,6 +118,7 @@ async def client(tmp_path: Path):
     app.state.captive_portal = captive_portal
     app.state.connectivity_monitor = connectivity_monitor
     app.state.button_service = button_svc
+    app.state.playback_dispatcher = dispatcher
     app.state.db_manager = db_mgr
     app.state.event_bus = event_bus
 
@@ -1020,17 +1031,23 @@ async def test_rename_folder_rollback_on_sql_failure(client, tmp_path: Path, mon
 
 
 @pytest.mark.asyncio
-async def test_rename_folder_blocked_while_playing(client, tmp_path: Path):
-    """Rename is refused while the player is using content from this folder."""
+async def test_rename_folder_blocked_while_folder_playing(client, tmp_path: Path):
+    """Rename is refused while the dispatcher's logical source is this folder.
+
+    Uses the playback dispatcher's ``current_source`` (semantic) rather than
+    matching the MPD file URI — the latter is a coincidence, the former is
+    the actual source of truth.
+    """
+    from core.schemas.common import ContentType
+
     c, auth_svc = client
     token = await _get_token(auth_svc, AuthTier.PARENT)
     headers = {"Authorization": f"Bearer {token}"}
     media_root = tmp_path / "media"
     _seed_folder(media_root, "Hoerspiele", tracks=1)
 
-    # Simulate active playback from the folder
-    player = c._transport.app.state.player_service
-    player._state.current_uri = "Hoerspiele/track01.mp3"
+    dispatcher = c._transport.app.state.playback_dispatcher
+    dispatcher.set_source(ContentType.FOLDER, "Hoerspiele")
 
     try:
         resp = await c.put(
@@ -1044,7 +1061,64 @@ async def test_rename_folder_blocked_while_playing(client, tmp_path: Path):
         assert (media_root / "Hoerspiele").is_dir()
         assert not (media_root / "Maerchen").exists()
     finally:
-        player._state.current_uri = ""
+        dispatcher.clear_source()
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_allowed_while_stream_playing(client, tmp_path: Path):
+    """A stream source must not block a folder rename."""
+    from core.schemas.common import ContentType
+
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=1)
+
+    dispatcher = c._transport.app.state.playback_dispatcher
+    # Stream happens to contain the folder name in its URL — must not block.
+    dispatcher.set_source(ContentType.STREAM, "http://example.com/Hoerspiele/live.mp3")
+
+    try:
+        resp = await c.put(
+            "/api/library/folders/Hoerspiele",
+            json={"new_name": "Maerchen"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert (media_root / "Maerchen").is_dir()
+        assert not (media_root / "Hoerspiele").exists()
+    finally:
+        dispatcher.clear_source()
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_allowed_while_other_folder_playing(client, tmp_path: Path):
+    """A folder source pointing elsewhere must not block an unrelated rename."""
+    from core.schemas.common import ContentType
+
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=1)
+    _seed_folder(media_root, "Musik", tracks=1)
+
+    dispatcher = c._transport.app.state.playback_dispatcher
+    dispatcher.set_source(ContentType.FOLDER, "Musik")
+
+    try:
+        resp = await c.put(
+            "/api/library/folders/Hoerspiele",
+            json={"new_name": "Maerchen"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert (media_root / "Maerchen").is_dir()
+        assert not (media_root / "Hoerspiele").exists()
+        assert (media_root / "Musik").is_dir()
+    finally:
+        dispatcher.clear_source()
 
 
 # --- Post-review regression tests (K-1, K-3, M6 proper OOM check) ---

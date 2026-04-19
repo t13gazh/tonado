@@ -3,7 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.dependencies import get_auth_service, get_player, get_playlist_service, require_tier
+from core.dependencies import (
+    get_auth_service,
+    get_playback_dispatcher,
+    get_player,
+    get_playlist_service,
+    require_tier,
+)
+from core.playback_dispatcher import PlaybackDispatcher
 from core.services.auth_service import AuthService, AuthTier
 from core.schemas.common import ContentType
 from core.services.player_service import PlayerService
@@ -132,6 +139,7 @@ async def play_playlist(
     playlist_id: int,
     svc: PlaylistService = Depends(get_playlist_service),
     player: PlayerService = Depends(get_player),
+    dispatcher: PlaybackDispatcher | None = Depends(get_playback_dispatcher),
 ) -> dict:
     """Play all items in a playlist sequentially."""
     p = await svc.get_playlist(playlist_id)
@@ -142,9 +150,22 @@ async def play_playlist(
 
     # Collect all content paths and play as queue
     paths = [item.content_path for item in p.items]
-    if len(paths) == 1 and p.items[0].content_type == "folder":
+    single_folder = len(paths) == 1 and p.items[0].content_type == "folder"
+    if single_folder:
         await player.play_folder(paths[0])
     else:
         await player.play_urls(paths)
+
+    if dispatcher is not None:
+        if single_folder:
+            # A one-item folder playlist behaves exactly like a folder play,
+            # so expose it as such — rename_folder blocks consistently.
+            dispatcher.set_source(ContentType.FOLDER, paths[0])
+        else:
+            dispatcher.set_source(
+                ContentType.PLAYLIST,
+                f"playlist:{playlist_id}",
+                source_id=playlist_id,
+            )
 
     return {"status": "ok", "items": len(p.items)}

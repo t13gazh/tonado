@@ -2,6 +2,7 @@
 
 from fastapi import HTTPException, Request
 
+from core.playback_dispatcher import PlaybackDispatcher
 from core.services.auth_service import AuthService, AuthTier
 from core.services.backup_service import BackupService
 from core.services.button_service import ButtonService
@@ -115,6 +116,15 @@ def get_hardware_detector(request: Request) -> HardwareDetector:
 
 def get_button_service(request: Request) -> ButtonService:
     return request.app.state.button_service
+
+
+def get_playback_dispatcher(request: Request) -> PlaybackDispatcher | None:
+    """Return the PlaybackDispatcher, or None if not yet wired.
+
+    Tests without a full service wiring may omit the dispatcher; callers must
+    handle the None case (e.g. fall back to permissive behavior).
+    """
+    return getattr(request.app.state, "playback_dispatcher", None)
 
 
 def get_settings(request: Request) -> Settings:

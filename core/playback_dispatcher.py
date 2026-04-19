@@ -4,6 +4,7 @@ Extracted from lifespan() to keep main.py focused on service wiring.
 """
 
 import logging
+from typing import Any
 
 from core.schemas.common import ContentType
 from core.services.card_service import CardService
@@ -34,12 +35,44 @@ class PlaybackDispatcher:
         self._playlist_service = playlist_service
         self._timer_service = timer_service
         self._current_card_id: str | None = None
+        # Logical source of the currently playing content — independent of the
+        # MPD file path. Used by routers (e.g. rename_folder) to reason about
+        # playback semantically without string-matching MPD URIs.
+        # Shape: {"type": ContentType, "content_path": str, "id": int | None}
+        self._current_source: dict[str, Any] | None = None
 
         event_bus.subscribe("card_scanned", self._on_card_scanned)
         event_bus.subscribe("card_removed", self._on_card_removed)
         event_bus.subscribe("gesture_detected", self._on_gesture)
         event_bus.subscribe("button_pressed", self._on_button_pressed)
         event_bus.subscribe("resume_position_save", self._on_resume_save)
+
+    @property
+    def current_source(self) -> dict[str, Any] | None:
+        """Return the logical playback source, or None if nothing is playing."""
+        return self._current_source
+
+    def set_source(
+        self,
+        content_type: ContentType | str,
+        content_path: str,
+        source_id: int | None = None,
+    ) -> None:
+        """Record the logical source of the currently playing content.
+
+        Called by routers after a successful play_* invocation so that other
+        components (e.g. rename_folder) can query what is playing without
+        inspecting MPD file URIs.
+        """
+        self._current_source = {
+            "type": str(content_type),
+            "content_path": content_path,
+            "id": source_id,
+        }
+
+    def clear_source(self) -> None:
+        """Forget the logical source (stopped / card removed)."""
+        self._current_source = None
 
     async def _on_card_scanned(self, card_id: str, mapping: dict, **_) -> None:
         # Save resume position of previous card
@@ -53,8 +86,10 @@ class PlaybackDispatcher:
 
         if content_type == ContentType.FOLDER:
             await self._player.play_folder(content_path, resume_position=resume)
+            self.set_source(ContentType.FOLDER, content_path)
         elif content_type == ContentType.STREAM:
             await self._player.play_url(content_path)
+            self.set_source(ContentType.STREAM, content_path)
         elif content_type == ContentType.PODCAST:
             if content_path.startswith("podcast:"):
                 try:
@@ -63,10 +98,12 @@ class PlaybackDispatcher:
                     if episodes:
                         urls = [ep.audio_url for ep in episodes]
                         await self._player.play_urls(urls, resume_position=resume)
+                        self.set_source(ContentType.PODCAST, content_path, source_id=podcast_id)
                 except (ValueError, IndexError):
                     logger.warning("Invalid podcast path: %s", content_path)
             else:
                 await self._player.play_url(content_path)
+                self.set_source(ContentType.PODCAST, content_path)
         elif content_type == ContentType.PLAYLIST:
             try:
                 pl_id = int(content_path.split(":")[-1])
@@ -74,6 +111,7 @@ class PlaybackDispatcher:
                 if playlist and playlist.items:
                     urls = [item.content_path for item in playlist.items]
                     await self._player.play_urls(urls, resume_position=resume)
+                    self.set_source(ContentType.PLAYLIST, content_path, source_id=pl_id)
             except (ValueError, IndexError):
                 logger.warning("Invalid playlist path: %s", content_path)
         elif content_type == ContentType.COMMAND:
@@ -110,6 +148,10 @@ class PlaybackDispatcher:
                 await self._card_service.update_resume_position(self._current_card_id, elapsed)
         if should_pause:
             await self._player.pause()
+        else:
+            # Card went away without pause → playback will keep running but the
+            # card-driven source is no longer authoritative.
+            self.clear_source()
         self._current_card_id = None
 
     async def _dispatch_action(self, action: str) -> None:
@@ -129,6 +171,7 @@ class PlaybackDispatcher:
                 await self._player.toggle()
             case "stop":
                 await self._player.stop_playback()
+                self.clear_source()
 
     async def _on_gesture(self, action: str, **_) -> None:
         await self._dispatch_action(action)

@@ -246,7 +246,7 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         "button_service": button_service,
         "ws_hub": ws_hub,
         "settings": settings,
-        "_dispatcher": dispatcher,  # prevent GC
+        "playback_dispatcher": dispatcher,  # also prevents GC; exposed for routers
     }
 
 

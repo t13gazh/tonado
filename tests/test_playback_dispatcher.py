@@ -199,3 +199,75 @@ async def test_gesture_shuffle(setup):
     player.shuffle_play = AsyncMock()
     await bus.publish("gesture_detected", action="shuffle")
     player.shuffle_play.assert_awaited_once()
+
+
+# --- current_source tracking (FLAG B1) ---
+
+
+@pytest.mark.asyncio
+async def test_current_source_set_on_folder_scan(setup):
+    _, dispatcher, _, _, bus = setup
+    assert dispatcher.current_source is None
+    await bus.publish("card_scanned", card_id="c1", mapping={
+        "content_type": ContentType.FOLDER,
+        "content_path": "Music/Album1",
+        "resume_position": 0,
+    })
+    src = dispatcher.current_source
+    assert src is not None
+    assert src["type"] == str(ContentType.FOLDER)
+    assert src["content_path"] == "Music/Album1"
+
+
+@pytest.mark.asyncio
+async def test_current_source_set_on_stream_scan(setup):
+    _, dispatcher, _, _, bus = setup
+    await bus.publish("card_scanned", card_id="c2", mapping={
+        "content_type": ContentType.STREAM,
+        "content_path": "http://radio.example.com/live",
+        "resume_position": 0,
+    })
+    src = dispatcher.current_source
+    assert src is not None
+    assert src["type"] == str(ContentType.STREAM)
+    assert src["content_path"] == "http://radio.example.com/live"
+
+
+@pytest.mark.asyncio
+async def test_current_source_set_on_podcast_marker(setup):
+    _, dispatcher, _, _, bus = setup
+    await bus.publish("card_scanned", card_id="c3", mapping={
+        "content_type": ContentType.PODCAST,
+        "content_path": "podcast:42",
+        "resume_position": 0,
+    })
+    src = dispatcher.current_source
+    assert src is not None
+    assert src["type"] == str(ContentType.PODCAST)
+    assert src["id"] == 42
+
+
+@pytest.mark.asyncio
+async def test_current_source_cleared_on_stop_action(setup):
+    _, dispatcher, _, _, bus = setup
+    await bus.publish("card_scanned", card_id="c4", mapping={
+        "content_type": ContentType.FOLDER,
+        "content_path": "Music/Album1",
+        "resume_position": 0,
+    })
+    assert dispatcher.current_source is not None
+    await bus.publish("gesture_detected", action="stop")
+    assert dispatcher.current_source is None
+
+
+@pytest.mark.asyncio
+async def test_set_and_clear_source_directly(setup):
+    """Routers use set_source / clear_source directly — verify the public API."""
+    _, dispatcher, _, _, _ = setup
+    dispatcher.set_source(ContentType.FOLDER, "Hoerspiele")
+    src = dispatcher.current_source
+    assert src is not None and src["type"] == str(ContentType.FOLDER)
+    assert src["content_path"] == "Hoerspiele"
+
+    dispatcher.clear_source()
+    assert dispatcher.current_source is None

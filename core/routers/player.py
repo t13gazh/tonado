@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from contextlib import AsyncExitStack
 from pathlib import Path
 
 import httpx
@@ -124,6 +125,20 @@ async def toggle_output(
     return {"status": "ok"}
 
 
+# Icy/streaming headers to pass through from MPD httpd to the browser.
+# Lowercased — httpx normalizes header keys to lowercase.
+_PASSTHROUGH_HEADERS = (
+    "icy-name",
+    "icy-description",
+    "icy-genre",
+    "icy-br",
+    "icy-sr",
+    "icy-pub",
+    "icy-url",
+    "icy-metaint",
+)
+
+
 @router.get("/stream")
 async def audio_stream():
     """Proxy MPD HTTP stream to browser (avoids CORS issues).
@@ -131,17 +146,25 @@ async def audio_stream():
     MPD's httpd output returns an empty reply when playback is stopped
     or during track transitions.  This endpoint retries a few times so
     the browser doesn't immediately receive a 503 on every track change.
+
+    Resource hygiene: the httpx client and the streamed upstream response
+    are both registered with an ``AsyncExitStack`` so that a client
+    disconnect (``GeneratorExit``/cancellation during iteration) cleanly
+    releases the upstream slot on MPD's httpd output.  Previously a
+    hastily reloading browser could leave MPD slots dangling, causing
+    "empty reply" failures on the next connect.
     """
-    max_attempts = 5
+    max_attempts = 3
     delay = 0.6  # seconds between retries
 
     for attempt in range(max_attempts):
-        client = httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=None))
-        resp = None
+        stack = AsyncExitStack()
         try:
-            resp = await client.send(
-                client.build_request("GET", "http://localhost:8090/"),
-                stream=True,
+            client = await stack.enter_async_context(
+                httpx.AsyncClient(timeout=httpx.Timeout(5.0, read=None))
+            )
+            resp = await stack.enter_async_context(
+                client.stream("GET", "http://localhost:8090/")
             )
             # MPD returns 200 with data when playing, but may also return
             # 200 with an immediate close when idle.  Read the first chunk
@@ -151,30 +174,58 @@ async def audio_stream():
             byte_iter = resp.aiter_bytes(chunk_size=4096)
             first_chunk = await byte_iter.__anext__()
 
+            # Take MIME from upstream; MPD httpd usually sends
+            # audio/ogg for vorbis and audio/mpeg for lame.
+            media_type = resp.headers.get("content-type", "audio/mpeg")
+
+            # Forward icy-metadata from the shoutcast-style MPD httpd
+            # so clients that understand it can show station info.
+            extra_headers: dict[str, str] = {"Cache-Control": "no-store"}
+            for name in _PASSTHROUGH_HEADERS:
+                value = resp.headers.get(name)
+                if value is not None:
+                    extra_headers[name] = value
+
+            # Capture the stack in the generator's closure so it closes
+            # cleanly even if the client disconnects mid-stream.  The
+            # outer `try/except` path no longer owns the stack once we
+            # reach here — the generator is the sole owner.
+            captured_stack = stack
+            stack = AsyncExitStack()  # fresh dummy for the `finally` below
+
             async def generate():
                 try:
                     yield first_chunk
                     async for chunk in byte_iter:
                         yield chunk
                 finally:
-                    await resp.aclose()
-                    await client.aclose()
+                    # Runs on normal completion, client disconnect, and
+                    # server-side cancellation alike — guaranteeing the
+                    # upstream httpx slot is released to MPD httpd.
+                    await captured_stack.aclose()
 
-            return StreamingResponse(generate(), media_type="audio/mpeg")
+            return StreamingResponse(
+                generate(), media_type=media_type, headers=extra_headers
+            )
         except (httpx.RemoteProtocolError, httpx.ConnectError, StopAsyncIteration) as e:
             # Empty reply or connection refused — MPD not streaming yet
-            if resp:
-                await resp.aclose()
-            await client.aclose()
+            await stack.aclose()
             if attempt < max_attempts - 1:
-                logger.debug("Stream attempt %d failed (%s), retrying in %.1fs", attempt + 1, e, delay)
+                logger.info(
+                    "Stream attempt %d/%d failed (%s), retrying in %.1fs",
+                    attempt + 1, max_attempts, e, delay,
+                )
                 await asyncio.sleep(delay)
             else:
-                raise HTTPException(503, f"Stream not available after {max_attempts} attempts: {e}")
+                logger.info(
+                    "Stream unavailable after %d attempts: %s", max_attempts, e
+                )
+                raise HTTPException(
+                    503, f"Stream not available after {max_attempts} attempts: {e}"
+                )
         except Exception as e:
-            if resp:
-                await resp.aclose()
-            await client.aclose()
+            await stack.aclose()
+            logger.info("Stream proxy failed unexpectedly: %s", e)
             raise HTTPException(503, f"Stream not available: {e}")
 
 

@@ -73,8 +73,12 @@ class PlayerService(BaseService):
         self._state = PlayerState()
         self._idle_task: asyncio.Task | None = None
         self._elapsed_task: asyncio.Task | None = None
+        self._stream_ready_task: asyncio.Task | None = None
         self._connected = False
         self._has_listeners: Callable[[], bool] | None = None
+        # Track last URI that produced a "stream_ready" event so we only
+        # fire once per track transition.  Empty string = no track yet.
+        self._last_ready_uri: str = ""
 
     def set_listener_check(self, check: Callable[[], bool]) -> None:
         """Set a callback that returns True when broadcast listeners exist.
@@ -102,7 +106,7 @@ class PlayerService(BaseService):
 
     async def stop(self) -> None:
         """Disconnect from MPD."""
-        for task in (self._idle_task, self._elapsed_task):
+        for task in (self._idle_task, self._elapsed_task, self._stream_ready_task):
             if task:
                 task.cancel()
                 try:
@@ -341,6 +345,7 @@ class PlayerService(BaseService):
                 self._state.repeat_mode = RepeatMode.OFF
 
             song = status.get("song")
+            previous_uri = self._state.current_uri
             if song is not None:
                 self._state.playlist_position = int(song)
                 try:
@@ -352,6 +357,18 @@ class PlayerService(BaseService):
                     pass
             else:
                 self._state.playlist_position = -1
+
+            # If the active track changed and MPD is actually playing,
+            # schedule a ``player_stream_ready`` event so the browser-side
+            # audio proxy can reconnect deterministically instead of
+            # guessing a timeout.
+            if (
+                self._state.state == PlaybackState.PLAYING
+                and self._state.current_uri
+                and self._state.current_uri != previous_uri
+                and self._state.current_uri != self._last_ready_uri
+            ):
+                self._schedule_stream_ready(self._state.current_uri)
 
             status_pl_length = int(status.get("playlistlength", 0))
             # Only reload full playlist if length changed
@@ -367,6 +384,51 @@ class PlayerService(BaseService):
     async def _publish_state(self) -> None:
         """Publish current state to event bus."""
         await self._event_bus.publish("player_state_changed", state=self._state.to_dict())
+
+    def _schedule_stream_ready(self, uri: str) -> None:
+        """Arm a task that emits ``player_stream_ready`` after MPD has
+        demonstrably started writing bytes for the new track.
+
+        Rationale: MPD accepts the play command before its httpd output
+        has encoded the first samples.  The frontend needs to know when
+        it's actually safe to reconnect its proxy — firing the event
+        right after _sync_state would race the encoder.  Instead, we
+        wait a short grace period (~300 ms) and verify via ``status()``
+        that MPD really is producing playback (state=play, elapsed>0 or
+        duration>0) before emitting.
+
+        Idempotent: re-scheduling while a prior task is still pending
+        cancels and replaces it — only the latest URI wins.
+        """
+        self._last_ready_uri = uri
+        if self._stream_ready_task and not self._stream_ready_task.done():
+            self._stream_ready_task.cancel()
+        self._stream_ready_task = asyncio.create_task(self._emit_stream_ready(uri))
+
+    async def _emit_stream_ready(self, uri: str) -> None:
+        """Wait briefly, verify MPD is truly playing, then emit the event."""
+        try:
+            # Short delay so the httpd encoder can catch up with MPD's
+            # "play" state transition.  300 ms is enough for lame/vorbis
+            # even on Pi Zero W — tuned against the 2.5 s timeout the
+            # browser store used before this signal replaced it.
+            await asyncio.sleep(0.3)
+            if not self._connected:
+                return
+            try:
+                status = await self._client.status()
+            except Exception as e:
+                logger.debug("stream_ready status check failed: %s", e)
+                return
+            if status.get("state") != "play":
+                return
+            # If the current track already moved on, don't emit a stale ready.
+            if self._state.current_uri != uri:
+                return
+            await self._event_bus.publish("player_stream_ready", uri=uri)
+        except asyncio.CancelledError:
+            # Superseded by a newer track change — drop silently.
+            pass
 
     async def _idle_loop(self) -> None:
         """Listen for MPD subsystem changes and sync state."""

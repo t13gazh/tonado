@@ -5,7 +5,7 @@
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
-	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio, reloadBrowserAudio } from '$lib/stores/browser-audio.svelte';
+	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio } from '$lib/stores/browser-audio.svelte';
 	import { isMpdConnected } from '$lib/stores/health.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import { tick, onMount } from 'svelte';
@@ -156,9 +156,6 @@
 		setup();
 		return { update: () => { tick().then(setup); } };
 	}
-
-	let lastTrackUri = $state('');
-	let lastPlayState = $state('');
 
 	// Sleep timer state — authoritative snapshot lives in the player store
 	// (fed by WebSocket `sleep_timer` events + REST poll fallback); the
@@ -361,19 +358,11 @@
 		};
 	});
 
-	// Reload browser audio stream when the current track changes
-	// or when playback restarts (same URI after stop→play cycle)
-	$effect(() => {
-		const uri = state.current_uri;
-		const playState = state.state;
-		const uriChanged = uri !== '' && uri !== lastTrackUri && lastTrackUri !== '';
-		const restarted = uri !== '' && uri === lastTrackUri && lastPlayState === 'stopped' && playState === 'playing';
-		if (uriChanged || restarted) {
-			reloadBrowserAudio();
-		}
-		lastTrackUri = uri;
-		lastPlayState = playState;
-	});
+	// Browser-audio reload on track change is driven by the backend
+	// WebSocket event ``player_stream_ready`` (handled in the player
+	// store).  No local $effect needed — the backend knows when MPD's
+	// httpd encoder has bytes for the new track, so we reconnect on a
+	// deterministic signal instead of racing a timeout.
 
 	async function toggleBrowserAudio() {
 		if (browserPlaying) {

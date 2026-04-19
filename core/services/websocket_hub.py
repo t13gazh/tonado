@@ -57,6 +57,7 @@ class WebSocketHub:
         self._event_bus.subscribe("card_unknown", self._on_card_unknown)
         self._event_bus.subscribe("gesture_detected", self._on_gesture)
         self._event_bus.subscribe("sleep_timer_updated", self._on_sleep_timer)
+        self._event_bus.subscribe("player_stream_ready", self._on_stream_ready)
         logger.info("WebSocket hub started")
 
     async def connect(self, ws: WebSocket) -> None:
@@ -125,6 +126,19 @@ class WebSocketHub:
         await self._broadcast({
             "type": "gesture",
             "data": {"gesture": gesture, "action": action},
+        })
+
+    async def _on_stream_ready(self, uri: str = "", **_: Any) -> None:
+        """Signal the browser proxy that MPD's httpd output has a fresh
+        stream for the new track and is ready to be reconnected.
+
+        Sent after a track change once MPD reports ``play`` with non-zero
+        elapsed/duration, so the browser doesn't race the encoder and
+        receive an empty reply.
+        """
+        await self._broadcast({
+            "type": "player_stream_ready",
+            "data": {"uri": uri},
         })
 
     async def _on_sleep_timer(

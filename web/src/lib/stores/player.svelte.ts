@@ -4,6 +4,7 @@
  */
 
 import type { PlayerState } from '$lib/api';
+import { reloadBrowserAudio } from '$lib/stores/browser-audio.svelte';
 
 // Reactive state using $state rune
 let playerState = $state<PlayerState>({
@@ -80,6 +81,13 @@ function handleMessage(event: MessageEvent): void {
 					duration_seconds: msg.data.duration_seconds ?? null,
 					received_at: performance.now(),
 				};
+				break;
+			case 'player_stream_ready':
+				// Backend confirms MPD's httpd encoder has fresh bytes for
+				// the new track — reconnect the browser-audio proxy now.
+				// Safe to call unconditionally; the store no-ops if audio
+				// isn't currently active.
+				reloadBrowserAudio();
 				break;
 		}
 	} catch {

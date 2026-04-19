@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+
+- **Browser-Audio bricht nicht mehr bei Stream-Wechsel ab.** Backend-Proxy räumt httpx-Verbindungen sauber ab (`AsyncExitStack`), MPD httpd hält seinen Output dauerhaft offen (`always_on`), und ein neues WebSocket-Signal `player:stream_ready` löst das Reload deterministisch aus statt per 2.5s-Timeout zu raten. MIME-Type wird aus dem MPD-Stream übernommen (Icy-Metadata durchgeschleift).
+
 ### Doku
 
 - **Doku-Review Phase 1 (Quickfixes):** README-Tippfehler „Musik hört los" → „Musik spielt" korrigiert, RFID-Jargon im User-Text auf einmalige technische Einführung reduziert, ROADMAP „Watchdog" und „Leichte Sprache" ehrlich als verschoben/Basis-A11y markiert, Spotify-Eintrag als reiner Receiver-Modus geschärft (Vision-konform), installation.md um Schritt 12 für OnOff-SHIM-Kernel-Overlays erweitert und `curl | sudo bash`-Alternative mit Inspect-Pfad ergänzt, Bonjour-Windows-Link direkt auf Apple statt iTunes-Verweis, hardcoded `/home/pi/`-Pfad als `/home/<benutzer>/` verallgemeinert, hardware.md um 2-Satz-Erklärung zur GPIO-25-Doppelnutzung (RC522 RST + HifiBerry Amp-Enable) + PN532-I2C-Adresse ergänzt, UPDATE.md „nur main"-Hinweis als Alpha-Phase-Begründung eingeordnet, BACKUP.md Einleitungssatz entreissend umformuliert, Pi-Zero-W-Teststatus als „Installation auf 0.1.0-alpha verifiziert, für 0.2.x nicht re-getestet" präzisiert.

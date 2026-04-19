@@ -187,7 +187,10 @@ audio_output {
     port            "8090"
     bitrate         "128"
     format          "44100:16:2"
-    always_on       "no"
+    # always_on keeps the encoder running across track/codec transitions,
+    # so the browser-side proxy connection stays valid when tracks change
+    # or when the codec (e.g. OGG podcast → MP3 file) switches.
+    always_on       "yes"
     tags            "yes"
 }
 MPD

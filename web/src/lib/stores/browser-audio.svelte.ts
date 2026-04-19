@@ -5,6 +5,11 @@
  * IMPORTANT: This module ONLY controls the HTML Audio element.
  * It does NOT toggle MPD outputs — the httpd output must stay enabled
  * independently, otherwise MPD stops playback when its last output is disabled.
+ *
+ * Reload-on-track-change is driven by the backend's ``player_stream_ready``
+ * WebSocket event (see player.svelte.ts), NOT a client-side timeout.  The
+ * backend knows when MPD's httpd encoder is actually ready; the old 2.5 s
+ * guess-and-retry dance raced the encoder and frequently cut the audio.
  */
 
 let audioElement: HTMLAudioElement | null = null;
@@ -62,10 +67,11 @@ export function setBrowserAudioElement(el: HTMLAudioElement): void {
 		if (_active) _loading = true;
 	});
 	el.addEventListener('error', () => {
-		if (_active && !_reloadTimer) {
-			// Only retry if no reload is already scheduled (track change)
+		if (_active) {
+			// Backend-driven reloads are deterministic — any error that
+			// reaches us here is a genuine proxy/MPD problem, so retry.
 			retryStream();
-		} else if (!_active) {
+		} else {
 			_loading = false;
 		}
 	});
@@ -83,10 +89,6 @@ export function startBrowserAudio(): void {
 
 export function stopBrowserAudio(): void {
 	clearRetry();
-	if (_reloadTimer) {
-		clearTimeout(_reloadTimer);
-		_reloadTimer = null;
-	}
 	if (audioElement) {
 		audioElement.pause();
 		audioElement.src = '';
@@ -96,33 +98,21 @@ export function stopBrowserAudio(): void {
 }
 
 /**
- * Reload the stream (e.g. after track change).
+ * Reload the stream.  Called by the WebSocket subscriber on
+ * ``player_stream_ready`` — at that point the backend has verified that
+ * MPD's httpd encoder is actually producing bytes for the new track, so
+ * we can reconnect immediately without a client-side delay.
+ *
  * Only acts if browser audio is currently active.
- * Waits briefly so MPD has time to buffer the new track
- * on its httpd output before the browser requests the proxy.
  */
-let _reloadTimer: ReturnType<typeof setTimeout> | null = null;
-const RELOAD_DELAY_MS = 2500;
-
 export function reloadBrowserAudio(): void {
 	if (!_active || !audioElement) return;
 	clearRetry();
-	// Cancel any pending reload (rapid track changes)
-	if (_reloadTimer) {
-		clearTimeout(_reloadTimer);
-	}
-	// Immediately stop old stream to prevent error events from stale connection
-	audioElement.pause();
-	audioElement.removeAttribute('src');
-	audioElement.load();
 	_loading = true;
-	_reloadTimer = setTimeout(() => {
-		_reloadTimer = null;
-		if (!_active || !audioElement) return;
-		audioElement.src = streamUrl();
-		audioElement.load();
-		audioElement.play().catch(() => {
-			retryStream();
-		});
-	}, RELOAD_DELAY_MS);
+	// Swap src directly — the browser closes the stale connection when
+	// the new one starts loading.  No pause/removeAttribute dance needed
+	// now that the backend guarantees the new stream is live.
+	audioElement.src = streamUrl();
+	audioElement.load();
+	audioElement.play().catch(() => { retryStream(); });
 }

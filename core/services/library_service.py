@@ -65,6 +65,16 @@ class LibraryService(BaseService):
         super().__init__()
         self._media_dir = media_dir
 
+    @property
+    def media_dir(self) -> Path:
+        """Read-only view of the media root. Routers use this for path resolution.
+
+        Exposing the attribute through a property keeps the underlying field
+        private (no external writes) while preventing callers from reaching
+        into `_media_dir` directly.
+        """
+        return self._media_dir
+
     async def start(self) -> None:
         self._media_dir.mkdir(parents=True, exist_ok=True)
         logger.info("Library service started (media_dir=%s)", self._media_dir)
@@ -211,16 +221,42 @@ class LibraryService(BaseService):
             "folder_count": folder_count,
         }
 
+    # Preferred cover basenames (lower-case). Matched case-insensitively so
+    # `Cover.JPG`, `Folder.png`, `FRONT.webp` etc. are all found on Linux.
+    _COVER_BASENAMES = ("cover", "folder", "front")
+
     @staticmethod
     def _find_cover(folder_path: Path) -> Path | None:
-        """Find cover art in a folder. Prioritizes 'cover.*' then any image."""
+        """Find cover art in a folder, case-insensitively.
+
+        Priority:
+          1. Any file whose basename (without extension) is cover/folder/front
+             and whose extension is a known image type — regardless of case.
+          2. Fallback: first file with an image extension in directory order.
+        """
         if not folder_path.is_dir():
             return None
-        for ext in IMAGE_EXTENSIONS:
-            cover = folder_path / f"cover{ext}"
-            if cover.exists():
-                return cover
-        for f in folder_path.iterdir():
-            if f.suffix.lower() in IMAGE_EXTENSIONS:
-                return f
-        return None
+        try:
+            entries = list(folder_path.iterdir())
+        except OSError:
+            return None
+
+        # Index by (basename.lower(), ext.lower()) so we can honour preference order.
+        preferred: dict[str, Path] = {}
+        fallback: Path | None = None
+        for entry in entries:
+            if not entry.is_file():
+                continue
+            ext = entry.suffix.lower()
+            if ext not in IMAGE_EXTENSIONS:
+                continue
+            stem = entry.stem.lower()
+            if stem in LibraryService._COVER_BASENAMES and stem not in preferred:
+                preferred[stem] = entry
+            elif fallback is None:
+                fallback = entry
+
+        for name in LibraryService._COVER_BASENAMES:
+            if name in preferred:
+                return preferred[name]
+        return fallback

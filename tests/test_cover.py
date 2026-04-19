@@ -14,7 +14,13 @@ from mutagen.oggvorbis import OggVorbis
 
 from core.routers import library
 from core.services.library_service import LibraryService
-from core.utils.audio import _extract_cover, detect_image_mime, extract_cover
+from core.utils.audio import (
+    _extract_cover,
+    cover_cache_clear,
+    cover_cache_stats,
+    detect_image_mime,
+    extract_cover,
+)
 
 
 # --- Fixture payload helpers ---
@@ -135,7 +141,7 @@ def test_extract_cover_flac_with_picture(tmp_path: Path) -> None:
 
 def test_extract_cover_unknown_format(tmp_path: Path) -> None:
     """Unknown suffix returns None, no exception."""
-    path = tmp_path / "noise.wav"
+    path = tmp_path / "noise.xyz"
     path.write_bytes(b"\x00" * 128)
     assert _extract_cover(path) is None
 
@@ -303,3 +309,212 @@ async def test_cover_endpoint_missing_folder_returns_404(cover_client) -> None:
     client, _ = cover_client
     resp = await client.get("/api/library/cover", params={"path": "Nonexistent", "kind": "folder"})
     assert resp.status_code == 404
+
+
+# --- Byte-budgeted cache ---
+
+
+def test_cover_cache_skips_oversized_covers(tmp_path: Path) -> None:
+    """Covers above the per-item cap must not land in the cache (passthrough)."""
+    cover_cache_clear()
+    # Build three MP3s with >2 MB embedded JPEG payloads (one per track).
+    big = _TINY_JPEG + b"\xff" * (3 * 1024 * 1024)  # 3 MB pseudo-jpeg body
+    tracks = []
+    for i in range(3):
+        mp3 = tmp_path / f"big{i}.mp3"
+        _make_mp3(mp3, cover=big)
+        tracks.append(mp3)
+
+    # Prime cache with each track.
+    for mp3 in tracks:
+        data = extract_cover(mp3)
+        assert data is not None
+        assert data.startswith(b"\xff\xd8\xff"), "payload must still round-trip"
+
+    stats = cover_cache_stats()
+    # Nothing over the per-item cap may be retained.
+    assert stats["entries"] == 0
+    assert stats["bytes"] == 0
+
+
+def test_cover_cache_total_budget_evicts_lru(tmp_path: Path) -> None:
+    """Total byte budget triggers LRU eviction when the next entry would overflow."""
+    cover_cache_clear()
+    # Each cover ~1.2 MB — cacheable individually, but three of them exceed
+    # the 30 MB total *only* if we push beyond that. Shrink the cache for the
+    # test instead of producing 100 MB fixtures: we use the public API but
+    # monkey-patch the module-level caps.
+    from core.utils import audio as audio_mod
+
+    saved = audio_mod._cover_cache
+    try:
+        audio_mod._cover_cache = audio_mod._CoverCache(
+            per_item_max=2 * 1024 * 1024,
+            total_max=3 * 1024 * 1024,  # room for ~2 covers of 1.2 MB
+            max_entries=100,
+        )
+        payload = _TINY_JPEG + b"\xee" * (1_200_000 - len(_TINY_JPEG))
+        paths = []
+        for i in range(3):
+            mp3 = tmp_path / f"m{i}.mp3"
+            _make_mp3(mp3, cover=payload)
+            paths.append(mp3)
+            extract_cover(mp3)
+
+        stats = audio_mod._cover_cache.stats()
+        # Oldest entry must have been evicted to make room.
+        assert stats["entries"] <= 2
+        assert stats["bytes"] <= 3 * 1024 * 1024
+    finally:
+        audio_mod._cover_cache = saved
+
+
+# --- Opus (Vorbis-comment picture block) ---
+
+
+def test_extract_cover_opus_with_picture(tmp_path: Path) -> None:
+    """Opus files use the same metadata_block_picture mechanism as OggVorbis."""
+    opus_fixture = Path(__file__).parent / "fixtures" / "silent.opus"
+    if not opus_fixture.exists():
+        pytest.skip("no .opus fixture available in this environment")
+    from mutagen.oggopus import OggOpus
+
+    dest = tmp_path / "song.opus"
+    dest.write_bytes(opus_fixture.read_bytes())
+    ogg = OggOpus(str(dest))
+    pic = Picture()
+    pic.type = 3
+    pic.mime = "image/jpeg"
+    pic.desc = "cover"
+    pic.data = _TINY_JPEG
+    ogg["metadata_block_picture"] = [base64.b64encode(pic.write()).decode("ascii")]
+    ogg.save()
+
+    data = _extract_cover(dest)
+    assert data == _TINY_JPEG
+
+
+def test_extract_cover_opus_missing_fixture_graceful(tmp_path: Path) -> None:
+    """A bare/invalid .opus file must return None rather than crash."""
+    path = tmp_path / "bad.opus"
+    path.write_bytes(b"OggS" + b"\x00" * 64)  # nonsense Ogg header
+    assert _extract_cover(path) is None
+
+
+def test_extract_cover_wav_is_skipped(tmp_path: Path) -> None:
+    """WAV has no standard embedded-cover slot: skip without raising."""
+    path = tmp_path / "noise.wav"
+    path.write_bytes(b"RIFF\x00\x00\x00\x00WAVEfmt ")
+    assert _extract_cover(path) is None
+
+
+# --- Case-insensitive folder cover ---
+
+
+@pytest.mark.asyncio
+async def test_folder_cover_case_insensitive(cover_client) -> None:
+    """`Folder.JPG` (mixed case) must be picked up on case-sensitive filesystems."""
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    # Mixed-case basename + uppercase extension — would miss the old lower-case lookup.
+    (album / "Folder.JPG").write_bytes(_TINY_JPEG)
+    _make_mp3(album / "t01.mp3", cover=None)
+
+    resp = await client.get("/api/library/cover", params={"path": "Album", "kind": "folder"})
+    assert resp.status_code == 200
+    assert resp.content == _TINY_JPEG
+
+
+@pytest.mark.asyncio
+async def test_folder_cover_prefers_cover_over_folder(cover_client) -> None:
+    """When both `COVER.*` and `Folder.*` exist, prefer cover (regardless of case)."""
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    (album / "Folder.png").write_bytes(_TINY_PNG)
+    (album / "COVER.jpg").write_bytes(_TINY_JPEG)
+
+    resp = await client.get("/api/library/cover", params={"path": "Album", "kind": "folder"})
+    assert resp.status_code == 200
+    assert resp.content == _TINY_JPEG
+
+
+# --- ETag ---
+
+
+@pytest.mark.asyncio
+async def test_cover_endpoint_sets_etag_and_no_immutable(cover_client) -> None:
+    """ETag is present, Cache-Control is revalidateable (no `immutable`)."""
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    _make_mp3(album / "t01.mp3", cover=_TINY_JPEG)
+
+    resp = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
+    assert resp.status_code == 200
+    etag = resp.headers.get("etag")
+    assert etag, "ETag must be set on cover responses"
+    cc = resp.headers["cache-control"]
+    assert "immutable" not in cc
+    assert "max-age=3600" in cc
+
+
+@pytest.mark.asyncio
+async def test_cover_endpoint_etag_changes_with_mtime(cover_client) -> None:
+    """Rewriting the track updates mtime → ETag must change."""
+    import os
+    import time as _time
+
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    mp3 = album / "t01.mp3"
+    _make_mp3(mp3, cover=_TINY_JPEG)
+
+    r1 = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
+    assert r1.status_code == 200
+    etag1 = r1.headers["etag"]
+
+    _time.sleep(0.02)
+    _make_mp3(mp3, cover=_TINY_PNG)
+    st = mp3.stat()
+    os.utime(mp3, (st.st_atime, st.st_mtime + 2))
+
+    r2 = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
+    assert r2.status_code == 200
+    etag2 = r2.headers["etag"]
+    assert etag1 != etag2, "ETag must change when the source file changes"
+
+
+@pytest.mark.asyncio
+async def test_cover_endpoint_if_none_match_returns_304(cover_client) -> None:
+    """A matching If-None-Match header produces a 304 with no body."""
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    _make_mp3(album / "t01.mp3", cover=_TINY_JPEG)
+
+    r1 = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
+    etag = r1.headers["etag"]
+
+    r2 = await client.get(
+        "/api/library/cover",
+        params={"path": "Album/t01.mp3", "kind": "track"},
+        headers={"If-None-Match": etag},
+    )
+    assert r2.status_code == 304
+    # 304 must still carry the ETag so intermediate caches can confirm freshness.
+    assert r2.headers.get("etag") == etag
+
+
+# --- Public media_dir accessor ---
+
+
+def test_library_service_exposes_media_dir(tmp_path: Path) -> None:
+    """`media_dir` property returns the configured path without leaking writes."""
+    svc = LibraryService(tmp_path)
+    assert svc.media_dir == tmp_path
+    # Property is read-only.
+    with pytest.raises(AttributeError):
+        svc.media_dir = tmp_path  # type: ignore[misc]

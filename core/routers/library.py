@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, Response
 from core.dependencies import get_auth_service, get_library_service, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import LibraryService
-from core.utils.audio import AUDIO_EXTENSIONS, detect_image_mime, extract_cover
+from core.utils.audio import AUDIO_EXTENSIONS, cover_etag, detect_image_mime, extract_cover
 from core.utils.upload import stream_to_disk
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,8 @@ def _safe_path(folder_name: str, svc: LibraryService) -> str:
         raise HTTPException(400, "Invalid folder name")
 
     # Resolve and verify the path stays within media_dir
-    resolved = (svc._media_dir / folder_name).resolve()
-    media_resolved = svc._media_dir.resolve()
+    resolved = (svc.media_dir / folder_name).resolve()
+    media_resolved = svc.media_dir.resolve()
     if not str(resolved).startswith(str(media_resolved)):
         raise HTTPException(400, "Invalid folder name")
 
@@ -74,17 +74,26 @@ async def list_tracks(folder_name: str, svc: LibraryService = Depends(get_librar
 
 
 @router.get("/{folder_name}/cover")
-async def get_cover(folder_name: str, svc: LibraryService = Depends(get_library_service)) -> FileResponse:
+async def get_cover(
+    folder_name: str,
+    request: Request,
+    svc: LibraryService = Depends(get_library_service),
+) -> Response:
     _safe_path(folder_name, svc)
     cover_path = svc.get_cover_path(folder_name)
     if cover_path is None:
         raise HTTPException(404, "No cover available")
-    return FileResponse(cover_path)
+    headers = _cover_headers(cover_path)
+    if _matches_inm(request, headers.get("ETag")):
+        return Response(status_code=304, headers=headers)
+    return FileResponse(cover_path, headers=headers)
 
 
-# Cover cache max-age (1 hour). Clients get fresh art when mtime changes because
-# we key the in-memory cache by (path, mtime, size).
-_COVER_CACHE_CONTROL = "public, max-age=3600, immutable"
+# Covers are dynamic (users can replace cover.jpg or re-tag tracks), so
+# `immutable` would serve stale art for up to an hour. Instead: advertise a
+# 1 h freshness window and attach an ETag so browsers can revalidate cheaply
+# with a conditional GET (→ 304 when mtime+size unchanged).
+_COVER_CACHE_CONTROL = "public, max-age=3600"
 
 
 def _resolve_library_path(relative: str, svc: LibraryService) -> Path:
@@ -97,8 +106,8 @@ def _resolve_library_path(relative: str, svc: LibraryService) -> Path:
     # Reject absolute paths and null bytes.
     if "\x00" in relative or Path(relative).is_absolute():
         raise HTTPException(400, "Invalid path")
-    resolved = (svc._media_dir / relative).resolve()
-    media_resolved = svc._media_dir.resolve()
+    resolved = (svc.media_dir / relative).resolve()
+    media_resolved = svc.media_dir.resolve()
     try:
         resolved.relative_to(media_resolved)
     except ValueError:
@@ -106,8 +115,18 @@ def _resolve_library_path(relative: str, svc: LibraryService) -> Path:
     return resolved
 
 
+def _cover_headers(source: Path, request: Request | None = None) -> dict[str, str]:
+    """Build response headers for a cover payload derived from `source`."""
+    headers = {"Cache-Control": _COVER_CACHE_CONTROL}
+    etag = cover_etag(source)
+    if etag is not None:
+        headers["ETag"] = etag
+    return headers
+
+
 @router.get("/cover")
 async def cover_by_path(
+    request: Request,
     path: str = Query(..., description="Folder or track path relative to library root"),
     kind: str = Query("folder", description="folder | track"),
     svc: LibraryService = Depends(get_library_service),
@@ -129,16 +148,23 @@ async def cover_by_path(
         # Priority: on-disk cover file
         on_disk = svc._find_cover(abs_path)
         if on_disk is not None:
-            return FileResponse(on_disk, headers={"Cache-Control": _COVER_CACHE_CONTROL})
-        # Fallback: embedded art from the first audio track
+            headers = _cover_headers(on_disk)
+            if _matches_inm(request, headers.get("ETag")):
+                return Response(status_code=304, headers=headers)
+            return FileResponse(on_disk, headers=headers)
+        # Fallback: embedded art from the first audio track. The ETag is derived
+        # from the source track (mtime+size) so the browser can revalidate.
         for entry in sorted(abs_path.iterdir()):
             if entry.suffix.lower() in AUDIO_EXTENSIONS:
                 data = extract_cover(entry)
                 if data:
+                    headers = _cover_headers(entry)
+                    if _matches_inm(request, headers.get("ETag")):
+                        return Response(status_code=304, headers=headers)
                     return Response(
                         content=data,
                         media_type=detect_image_mime(data),
-                        headers={"Cache-Control": _COVER_CACHE_CONTROL},
+                        headers=headers,
                     )
         raise HTTPException(404, "No cover available")
 
@@ -148,11 +174,31 @@ async def cover_by_path(
     data = extract_cover(abs_path)
     if not data:
         raise HTTPException(404, "No cover available")
+    headers = _cover_headers(abs_path)
+    if _matches_inm(request, headers.get("ETag")):
+        return Response(status_code=304, headers=headers)
     return Response(
         content=data,
         media_type=detect_image_mime(data),
-        headers={"Cache-Control": _COVER_CACHE_CONTROL},
+        headers=headers,
     )
+
+
+def _matches_inm(request: Request, etag: str | None) -> bool:
+    """True when the caller's If-None-Match matches our ETag → 304 response."""
+    if not etag:
+        return False
+    inm = request.headers.get("if-none-match")
+    if not inm:
+        return False
+    # Trivial parse: comma-separated list, accept either W/"..." or "..." forms
+    # and match against our weak ETag verbatim or its strong-form stripped.
+    candidates = [c.strip() for c in inm.split(",")]
+    etag_strong = etag[2:] if etag.startswith("W/") else etag
+    for cand in candidates:
+        if cand == etag or cand == etag_strong or cand == "*":
+            return True
+    return False
 
 
 @router.post("/folders")

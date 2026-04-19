@@ -7,6 +7,8 @@
 	 *           the fallback (gradient + initial from `title`) is rendered.
 	 *   title — used for the fallback initial and the img aria-label.
 	 *   size  — 'sm' | 'md' | 'lg' (default 'md'). Only affects the letter size in the fallback.
+	 *   eager — when true, disables `loading="lazy"` on the `<img>` element. Use for
+	 *           above-the-fold covers (player hero) to avoid a first-paint gap.
 	 */
 
 	type Size = 'sm' | 'md' | 'lg';
@@ -15,18 +17,23 @@
 		src?: string;
 		title: string;
 		size?: Size;
+		eager?: boolean;
 	}
 
-	const { src, title, size = 'md' }: Props = $props();
+	const { src, title, size = 'md', eager = false }: Props = $props();
 
 	let failed = $state(false);
+	// `loaded` gates the fade-in. The fallback gradient stays painted until the
+	// image actually arrives, so users never see a transparent container.
+	let loaded = $state(false);
 
-	// Reset `failed` when the src changes so a new cover gets a fresh attempt.
+	// Reset `failed`/`loaded` when the src changes so a new cover gets a fresh attempt.
 	let currentSrc = $state('');
 	$effect(() => {
 		if (src !== currentSrc) {
 			currentSrc = src ?? '';
 			failed = false;
+			loaded = false;
 		}
 	});
 
@@ -64,6 +71,11 @@
 
 	function handleError() {
 		failed = true;
+		loaded = false;
+	}
+
+	function handleLoad() {
+		loaded = true;
 	}
 
 	const showImage = $derived(!failed && !!src);
@@ -71,24 +83,27 @@
 
 <div
 	class="relative w-full h-full rounded-2xl overflow-hidden flex items-center justify-center shadow-xl"
-	style={showImage ? undefined : `background: ${gradient}`}
+	style={`background: ${gradient}`}
 	aria-label={title}
 	role="img"
 >
+	<!-- Fallback initial is always painted; image fades in on top once it loads.
+	     This prevents a transparent-container flash above the surface colour while
+	     the network request is in flight. -->
+	<span
+		class="absolute inset-0 flex items-center justify-center font-bold text-white drop-shadow-sm select-none {letterClass}"
+		aria-hidden="true"
+	>
+		{initial}
+	</span>
 	{#if showImage}
 		<img
 			src={src}
 			alt={title}
-			loading="lazy"
+			loading={eager ? 'eager' : 'lazy'}
 			onerror={handleError}
-			class="w-full h-full object-cover"
+			onload={handleLoad}
+			class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"
 		/>
-	{:else}
-		<span
-			class="font-bold text-white drop-shadow-sm select-none {letterClass}"
-			aria-hidden="true"
-		>
-			{initial}
-		</span>
 	{/if}
 </div>

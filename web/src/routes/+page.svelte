@@ -433,9 +433,9 @@
 	<!-- Cover Art -->
 	<div class="w-64 h-64 sm:w-72 sm:h-72">
 		{#if hasTrack}
-			{#key state.current_uri}
-				<CoverArt src={coverSrc} title={coverTitle} size="lg" />
-			{/key}
+			<!-- CoverArt reacts to `src`/`title` changes via $effect internally;
+			     a {#key} wrapper would force a full remount and cause a flash. -->
+			<CoverArt src={coverSrc} title={coverTitle} size="lg" eager />
 		{:else}
 			<div class="w-full h-full rounded-2xl bg-surface-light flex items-center justify-center shadow-xl">
 				<svg class="w-20 h-20 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor">

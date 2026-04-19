@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { player, authApi, library } from '$lib/api';
-	import { getPlayerState } from '$lib/stores/player.svelte';
+	import { getPlayerState, getSleepTimer, setSleepTimer } from '$lib/stores/player.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
@@ -160,9 +160,11 @@
 	let lastTrackUri = $state('');
 	let lastPlayState = $state('');
 
-	// Sleep timer state
-	let sleepActive = $state(false);
-	let sleepRemaining = $state(0);
+	// Sleep timer state — authoritative snapshot lives in the player store
+	// (fed by WebSocket `sleep_timer` events + REST poll fallback); the
+	// local `sleepTick` drives the countdown display between updates.
+	const sleepSnapshot = $derived(getSleepTimer());
+	let sleepTick = $state(0); // monotonic ms, bumped once per second while active
 	let sleepCancelling = $state(false);
 	let sleepMenuOpen = $state(false);
 	let sleepExtending = $state(false);
@@ -173,16 +175,34 @@
 	let sleepExtend10Ref: HTMLButtonElement | null = $state(null);
 	let sleepCancelRef: HTMLButtonElement | null = $state(null);
 
-	const sleepVisible = $derived(sleepActive && sleepRemaining > 0);
-	const sleepFinalMinute = $derived(sleepVisible && sleepRemaining < 60);
-	const sleepLabel = $derived(
-		sleepRemaining >= 60
-			? t('player.sleep_minutes', { minutes: Math.floor(sleepRemaining / 60) })
-			: t('player.sleep_seconds', { seconds: Math.max(0, Math.floor(sleepRemaining)) })
-	);
-	// Stable text for screen readers: only changes on minute boundaries or final-minute entry
+	// Compute remaining seconds from the last authoritative snapshot plus
+	// wall-clock drift since it arrived. `sleepTick` forces a recompute.
+	const sleepRemaining = $derived.by(() => {
+		sleepTick; // subscribe to tick
+		if (!sleepSnapshot.active || sleepSnapshot.fading) return sleepSnapshot.remaining_seconds;
+		const driftSec = sleepSnapshot.received_at
+			? Math.max(0, (performance.now() - sleepSnapshot.received_at) / 1000)
+			: 0;
+		return Math.max(0, Math.floor(sleepSnapshot.remaining_seconds - driftSec));
+	});
+	const sleepFading = $derived(sleepSnapshot.active && sleepSnapshot.fading);
+	const sleepVisible = $derived(sleepSnapshot.active && (sleepFading || sleepRemaining > 0));
+	const sleepFinalMinute = $derived(sleepVisible && !sleepFading && sleepRemaining < 60);
+	// Display label:
+	// - fading → dedicated text, no countdown
+	// - < 60s → per-second "Noch X Sek."
+	// - >= 60s → per-minute "X Min." (quantized so the label only flips on minute boundaries)
+	const sleepLabel = $derived.by(() => {
+		if (sleepFading) return t('player.sleep_fading');
+		if (sleepRemaining < 60) {
+			return t('player.sleep_seconds', { seconds: Math.max(0, sleepRemaining) });
+		}
+		return t('player.sleep_minutes', { minutes: Math.floor(sleepRemaining / 60) });
+	});
+	// Stable text for screen readers: only changes on minute boundaries, fade entry, or final-minute entry
 	const sleepAnnounce = $derived.by(() => {
 		if (!sleepVisible) return '';
+		if (sleepFading) return t('player.sleep_fading');
 		if (sleepRemaining < 60) return t('player.sleep_announce_final');
 		return t('player.sleep_announce_minutes', { minutes: Math.floor(sleepRemaining / 60) });
 	});
@@ -191,8 +211,11 @@
 		if (sleepCancelling) return; // avoid overwriting optimistic cancel state
 		try {
 			const res = await authApi.sleepTimer();
-			sleepActive = res.active;
-			sleepRemaining = Math.max(0, Math.floor(res.remaining_seconds));
+			setSleepTimer({
+				active: res.active,
+				remaining_seconds: Math.max(0, Math.floor(res.remaining_seconds)),
+				fading: !!res.fading,
+			});
 		} catch {
 			// On failure: keep last known state to avoid flicker
 		}
@@ -203,8 +226,7 @@
 		sleepCancelling = true;
 		try {
 			await authApi.cancelSleepTimer();
-			sleepActive = false;
-			sleepRemaining = 0;
+			setSleepTimer({ active: false, remaining_seconds: 0, fading: false });
 			sleepMenuOpen = false;
 		} catch {
 			addToast(t('player.sleep_cancel_failed'), 'error');
@@ -215,6 +237,10 @@
 
 	function toggleSleepMenu() {
 		if (!sleepVisible) return;
+		// During fade-out extend/cancel buttons make no functional sense:
+		// the backend rejects /extend with 409 and cancel cannot un-stop
+		// the imminent playback halt cleanly. Keep the menu closed.
+		if (sleepFading) return;
 		sleepMenuOpen = !sleepMenuOpen;
 	}
 
@@ -267,9 +293,12 @@
 		sleepExtending = true;
 		try {
 			const res = await authApi.extendSleepTimer(minutes);
-			// Optimistic local update using server's truth
-			sleepRemaining = Math.max(0, Math.floor(res.remaining_seconds));
-			sleepActive = sleepRemaining > 0;
+			const remaining = Math.max(0, Math.floor(res.remaining_seconds));
+			setSleepTimer({
+				active: remaining > 0,
+				remaining_seconds: remaining,
+				fading: false,
+			});
 			closeSleepMenu(true);
 			addToast(t('player.sleep_extended_toast', { minutes }), 'success');
 		} catch {
@@ -294,17 +323,28 @@
 		closeSleepMenu(false);
 	}
 
+	// Adaptive tick cadence:
+	//   < 60s remaining → 1000ms (per-second countdown)
+	//   >= 60s remaining → 30000ms (minute label only flips on minute boundaries)
+	// Avoids re-rendering the pill 60× per minute when a single flip every
+	// 30s is enough. During fade-out no tick is needed — the countdown is
+	// replaced by a static "Fade-Out läuft …" label.
+	$effect(() => {
+		if (!sleepSnapshot.active || sleepSnapshot.fading) return;
+		// Re-enter on each snapshot change (start/extend/cancel/fade)
+		void sleepSnapshot.received_at;
+		const interval = sleepRemaining < 60 ? 1000 : 30000;
+		const id = setInterval(() => { sleepTick = performance.now(); }, interval);
+		return () => clearInterval(id);
+	});
+
 	onMount(() => {
 		player.outputs().then(o => { outputs = o; }).catch(() => {});
 
 		pollSleepTimer();
-		const pollId = setInterval(pollSleepTimer, 10_000);
-		const tickId = setInterval(() => {
-			if (sleepActive && sleepRemaining > 0) {
-				sleepRemaining = Math.max(0, sleepRemaining - 1);
-				if (sleepRemaining === 0) sleepActive = false;
-			}
-		}, 1000);
+		// WebSocket pushes authoritative updates; poll only as a fallback
+		// in case the socket drops silently. 30s is fine for recovery.
+		const pollId = setInterval(pollSleepTimer, 30_000);
 		// Resync on tab focus: setInterval throttles to ~1/min in hidden tabs
 		const onVisible = () => { if (!document.hidden) pollSleepTimer(); };
 		document.addEventListener('visibilitychange', onVisible);
@@ -315,7 +355,6 @@
 
 		return () => {
 			clearInterval(pollId);
-			clearInterval(tickId);
 			document.removeEventListener('visibilitychange', onVisible);
 			document.removeEventListener('keydown', handleSleepMenuKeydown);
 			document.removeEventListener('click', handleSleepDocClick);
@@ -370,19 +409,22 @@
 				bind:this={sleepTriggerRef}
 				type="button"
 				onclick={toggleSleepMenu}
-				aria-haspopup="menu"
-				aria-expanded={sleepMenuOpen}
-				aria-label={t('player.sleep_menu_aria')}
-				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-colors min-h-11 touch-manipulation {sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'} hover:opacity-90 active:scale-95"
+				aria-haspopup={sleepFading ? undefined : 'menu'}
+				aria-expanded={sleepFading ? undefined : sleepMenuOpen}
+				aria-disabled={sleepFading || undefined}
+				aria-label={sleepFading ? t('player.sleep_fading') : t('player.sleep_menu_aria')}
+				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-colors min-h-11 touch-manipulation hover:opacity-90 active:scale-95 {sleepFading ? 'bg-primary/20 text-primary cursor-default' : sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
 			>
-				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg class="w-4 h-4 {sleepFading ? 'animate-pulse' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 				</svg>
-				<span class="font-medium" aria-hidden="true">{t('player.sleep_remaining', { time: sleepLabel })}</span>
+				<span class="font-medium" aria-hidden="true">
+					{#if sleepFading}{t('player.sleep_fading')}{:else}{t('player.sleep_remaining', { time: sleepLabel })}{/if}
+				</span>
 				<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
 			</button>
 
-			{#if sleepMenuOpen}
+			{#if sleepMenuOpen && !sleepFading}
 				<div
 					bind:this={sleepMenuRef}
 					role="menu"

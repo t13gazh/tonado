@@ -34,6 +34,12 @@ _UPLOAD_PREFIX = "/api/library/upload"
 _LOGIN_PATH = "/api/auth/login"
 _RESTORE_PATH = "/api/system/restore"
 
+# Sleep-timer writes are not security-critical but the pill button is
+# right next to a child's thumb — without its own bucket a single IP
+# can pop 100 writes/min into the log. 20/min still allows parent-app
+# spam-tap plus normal start/extend/cancel cycles.
+_SLEEP_TIMER_PREFIX = "/api/auth/sleep-timer"
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
@@ -48,12 +54,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         login_window: int = 60,
         restore_limit: int = 3,
         restore_window: int = 60,
+        sleep_timer_limit: int = 20,
+        sleep_timer_window: int = 60,
     ) -> None:
         super().__init__(app)
         self._default = (default_limit, default_window)
         self._upload = (upload_limit, upload_window)
         self._login = (login_limit, login_window)
         self._restore = (restore_limit, restore_window)
+        self._sleep_timer = (sleep_timer_limit, sleep_timer_window)
         self._buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -74,6 +83,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         elif path.startswith(_UPLOAD_PREFIX):
             bucket_name = "upload"
             limit, window = self._upload
+        elif path.startswith(_SLEEP_TIMER_PREFIX):
+            bucket_name = "sleep_timer"
+            limit, window = self._sleep_timer
         else:
             bucket_name = "default"
             limit, window = self._default

@@ -102,6 +102,27 @@ async def test_gesture_broadcast(hub: WebSocketHub, event_bus: EventBus) -> None
 
 
 @pytest.mark.asyncio
+async def test_sleep_timer_broadcast(hub: WebSocketHub, event_bus: EventBus) -> None:
+    """Sleep-timer updates must be forwarded so every connected phone stays
+    in sync (start/extend/cancel on one device reflects everywhere)."""
+    ws = FakeWebSocket()
+    await hub.connect(ws)
+    await event_bus.publish(
+        "sleep_timer_updated",
+        remaining_seconds=420,
+        fading=False,
+        active=True,
+        duration_seconds=600,
+    )
+    msg = json.loads(ws.sent[-1])
+    assert msg["type"] == "sleep_timer"
+    assert msg["data"]["active"] is True
+    assert msg["data"]["remaining_seconds"] == 420
+    assert msg["data"]["fading"] is False
+    assert msg["data"]["duration_seconds"] == 600
+
+
+@pytest.mark.asyncio
 async def test_failed_send_prunes_connection(
     hub: WebSocketHub, event_bus: EventBus
 ) -> None:

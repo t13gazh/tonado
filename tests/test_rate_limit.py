@@ -35,6 +35,18 @@ def _build_app(**middleware_kwargs) -> FastAPI:
     async def restore() -> dict:
         return {"ok": True}
 
+    @app.post("/api/auth/sleep-timer")
+    async def sleep_start() -> dict:
+        return {"ok": True}
+
+    @app.delete("/api/auth/sleep-timer")
+    async def sleep_cancel() -> dict:
+        return {"ok": True}
+
+    @app.post("/api/auth/sleep-timer/extend")
+    async def sleep_extend() -> dict:
+        return {"ok": True}
+
     return app
 
 
@@ -131,5 +143,50 @@ async def test_restore_bucket_stricter_than_default():
         resp = await c.post("/api/system/restore")
         assert resp.status_code == 429
         # Login bucket is separate
+        resp = await c.post("/api/auth/login")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_bucket_limits_rapid_taps():
+    """Pill button spam (start/extend/cancel/start/...) must not burn the
+    default 100/min write bucket — a child can tap 20 times per minute
+    before the server starts logging 429s."""
+    app = _build_app(default_limit=100, sleep_timer_limit=3, sleep_timer_window=60)
+    transport = ASGITransport(app=app, client=("9.9.9.9", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post("/api/auth/sleep-timer")
+        assert resp.status_code == 200
+        resp = await c.post("/api/auth/sleep-timer/extend")
+        assert resp.status_code == 200
+        resp = await c.delete("/api/auth/sleep-timer")
+        assert resp.status_code == 200
+        # Fourth request across any sleep-timer sub-path is blocked.
+        resp = await c.post("/api/auth/sleep-timer/extend")
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_bucket_isolated_from_other_endpoints():
+    """Hitting the sleep-timer bucket must NOT spill into the default or
+    login buckets (and vice versa)."""
+    app = _build_app(
+        default_limit=100,
+        login_limit=100,
+        sleep_timer_limit=2,
+        sleep_timer_window=60,
+    )
+    transport = ASGITransport(app=app, client=("10.10.10.10", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        # Exhaust sleep-timer quota
+        for _ in range(2):
+            resp = await c.post("/api/auth/sleep-timer")
+            assert resp.status_code == 200
+        resp = await c.post("/api/auth/sleep-timer")
+        assert resp.status_code == 429
+        # Generic write endpoint stays open
+        resp = await c.post("/echo")
+        assert resp.status_code == 200
+        # Login bucket stays open
         resp = await c.post("/api/auth/login")
         assert resp.status_code == 200

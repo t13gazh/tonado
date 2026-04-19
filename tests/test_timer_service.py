@@ -116,6 +116,89 @@ async def test_sleep_timer_extend_rejects_during_fade(timer_setup):
     await timer.cancel_sleep_timer()
 
 
+# --- Multi-device sync: sleep_timer_updated event publishing ---
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_start_publishes_event(timer_setup):
+    """Starting the timer must publish sleep_timer_updated so the second
+    parent phone sees it without polling."""
+    timer, _, _, bus = timer_setup
+    events: list[dict] = []
+
+    async def capture(**kwargs):
+        events.append(kwargs)
+
+    bus.subscribe("sleep_timer_updated", capture)
+    await timer.start_sleep_timer(5)
+
+    assert len(events) == 1
+    payload = events[0]
+    assert payload["active"] is True
+    assert payload["fading"] is False
+    assert payload["remaining_seconds"] > 0
+    assert payload["duration_seconds"] == 300
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_extend_publishes_event(timer_setup):
+    timer, _, _, bus = timer_setup
+    await timer.start_sleep_timer(5)
+
+    events: list[dict] = []
+
+    async def capture(**kwargs):
+        events.append(kwargs)
+
+    bus.subscribe("sleep_timer_updated", capture)
+    await timer.extend_sleep_timer(10)
+
+    assert len(events) == 1
+    payload = events[0]
+    assert payload["active"] is True
+    assert payload["fading"] is False
+    # duration_seconds is only set on start; extend leaves it None.
+    assert payload["duration_seconds"] is None
+    # ~15 minutes remaining (1s tick drift OK)
+    assert payload["remaining_seconds"] >= 15 * 60 - 2
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_cancel_publishes_event(timer_setup):
+    timer, _, _, bus = timer_setup
+    await timer.start_sleep_timer(5)
+
+    events: list[dict] = []
+
+    async def capture(**kwargs):
+        events.append(kwargs)
+
+    bus.subscribe("sleep_timer_updated", capture)
+    await timer.cancel_sleep_timer()
+
+    assert len(events) == 1
+    payload = events[0]
+    assert payload["active"] is False
+    assert payload["remaining_seconds"] == 0
+    assert payload["fading"] is False
+
+
+@pytest.mark.asyncio
+async def test_sleep_timer_cancel_while_idle_is_silent(timer_setup):
+    """Cancelling a non-existent timer must not publish a spurious event."""
+    timer, _, _, bus = timer_setup
+
+    events: list[dict] = []
+
+    async def capture(**kwargs):
+        events.append(kwargs)
+
+    bus.subscribe("sleep_timer_updated", capture)
+    await timer.cancel_sleep_timer()
+
+    assert events == []
+
+
 # --- Sleep timer fade-out ---
 
 

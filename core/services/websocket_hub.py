@@ -50,6 +50,7 @@ class WebSocketHub:
         self._event_bus.subscribe("card_removed", self._on_card_removed)
         self._event_bus.subscribe("card_unknown", self._on_card_unknown)
         self._event_bus.subscribe("gesture_detected", self._on_gesture)
+        self._event_bus.subscribe("sleep_timer_updated", self._on_sleep_timer)
         logger.info("WebSocket hub started")
 
     async def connect(self, ws: WebSocket) -> None:
@@ -114,4 +115,23 @@ class WebSocketHub:
         await self._broadcast({
             "type": "gesture",
             "data": {"gesture": gesture, "action": action},
+        })
+
+    async def _on_sleep_timer(
+        self,
+        remaining_seconds: float = 0,
+        fading: bool = False,
+        active: bool = False,
+        duration_seconds: int | None = None,
+        **_: Any,
+    ) -> None:
+        """Forward sleep-timer state changes so all parent phones stay in sync."""
+        await self._broadcast({
+            "type": "sleep_timer",
+            "data": {
+                "active": active,
+                "remaining_seconds": max(0, int(remaining_seconds)),
+                "fading": fading,
+                "duration_seconds": duration_seconds,
+            },
         })

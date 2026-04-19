@@ -26,6 +26,23 @@ let connected = $state(false);
 let lastCardEvent = $state<{ type: string; card_id: string; mapping?: unknown } | null>(null);
 let lastGesture = $state<{ gesture: string; action: string } | null>(null);
 
+export interface SleepTimerSnapshot {
+	active: boolean;
+	remaining_seconds: number;
+	fading: boolean;
+	duration_seconds: number | null;
+	/** Monotonic timestamp (ms) of the last authoritative update; used for local countdown. */
+	received_at: number;
+}
+
+let sleepTimer = $state<SleepTimerSnapshot>({
+	active: false,
+	remaining_seconds: 0,
+	fading: false,
+	duration_seconds: null,
+	received_at: 0,
+});
+
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 2000;
@@ -54,6 +71,15 @@ function handleMessage(event: MessageEvent): void {
 				break;
 			case 'gesture':
 				lastGesture = msg.data;
+				break;
+			case 'sleep_timer':
+				sleepTimer = {
+					active: !!msg.data.active,
+					remaining_seconds: Math.max(0, Math.floor(msg.data.remaining_seconds ?? 0)),
+					fading: !!msg.data.fading,
+					duration_seconds: msg.data.duration_seconds ?? null,
+					received_at: performance.now(),
+				};
 				break;
 		}
 	} catch {
@@ -121,4 +147,21 @@ export function getLastCardEvent() {
 
 export function getLastGesture() {
 	return lastGesture;
+}
+
+export function getSleepTimer(): SleepTimerSnapshot {
+	return sleepTimer;
+}
+
+/**
+ * Merge a client-known timer state (e.g. from REST polling or optimistic
+ * cancel/extend) into the store. Used when no WebSocket event has
+ * arrived yet or the user just tapped a pill button.
+ */
+export function setSleepTimer(next: Partial<SleepTimerSnapshot>): void {
+	sleepTimer = {
+		...sleepTimer,
+		...next,
+		received_at: performance.now(),
+	};
 }

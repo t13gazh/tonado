@@ -75,6 +75,7 @@ class TimerService(BaseService):
         self._sleep_active = True
         self._sleep_task = asyncio.create_task(self._sleep_countdown())
         logger.info("Sleep timer started: %.0f minutes", minutes)
+        await self._publish_sleep_state(duration_seconds=int(minutes * 60))
 
     async def extend_sleep_timer(self, minutes: float) -> float:
         """Add minutes to the running sleep timer.
@@ -96,10 +97,12 @@ class TimerService(BaseService):
             "Sleep timer extended by %.0f min, new remaining: %.0fs",
             minutes, self._sleep_remaining,
         )
+        await self._publish_sleep_state()
         return self._sleep_remaining
 
     async def cancel_sleep_timer(self) -> None:
         """Cancel the active sleep timer and any ongoing fade-out."""
+        was_active = self._sleep_active or self._fading
         if self._fade_task:
             self._fade_task.cancel()
             try:
@@ -120,6 +123,8 @@ class TimerService(BaseService):
         self._pre_fade_volume = None
         self._sleep_active = False
         self._sleep_remaining = 0
+        if was_active:
+            await self._publish_sleep_state()
 
     def sleep_timer_status(self) -> dict:
         return {
@@ -127,6 +132,24 @@ class TimerService(BaseService):
             "remaining_seconds": max(0, self._sleep_remaining),
             "fading": self._fading,
         }
+
+    async def _publish_sleep_state(self, duration_seconds: int | None = None) -> None:
+        """Broadcast sleep-timer state so all connected clients stay in sync.
+
+        `duration_seconds` is only meaningful on `start_sleep_timer`; the
+        extend/cancel paths leave it `None` — the frontend uses it as a
+        one-shot hint for any progress visualization.
+        """
+        try:
+            await self._event_bus.publish(
+                "sleep_timer_updated",
+                remaining_seconds=max(0, self._sleep_remaining),
+                fading=self._fading,
+                active=self._sleep_active,
+                duration_seconds=duration_seconds,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to publish sleep_timer_updated")
 
     async def _sleep_countdown(self) -> None:
         try:
@@ -153,11 +176,13 @@ class TimerService(BaseService):
                 # Already silent — just stop
                 await self._player.stop_playback()
                 self._sleep_active = False
+                await self._publish_sleep_state()
                 await self._event_bus.publish("sleep_timer_expired")
                 return
 
             self._pre_fade_volume = start_volume
             self._fading = True
+            await self._publish_sleep_state()
 
             # Calculate step interval: aim for ~1-2 second steps
             step_count = min(start_volume, max(1, int(fade_duration)))
@@ -183,12 +208,14 @@ class TimerService(BaseService):
             await self._player.stop_playback()
             self._sleep_active = False
             self._fading = False
+            self._sleep_remaining = 0
 
             # Restore original volume so next playback isn't silent
             await self._player.set_volume(self._pre_fade_volume)
             self._pre_fade_volume = None
             logger.info("Fade-out complete, volume restored to %d", start_volume)
 
+            await self._publish_sleep_state()
             await self._event_bus.publish("sleep_timer_expired")
         except asyncio.CancelledError:
             # Restore volume on cancellation

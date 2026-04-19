@@ -548,6 +548,18 @@
 			<span>{formatTime(state.duration)}</span>
 		</div>
 		{/if}
+		<!-- Inline sleep countdown near progress bar: fixed height prevents layout shift -->
+		<div class="h-4 flex items-center justify-center text-xs mt-1" aria-hidden="true">
+			{#if sleepVisible && !sleepFading}
+				<span class={sleepFinalMinute ? 'text-amber-300 font-medium' : 'text-text-muted'}>
+					{#if sleepRemaining < 60}
+						{t('player.sleep_countdown_seconds', { time: formatTime(Math.max(0, sleepRemaining)) })}
+					{:else}
+						{t('player.sleep_countdown_minutes', { minutes: Math.floor(sleepRemaining / 60) })}
+					{/if}
+				</span>
+			{/if}
+		</div>
 	</div>
 
 	<!-- Controls -->

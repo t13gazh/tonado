@@ -420,6 +420,8 @@ export default {
 	'player.sleep_extend_10_aria': 'Ten more minutes of music',
 	'player.sleep_extend_failed': 'Could not extend timer',
 	'player.sleep_extended_toast': '+{minutes} min of music',
+	'player.sleep_countdown_minutes': 'Sleep in {minutes} min',
+	'player.sleep_countdown_seconds': 'Sleep in {time}',
 	'wizard.name_placeholder': 'My Favorite Album',
 
 	// Content picker (additional)

@@ -420,6 +420,8 @@ export default {
 	'player.sleep_extend_10_aria': 'Zehn Minuten länger Musik',
 	'player.sleep_extend_failed': 'Verlängern fehlgeschlagen',
 	'player.sleep_extended_toast': '+{minutes} Min. Musik',
+	'player.sleep_countdown_minutes': 'Schlaf in {minutes} Min',
+	'player.sleep_countdown_seconds': 'Schlaf in {time}',
 	'wizard.name_placeholder': 'Die drei ???, Folge 1',
 
 	// Content picker (additional)

@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { playlistsApi, type MediaFolder, type PlaylistSummary, type PlaylistDetail } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
+	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
@@ -21,6 +22,60 @@
 	}
 
 	let { allPlaylists, folders, onError, onReloadPlaylists, playCircle, thumbnail, chevron }: Props = $props();
+
+	// Sort mode (persisted in localStorage). Default: alphabetical.
+	type SortMode = 'alpha' | 'recent' | 'duration';
+	const SORT_STORAGE_KEY = 'tonado.library.playlist_sort';
+	const VALID_SORT_MODES: readonly SortMode[] = ['alpha', 'recent', 'duration'] as const;
+
+	function loadSortMode(): SortMode {
+		if (typeof localStorage === 'undefined') return 'alpha';
+		const stored = localStorage.getItem(SORT_STORAGE_KEY);
+		return VALID_SORT_MODES.includes(stored as SortMode) ? (stored as SortMode) : 'alpha';
+	}
+
+	let sortMode = $state<SortMode>(loadSortMode());
+	let radioRefs = $state<Record<SortMode, HTMLButtonElement | null>>({
+		alpha: null,
+		recent: null,
+		duration: null,
+	});
+
+	function setSortMode(mode: SortMode): void {
+		sortMode = mode;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(SORT_STORAGE_KEY, mode);
+		}
+	}
+
+	function onRadioKeydown(event: KeyboardEvent, current: SortMode): void {
+		handleRadioKeydown<SortMode>(event, {
+			options: VALID_SORT_MODES,
+			current,
+			onChange: setSortMode,
+			onFocus: (next) => radioRefs[next]?.focus(),
+		});
+	}
+
+	// Derived sorted view — does not mutate the prop.
+	// Recent: created_at DESC (newest first); falls back to id DESC when timestamp missing.
+	// Duration: longest first — empty playlists sink to the bottom.
+	const sortedPlaylists = $derived.by(() => {
+		const arr = [...allPlaylists];
+		if (sortMode === 'recent') {
+			arr.sort((a, b) => {
+				const av = a.created_at ?? '';
+				const bv = b.created_at ?? '';
+				if (av === bv) return b.id - a.id;
+				return bv.localeCompare(av);
+			});
+		} else if (sortMode === 'duration') {
+			arr.sort((a, b) => (b.duration_seconds ?? 0) - (a.duration_seconds ?? 0));
+		} else {
+			arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+		}
+		return arr;
+	});
 
 	let showNewPlaylist = $state(false);
 	let newPlaylistName = $state('');
@@ -145,7 +200,24 @@
 	}
 </script>
 
-<div class="flex justify-end mb-3">
+<div class="flex items-center justify-between gap-2 mb-3">
+	<div role="radiogroup" aria-label={t('library.sort_label')} class="grid grid-cols-3 flex-1 rounded-lg bg-surface-light p-0.5">
+		{#each [{ id: 'alpha', label: t('library.sort_alpha') }, { id: 'recent', label: t('library.sort_recent') }, { id: 'duration', label: t('library.sort_duration') }] as opt (opt.id)}
+			{@const active = sortMode === opt.id}
+			<button
+				bind:this={radioRefs[opt.id as SortMode]}
+				type="button"
+				role="radio"
+				aria-checked={active}
+				tabindex={active ? 0 : -1}
+				onclick={() => setSortMode(opt.id as SortMode)}
+				onkeydown={(e) => onRadioKeydown(e, opt.id as SortMode)}
+				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors text-center {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
+			>
+				{opt.label}
+			</button>
+		{/each}
+	</div>
 	{#if showNewPlaylist}
 		<button onclick={() => (showNewPlaylist = false)} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
@@ -162,7 +234,7 @@
 	<div class="text-center py-12 text-text-muted text-sm">{t('content.playlist_empty')}</div>
 {:else}
 	<div class="flex flex-col gap-2">
-		{#each allPlaylists as pl (pl.id)}
+		{#each sortedPlaylists as pl (pl.id)}
 			{@const expanded = expandedPlaylist?.id === pl.id}
 			{@const isRenaming = renamingId === pl.id}
 			<div class="bg-surface-light rounded-xl overflow-hidden">

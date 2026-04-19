@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { streams, player, type RadioStation } from '$lib/api';
+	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
@@ -17,6 +18,51 @@
 	}
 
 	let { stations, onError, onReloadRadio, playCircle, thumbnail, chevron }: Props = $props();
+
+	// Sort mode (persisted). Radio has no created_at column; use id DESC as
+	// a proxy for "newest first" (AUTOINCREMENT is monotonic). Only two options
+	// — no duration or episode count makes sense for live streams.
+	type SortMode = 'alpha' | 'recent';
+	const SORT_STORAGE_KEY = 'tonado.library.radio_sort';
+	const VALID_SORT_MODES: readonly SortMode[] = ['alpha', 'recent'] as const;
+
+	function loadSortMode(): SortMode {
+		if (typeof localStorage === 'undefined') return 'alpha';
+		const stored = localStorage.getItem(SORT_STORAGE_KEY);
+		return VALID_SORT_MODES.includes(stored as SortMode) ? (stored as SortMode) : 'alpha';
+	}
+
+	let sortMode = $state<SortMode>(loadSortMode());
+	let radioRefs = $state<Record<SortMode, HTMLButtonElement | null>>({
+		alpha: null,
+		recent: null,
+	});
+
+	function setSortMode(mode: SortMode): void {
+		sortMode = mode;
+		if (typeof localStorage !== 'undefined') {
+			localStorage.setItem(SORT_STORAGE_KEY, mode);
+		}
+	}
+
+	function onRadioKeydown(event: KeyboardEvent, current: SortMode): void {
+		handleRadioKeydown<SortMode>(event, {
+			options: VALID_SORT_MODES,
+			current,
+			onChange: setSortMode,
+			onFocus: (next) => radioRefs[next]?.focus(),
+		});
+	}
+
+	const sortedStations = $derived.by(() => {
+		const arr = [...stations];
+		if (sortMode === 'recent') {
+			arr.sort((a, b) => b.id - a.id);
+		} else {
+			arr.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+		}
+		return arr;
+	});
 
 	const playerState = $derived(getPlayerState());
 	const nowPlayingUri = $derived(playerState.current_uri);
@@ -95,7 +141,24 @@
 	}
 </script>
 
-<div class="flex justify-end mb-3">
+<div class="flex items-center justify-between gap-2 mb-3">
+	<div role="radiogroup" aria-label={t('library.sort_label')} class="grid grid-cols-2 flex-1 rounded-lg bg-surface-light p-0.5">
+		{#each [{ id: 'alpha', label: t('library.sort_alpha') }, { id: 'recent', label: t('library.sort_recent') }] as opt (opt.id)}
+			{@const active = sortMode === opt.id}
+			<button
+				bind:this={radioRefs[opt.id as SortMode]}
+				type="button"
+				role="radio"
+				aria-checked={active}
+				tabindex={active ? 0 : -1}
+				onclick={() => setSortMode(opt.id as SortMode)}
+				onkeydown={(e) => onRadioKeydown(e, opt.id as SortMode)}
+				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors text-center {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
+			>
+				{opt.label}
+			</button>
+		{/each}
+	</div>
 	{#if showAddStation}
 		<button onclick={() => { showAddStation = false; urlError = ''; }} class="text-sm text-text-muted">{t('content.close_form')}</button>
 	{:else}
@@ -114,7 +177,7 @@
 	<div class="text-center py-12 text-text-muted text-sm">{t('library.no_stations')}</div>
 {:else}
 	<div class="flex flex-col gap-2">
-		{#each stations as station (station.id)}
+		{#each sortedStations as station (station.id)}
 			{@const expanded = expandedRadio === station.id}
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">

@@ -325,6 +325,7 @@ export default {
 	'library.sort_alpha': 'A–Z',
 	'library.sort_recent': 'Newest first',
 	'library.sort_duration': 'Duration',
+	'library.sort_episodes': 'Episodes',
 	'library.no_stations': 'No radio stations yet.',
 	'library.station_kinder': 'Kids stations',
 	'library.station_general': 'Radio',

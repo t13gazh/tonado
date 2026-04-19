@@ -45,6 +45,7 @@ class Playlist:
     id: int
     name: str
     items: list[PlaylistItem] = field(default_factory=list)
+    created_at: str | None = None
 
     @property
     def total_duration(self) -> float:
@@ -56,6 +57,7 @@ class Playlist:
             "name": self.name,
             "item_count": len(self.items),
             "duration_seconds": round(self.total_duration),
+            "created_at": self.created_at,
             "items": [i.to_dict() for i in self.items],
         }
 
@@ -65,6 +67,7 @@ class Playlist:
             "name": self.name,
             "item_count": len(self.items),
             "duration_seconds": round(self.total_duration),
+            "created_at": self.created_at,
         }
 
 
@@ -82,23 +85,23 @@ class PlaylistService(BaseService):
 
     async def list_playlists(self) -> list[Playlist]:
         cursor = await self._db.execute(
-            "SELECT id, name FROM playlists ORDER BY name"
+            "SELECT id, name, created_at FROM playlists ORDER BY name"
         )
         playlists = []
         for row in await cursor.fetchall():
-            p = Playlist(id=row[0], name=row[1])
+            p = Playlist(id=row[0], name=row[1], created_at=row[2])
             p.items = await self._get_items(p.id)
             playlists.append(p)
         return playlists
 
     async def get_playlist(self, playlist_id: int) -> Playlist | None:
         cursor = await self._db.execute(
-            "SELECT id, name FROM playlists WHERE id = ?", (playlist_id,)
+            "SELECT id, name, created_at FROM playlists WHERE id = ?", (playlist_id,)
         )
         row = await cursor.fetchone()
         if not row:
             return None
-        p = Playlist(id=row[0], name=row[1])
+        p = Playlist(id=row[0], name=row[1], created_at=row[2])
         p.items = await self._get_items(p.id)
         return p
 

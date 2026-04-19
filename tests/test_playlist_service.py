@@ -99,6 +99,22 @@ async def test_list_summaries_include_item_count(service: PlaylistService) -> No
 
 
 @pytest.mark.asyncio
+async def test_summary_exposes_created_at(service: PlaylistService) -> None:
+    """Summary must include created_at so frontend can sort by recency."""
+    p = await service.create_playlist("Recent")
+    summary = p.to_summary()
+    # create_playlist() does not fetch the row back, so created_at is None
+    # until the playlist is listed again. Verify list_playlists() populates it.
+    listed = await service.list_playlists()
+    mine = next(pl for pl in listed if pl.id == p.id)
+    assert "created_at" in mine.to_summary()
+    assert mine.created_at is not None
+    # Default SQLite TIMESTAMP is 'YYYY-MM-DD HH:MM:SS'
+    assert len(mine.created_at) >= 10
+    assert summary["id"] == p.id
+
+
+@pytest.mark.asyncio
 async def test_create_rejects_duplicate_case_insensitive(service: PlaylistService) -> None:
     """F1: creating a second playlist with a case-variant name must raise."""
     await service.create_playlist("Favoriten")

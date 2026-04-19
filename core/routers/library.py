@@ -3,12 +3,13 @@
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi.responses import FileResponse, Response
 
 from core.dependencies import get_auth_service, get_library_service, require_tier
 from core.services.auth_service import AuthService, AuthTier
 from core.services.library_service import LibraryService
+from core.utils.audio import AUDIO_EXTENSIONS, detect_image_mime, extract_cover
 from core.utils.upload import stream_to_disk
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,79 @@ async def get_cover(folder_name: str, svc: LibraryService = Depends(get_library_
     if cover_path is None:
         raise HTTPException(404, "No cover available")
     return FileResponse(cover_path)
+
+
+# Cover cache max-age (1 hour). Clients get fresh art when mtime changes because
+# we key the in-memory cache by (path, mtime, size).
+_COVER_CACHE_CONTROL = "public, max-age=3600, immutable"
+
+
+def _resolve_library_path(relative: str, svc: LibraryService) -> Path:
+    """Validate a relative library path and return the absolute Path.
+
+    Raises HTTPException 400 for traversal attempts or paths outside media_dir.
+    """
+    if not relative or ".." in Path(relative).parts:
+        raise HTTPException(400, "Invalid path")
+    # Reject absolute paths and null bytes.
+    if "\x00" in relative or Path(relative).is_absolute():
+        raise HTTPException(400, "Invalid path")
+    resolved = (svc._media_dir / relative).resolve()
+    media_resolved = svc._media_dir.resolve()
+    try:
+        resolved.relative_to(media_resolved)
+    except ValueError:
+        raise HTTPException(400, "Invalid path")
+    return resolved
+
+
+@router.get("/cover")
+async def cover_by_path(
+    path: str = Query(..., description="Folder or track path relative to library root"),
+    kind: str = Query("folder", description="folder | track"),
+    svc: LibraryService = Depends(get_library_service),
+) -> Response:
+    """Return cover art for a folder or track.
+
+    For folders: on-disk cover file (cover.jpg/folder.jpg/etc.) takes priority,
+    otherwise falls back to the first track's embedded art.
+    For tracks: extracts embedded cover art from tags.
+    """
+    if kind not in ("folder", "track"):
+        raise HTTPException(400, "kind must be 'folder' or 'track'")
+
+    abs_path = _resolve_library_path(path, svc)
+
+    if kind == "folder":
+        if not abs_path.is_dir():
+            raise HTTPException(404, "Folder not found")
+        # Priority: on-disk cover file
+        on_disk = svc._find_cover(abs_path)
+        if on_disk is not None:
+            return FileResponse(on_disk, headers={"Cache-Control": _COVER_CACHE_CONTROL})
+        # Fallback: embedded art from the first audio track
+        for entry in sorted(abs_path.iterdir()):
+            if entry.suffix.lower() in AUDIO_EXTENSIONS:
+                data = extract_cover(entry)
+                if data:
+                    return Response(
+                        content=data,
+                        media_type=detect_image_mime(data),
+                        headers={"Cache-Control": _COVER_CACHE_CONTROL},
+                    )
+        raise HTTPException(404, "No cover available")
+
+    # kind == "track"
+    if not abs_path.is_file():
+        raise HTTPException(404, "Track not found")
+    data = extract_cover(abs_path)
+    if not data:
+        raise HTTPException(404, "No cover available")
+    return Response(
+        content=data,
+        media_type=detect_image_mime(data),
+        headers={"Cache-Control": _COVER_CACHE_CONTROL},
+    )
 
 
 @router.post("/folders")

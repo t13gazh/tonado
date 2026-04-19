@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { player, authApi } from '$lib/api';
+	import { player, authApi, library } from '$lib/api';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import CoverArt from '$lib/components/CoverArt.svelte';
 	import { formatTime, parseTrackName } from '$lib/utils';
 	import { getBrowserAudioActive, getBrowserAudioLoading, startBrowserAudio, stopBrowserAudio, reloadBrowserAudio } from '$lib/stores/browser-audio.svelte';
 	import { isMpdConnected } from '$lib/stores/health.svelte';
@@ -20,6 +21,17 @@
 	const hasQueue = $derived(state.playlist_length > 1);
 	const isLiveStream = $derived(state.is_stream && state.playlist_length <= 1);
 	const trackInfo = $derived(parseTrackName(state.current_track));
+
+	// Cover source: only for local tracks (not streams/podcasts with absolute URLs).
+	// current_uri is the MPD URI — a relative path for local files, an http(s) URL otherwise.
+	const coverSrc = $derived.by(() => {
+		if (!hasTrack) return undefined;
+		const uri = state.current_uri;
+		if (!uri || state.is_stream) return undefined;
+		if (uri.startsWith('http://') || uri.startsWith('https://')) return undefined;
+		return library.coverUrl(uri, 'track');
+	});
+	const coverTitle = $derived(trackInfo.title || state.current_album || 'Tonado');
 
 	let volumeChanging = $state(false);
 	let localVolume = $state(50);
@@ -419,15 +431,17 @@
 	{/if}
 
 	<!-- Cover Art -->
-	<div class="w-64 h-64 sm:w-72 sm:h-72 rounded-2xl bg-surface-light flex items-center justify-center shadow-xl overflow-hidden">
+	<div class="w-64 h-64 sm:w-72 sm:h-72">
 		{#if hasTrack}
-			<svg class="w-24 h-24 text-primary opacity-40" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-			</svg>
+			{#key state.current_uri}
+				<CoverArt src={coverSrc} title={coverTitle} size="lg" />
+			{/key}
 		{:else}
-			<svg class="w-20 h-20 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor">
-				<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-			</svg>
+			<div class="w-full h-full rounded-2xl bg-surface-light flex items-center justify-center shadow-xl">
+				<svg class="w-20 h-20 text-text-muted opacity-30" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55C7.79 13 6 14.79 6 17s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+				</svg>
+			</div>
 		{/if}
 	</div>
 

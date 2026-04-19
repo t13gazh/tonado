@@ -296,6 +296,7 @@ export interface PlaylistSummary {
 	name: string;
 	item_count: number;
 	duration_seconds: number;
+	created_at: string | null;
 }
 
 export interface PlaylistDetail extends PlaylistSummary {

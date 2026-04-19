@@ -105,7 +105,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 Die Doku ist nach Zielgruppe sortiert:
 
-- **Für Eltern** — [Vision](docs/VISION.md) · [Was Tonado kann](docs/fuer-eltern/features.md) · [Updates](docs/fuer-eltern/UPDATE.md) · [Backup](docs/fuer-eltern/BACKUP.md)
+- **Für Eltern** — [Erste Schritte](docs/fuer-eltern/ERSTE-SCHRITTE.md) · [Vision](docs/VISION.md) · [Was Tonado kann](docs/fuer-eltern/features.md) · [Häufige Fragen](docs/fuer-eltern/FAQ.md) · [Updates](docs/fuer-eltern/UPDATE.md) · [Backup](docs/fuer-eltern/BACKUP.md)
 - **Für Bastler** — [Installation](docs/fuer-bastler/installation.md) · [Hardware](docs/fuer-bastler/hardware.md)
 - **Für Entwickler** — [Mitmachen](CONTRIBUTING.md) · [Architektur](docs/fuer-entwickler/ARCHITEKTUR.md) · [Entwicklung](docs/fuer-entwickler/entwicklung.md) · [Roadmap](docs/fuer-entwickler/ROADMAP.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 

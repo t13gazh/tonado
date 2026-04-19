@@ -906,6 +906,93 @@ async def test_rename_folder_updates_playlist_items(client, tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_rename_folder_updates_mixed_case_references(client, tmp_path: Path):
+    """DB entries with inconsistent casing are still picked up via COLLATE NOCASE."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=2)
+
+    # Seed cards with mixed casing — simulates inconsistent historical data.
+    # The folder on disk is "Hoerspiele"; these DB entries use lowercase.
+    resp = await c.post(
+        "/api/cards/",
+        json={
+            "card_id": "card-lower",
+            "name": "Lower",
+            "content_type": "folder",
+            "content_path": "hoerspiele",
+        },
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+    resp = await c.post(
+        "/api/cards/",
+        json={
+            "card_id": "card-lower-track",
+            "name": "LowerTrack",
+            "content_type": "folder",
+            "content_path": "hoerspiele/track01.mp3",
+        },
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    # Rename (case-preserving new name)
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await c.get("/api/cards/")
+    assert resp.status_code == 200
+    cards_by_id = {c_["card_id"]: c_ for c_ in resp.json()}
+    # Both mixed-case entries must be rewritten to the new (canonical) name.
+    assert cards_by_id["card-lower"]["content_path"] == "Maerchen"
+    assert cards_by_id["card-lower-track"]["content_path"] == "Maerchen/track01.mp3"
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_updates_backslash_references(client, tmp_path: Path):
+    """DB entries carrying Windows-style backslashes (e.g. from legacy backup
+    imports) are migrated by the rename and normalised to forward slashes."""
+    import aiosqlite
+
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=2)
+
+    # Inject a card directly so we can force a backslash path (the API
+    # normalises, but a restored backup from a legacy system could carry
+    # such values).
+    db: aiosqlite.Connection = c._transport.app.state.db_manager.connection
+    await db.execute(
+        "INSERT INTO cards (card_id, name, content_type, content_path) "
+        "VALUES (?, ?, ?, ?)",
+        ("card-bs", "Backslash", "folder", "Hoerspiele\\track01.mp3"),
+    )
+    await db.commit()
+
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    resp = await c.get("/api/cards/")
+    assert resp.status_code == 200
+    cards_by_id = {c_["card_id"]: c_ for c_ in resp.json()}
+    # Migrated AND normalised to POSIX separator.
+    assert cards_by_id["card-bs"]["content_path"] == "Maerchen/track01.mp3"
+
+
+@pytest.mark.asyncio
 async def test_rename_folder_rollback_on_sql_failure(client, tmp_path: Path, monkeypatch):
     """When the DB update raises, the filesystem rename must be rolled back."""
     from core.routers import library as lib_router

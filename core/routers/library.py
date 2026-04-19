@@ -260,43 +260,49 @@ async def _update_path_references(
     ``old_name`` (folder-as-content) or starts with ``old_name + '/'`` (tracks
     within the folder). Returns (cards_updated, playlist_items_updated).
 
+    Robustness:
+      * Case-insensitive comparison via ``COLLATE NOCASE`` so an inconsistent
+        mixed-case DB entry (e.g. ``foo/track.mp3`` when the folder is ``Foo``)
+        still matches — important when the rename itself is case-only on a
+        case-insensitive filesystem (Windows/APFS).
+      * Backslash-tolerant: rows that somehow carry Windows-style separators
+        (e.g. restored from a legacy backup) are normalised to ``/`` via
+        ``REPLACE`` before the prefix check, so they get picked up and the
+        rewritten value uses the canonical POSIX form.
+
     Caller must manage transaction boundaries.
     """
     old_prefix = f"{old_name}/"
     new_prefix = f"{new_name}/"
+    prefix_len = len(old_prefix)
+    # SUBSTR is 1-indexed; we need the suffix starting after the old prefix.
+    suffix_start = prefix_len + 1
 
-    cards_cur = await db.execute(
-        "UPDATE cards "
+    # The ``REPLACE(content_path, '\', '/')`` normalisation lets the comparison
+    # match both POSIX- and Windows-separator variants; the CASE branch that
+    # rebuilds the string uses the same normalised form so the stored value
+    # ends up canonical (forward-slash only).
+    sql_template = (
+        "UPDATE {table} "
         "SET content_path = CASE "
-        "  WHEN content_path = ? THEN ? "
-        "  WHEN SUBSTR(content_path, 1, ?) = ? "
-        "    THEN ? || SUBSTR(content_path, ?) "
+        "  WHEN REPLACE(content_path, '\\', '/') = ? COLLATE NOCASE THEN ? "
+        "  WHEN SUBSTR(REPLACE(content_path, '\\', '/'), 1, ?) = ? COLLATE NOCASE "
+        "    THEN ? || SUBSTR(REPLACE(content_path, '\\', '/'), ?) "
         "  ELSE content_path END "
-        "WHERE content_path = ? OR SUBSTR(content_path, 1, ?) = ?",
-        (
-            old_name, new_name,
-            len(old_prefix), old_prefix,
-            new_prefix, len(old_prefix) + 1,
-            old_name, len(old_prefix), old_prefix,
-        ),
+        "WHERE REPLACE(content_path, '\\', '/') = ? COLLATE NOCASE "
+        "   OR SUBSTR(REPLACE(content_path, '\\', '/'), 1, ?) = ? COLLATE NOCASE"
     )
+    params = (
+        old_name, new_name,
+        prefix_len, old_prefix,
+        new_prefix, suffix_start,
+        old_name, prefix_len, old_prefix,
+    )
+
+    cards_cur = await db.execute(sql_template.format(table="cards"), params)
     cards_updated = cards_cur.rowcount or 0
 
-    items_cur = await db.execute(
-        "UPDATE playlist_items "
-        "SET content_path = CASE "
-        "  WHEN content_path = ? THEN ? "
-        "  WHEN SUBSTR(content_path, 1, ?) = ? "
-        "    THEN ? || SUBSTR(content_path, ?) "
-        "  ELSE content_path END "
-        "WHERE content_path = ? OR SUBSTR(content_path, 1, ?) = ?",
-        (
-            old_name, new_name,
-            len(old_prefix), old_prefix,
-            new_prefix, len(old_prefix) + 1,
-            old_name, len(old_prefix), old_prefix,
-        ),
-    )
+    items_cur = await db.execute(sql_template.format(table="playlist_items"), params)
     items_updated = items_cur.rowcount or 0
 
     return cards_updated, items_updated
@@ -363,7 +369,10 @@ async def rename_folder(
         try:
             await db.rollback()
         except Exception:
-            pass
+            logger.exception(
+                "DB rollback failed after reference-update error; "
+                "connection state may be inconsistent",
+            )
         # Best-effort FS rollback — reverse the directory move.
         try:
             os.rename(svc.media_dir / clean_new, svc.media_dir / folder_name)

@@ -296,7 +296,7 @@ export const streams = {
 			body: JSON.stringify({ name, feed_url }),
 		}),
 	deletePodcast: (id: number) => request<void>(`/streams/podcasts/${id}`, { method: 'DELETE' }),
-	episodes: (id: number) => request<{ title: string; audio_url: string; published: string | null; duration: string | null }[]>(
+	episodes: (id: number) => request<{ title: string; audio_url: string; published: string | null; duration: string | null; image_url?: string | null }[]>(
 		`/streams/podcasts/${id}/episodes`
 	),
 	refreshPodcast: (id: number) => request<{ new_episodes: number }>(

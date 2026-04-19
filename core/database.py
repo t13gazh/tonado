@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS podcast_episodes (
     duration TEXT,
     downloaded INTEGER DEFAULT 0,
     local_path TEXT,
+    image_url TEXT,
     UNIQUE(podcast_id, audio_url)
 );
 
@@ -99,8 +100,23 @@ class DatabaseManager:
         await self._db.execute("PRAGMA journal_mode=WAL")
         await self._db.execute("PRAGMA busy_timeout=5000")
         await self._db.executescript(_SCHEMA_SQL)
+        await self._migrate(self._db)
         await self._db.commit()
         logger.info("DatabaseManager started (db=%s)", self._db_path)
+
+    @staticmethod
+    async def _migrate(db: aiosqlite.Connection) -> None:
+        """Idempotent column additions for schemas that evolved after release.
+
+        SQLite lacks ``ADD COLUMN IF NOT EXISTS``; we introspect ``PRAGMA
+        table_info`` and add missing columns. Cheap on every startup, safe
+        across existing installs without dropping data.
+        """
+        cursor = await db.execute("PRAGMA table_info(podcast_episodes)")
+        columns = {row[1] for row in await cursor.fetchall()}
+        if "image_url" not in columns:
+            await db.execute("ALTER TABLE podcast_episodes ADD COLUMN image_url TEXT")
+            logger.info("Migrated podcast_episodes: added image_url column")
 
     async def stop(self) -> None:
         """Close the database connection."""

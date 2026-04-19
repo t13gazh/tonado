@@ -86,6 +86,59 @@ class PodcastEpisode:
     duration: str | None = None
     downloaded: bool = False
     local_path: str | None = None
+    image_url: str | None = None
+
+
+# iTunes podcast XML namespace for <itunes:*> elements.
+_ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+
+
+def _sanitize_image_url(url: str | None) -> str | None:
+    """Return the URL only if it is a plausible http(s) image reference.
+
+    Cheap sanity check — the browser loads this directly, so SSRF is not the
+    concern here. We only want to block obvious abuse vectors like
+    ``javascript:`` or ``data:`` URIs that could be executed in a context
+    where the URL leaks into an HTML attribute outside of a plain ``src``.
+    """
+    if not url:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+    lower = url.lower()
+    if not (lower.startswith("http://") or lower.startswith("https://")):
+        return None
+    return url
+
+
+def _extract_episode_image(item) -> str | None:  # type: ignore[no-untyped-def]
+    """Extract ``<itunes:image href="...">`` from an RSS ``<item>``.
+
+    defusedxml resolves namespaced tags to ``{ns}tag``. We try the namespaced
+    form first, then fall back to a tag-suffix match — mirrors the duration
+    lookup below and keeps feeds without the iTunes namespace working.
+    """
+    img_el = item.find(f"{{{_ITUNES_NS}}}image")
+    if img_el is None:
+        for child in item:
+            tag = child.tag
+            if tag.endswith("}image") or tag == "image":
+                img_el = child
+                break
+    if img_el is None:
+        return None
+    # iTunes form: <itunes:image href="..."/>. Fallback: <image><url>...</url></image>.
+    href = img_el.get("href")
+    if not href:
+        url_child = img_el.find("url")
+        if url_child is None:
+            for child in img_el:
+                if child.tag.endswith("}url") or child.tag == "url":
+                    url_child = child
+                    break
+        href = url_child.text if url_child is not None else None
+    return _sanitize_image_url(href)
 
 
 class StreamService(BaseService):
@@ -229,7 +282,7 @@ class StreamService(BaseService):
 
     async def list_episodes(self, podcast_id: int) -> list[PodcastEpisode]:
         cursor = await self._db.execute(
-            "SELECT id, podcast_id, title, audio_url, published, duration, downloaded, local_path "
+            "SELECT id, podcast_id, title, audio_url, published, duration, downloaded, local_path, image_url "
             "FROM podcast_episodes WHERE podcast_id = ? ORDER BY published DESC",
             (podcast_id,),
         )
@@ -237,6 +290,7 @@ class StreamService(BaseService):
             PodcastEpisode(
                 id=row[0], podcast_id=row[1], title=row[2], audio_url=row[3],
                 published=row[4], duration=row[5], downloaded=bool(row[6]), local_path=row[7],
+                image_url=row[8],
             )
             for row in await cursor.fetchall()
         ]
@@ -262,9 +316,16 @@ class StreamService(BaseService):
             try:
                 await self._db.execute(
                     "INSERT OR IGNORE INTO podcast_episodes "
-                    "(podcast_id, title, audio_url, published, duration) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (podcast_id, ep["title"], ep["audio_url"], ep.get("published"), ep.get("duration")),
+                    "(podcast_id, title, audio_url, published, duration, image_url) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        podcast_id,
+                        ep["title"],
+                        ep["audio_url"],
+                        ep.get("published"),
+                        ep.get("duration"),
+                        ep.get("image_url"),
+                    ),
                 )
                 new_count += 1
             except Exception:
@@ -322,6 +383,7 @@ class StreamService(BaseService):
                 "audio_url": audio_url,
                 "published": pub_date.text if pub_date is not None else None,
                 "duration": duration,
+                "image_url": _extract_episode_image(item),
             })
 
         return episodes[:50]  # Limit to 50 most recent

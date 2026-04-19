@@ -78,7 +78,7 @@
 	let newPodcastUrl = $state('');
 	let urlError = $state('');
 	let expandedPodcast = $state<number | null>(null);
-	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null; duration: string | null }[]>([]);
+	let podcastEpisodes = $state<{ title: string; audio_url: string; published: string | null; duration: string | null; image_url?: string | null }[]>([]);
 	let loadingEpisodes = $state(false);
 
 	// Login sheet state
@@ -255,14 +255,14 @@
 											{/if}
 										</span>
 										<!--
-										  Episode row cover: feed has no per-episode image field
-										  (Backlog: parse `<itunes:image>` per episode in RSS).
-										  Falls back to the show's `logo_url`, which already covers
-										  the common case — the show-level art *is* the episode
-										  identity for most podcasts.
+										  Episode row cover: prefer the episode-specific
+										  `<itunes:image>` if the feed provided one, otherwise
+										  fall back to the show's `logo_url`. CoverArt handles
+										  its own gradient-initial fallback when both are missing
+										  or error out.
 										-->
 										<div class="w-8 h-8 flex-shrink-0">
-											<CoverArt src={podcast.logo_url ?? undefined} title={ep.title} size="sm" />
+											<CoverArt src={ep.image_url ?? podcast.logo_url ?? undefined} title={ep.title} size="sm" />
 										</div>
 										<span class="flex-1 min-w-0">
 											<span class="text-xs block truncate {isNowPlaying(ep.audio_url) ? 'text-primary font-medium' : 'text-text'}">{ep.title}</span>

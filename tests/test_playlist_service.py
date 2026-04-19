@@ -115,6 +115,21 @@ async def test_summary_exposes_created_at(service: PlaylistService) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_playlist_includes_created_at(service: PlaylistService) -> None:
+    """get_playlist() must populate created_at so single-playlist views can sort/display it.
+
+    Complements test_summary_exposes_created_at which only covers list_playlists().
+    Without this, frontends that fetch a playlist by id would see created_at=None.
+    """
+    p = await service.create_playlist("WithTimestamp")
+    fetched = await service.get_playlist(p.id)
+    assert fetched is not None
+    assert fetched.created_at is not None
+    # Default SQLite TIMESTAMP is 'YYYY-MM-DD HH:MM:SS' — at least 10 chars.
+    assert len(fetched.created_at) >= 10
+
+
+@pytest.mark.asyncio
 async def test_create_rejects_duplicate_case_insensitive(service: PlaylistService) -> None:
     """F1: creating a second playlist with a case-variant name must raise."""
     await service.create_playlist("Favoriten")

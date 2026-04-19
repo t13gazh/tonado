@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import { library, player, ApiError, type MediaFolder, type MediaTrack } from '$lib/api';
 	import { formatDuration, parseTrackName } from '$lib/utils';
+	import { handleRadioKeydown } from '$lib/utils/radiogroup';
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { isStorageCritical } from '$lib/stores/health.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
@@ -58,19 +59,15 @@
 		}
 	}
 
-	// Arrow-key navigation across the radiogroup. WAI-ARIA pattern:
-	// Arrow{Right,Down} -> next, Arrow{Left,Up} -> prev, wraps around,
-	// selection follows focus so pressing an arrow also activates.
-	function handleRadioKeydown(event: KeyboardEvent, currentMode: SortMode): void {
-		const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-		if (!keys.includes(event.key)) return;
-		event.preventDefault();
-		const idx = VALID_SORT_MODES.indexOf(currentMode);
-		const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
-		const nextIdx = (idx + delta + VALID_SORT_MODES.length) % VALID_SORT_MODES.length;
-		const nextMode = VALID_SORT_MODES[nextIdx];
-		setSortMode(nextMode);
-		radioRefs[nextMode]?.focus();
+	// Arrow-key navigation delegated to the shared radiogroup utility so behaviour
+	// stays aligned with the sibling sort controls (RadioTab, PlaylistTab, PodcastTab).
+	function onRadioKeydown(event: KeyboardEvent, current: SortMode): void {
+		handleRadioKeydown<SortMode>(event, {
+			options: VALID_SORT_MODES,
+			current,
+			onChange: setSortMode,
+			onFocus: (next) => radioRefs[next]?.focus(),
+		});
 	}
 
 	// Free-text search — not persisted, resets on navigation. Debounced in SearchBar.
@@ -97,28 +94,65 @@
 		}
 	});
 
+	// Bounded-concurrency helper — keeps the lazy track fetch from spawning one
+	// request per folder in parallel. On a Pi Zero W with 200 folders that would
+	// mean 200 open HTTP connections + 200 MPD lookups on the first keystroke,
+	// which risks OOM and starves the event loop. A worker pool of 4 keeps the
+	// total memory footprint bounded while staying fast enough for perceived
+	// responsiveness (~50 folders/sec on a Pi 3B+).
+	async function withConcurrency<T, R>(
+		items: T[],
+		limit: number,
+		fn: (item: T) => Promise<R>,
+	): Promise<(R | undefined)[]> {
+		const results: (R | undefined)[] = new Array(items.length);
+		let i = 0;
+		const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+			while (true) {
+				const idx = i++;
+				if (idx >= items.length) break;
+				try {
+					results[idx] = await fn(items[idx]);
+				} catch {
+					results[idx] = undefined;
+				}
+			}
+		});
+		await Promise.all(workers);
+		return results;
+	}
+
 	async function loadAllTracks() {
 		const targets = folders.map((f) => f.path);
-		const results = await Promise.allSettled(targets.map((p) => library.tracks(p)));
+		const results = await withConcurrency(targets, 4, (p) => library.tracks(p));
 		const next: Record<string, MediaTrack[]> = {};
-		results.forEach((r, i) => {
-			if (r.status === 'fulfilled') next[targets[i]] = r.value;
+		results.forEach((value, i) => {
+			if (value !== undefined) next[targets[i]] = value;
 		});
 		trackCache = next;
 	}
 
-	function folderMatches(folder: MediaFolder, q: string): boolean {
-		if (!q) return true;
-		if (normalize(folder.name).includes(q)) return true;
+	// Classifies why a folder matches the query. `null` = no match. `'name'` =
+	// the folder name itself matches (no hint needed — user sees it already).
+	// `track` = name didn't match, but a track inside did — we surface the first
+	// matching track as a hint so it's obvious why the folder was kept.
+	function matchReason(
+		folder: MediaFolder,
+		q: string,
+	): { kind: 'name' } | { kind: 'track'; title: string } | null {
+		if (!q) return { kind: 'name' };
+		if (normalize(folder.name).includes(q)) return { kind: 'name' };
 		const tracks = trackCache[folder.path];
-		if (!tracks) return false;
-		return tracks.some((tr) => normalize(parseTrackName(tr.filename).title).includes(q));
+		if (!tracks) return null;
+		const hit = tracks.find((tr) => normalize(parseTrackName(tr.filename).title).includes(q));
+		if (!hit) return null;
+		return { kind: 'track', title: parseTrackName(hit.filename).title };
 	}
 
 	// Derived view: filter first (if searching), then sort. Does not mutate the prop.
 	const sortedFolders = $derived.by(() => {
 		const filtered = isSearching
-			? folders.filter((f) => folderMatches(f, normalizedQuery))
+			? folders.filter((f) => matchReason(f, normalizedQuery) !== null)
 			: folders;
 		const arr = [...filtered];
 		if (sortMode === 'recent') {
@@ -271,7 +305,7 @@
 				aria-checked={active}
 				tabindex={active ? 0 : -1}
 				onclick={() => setSortMode(opt.id as SortMode)}
-				onkeydown={(e) => handleRadioKeydown(e, opt.id as SortMode)}
+				onkeydown={(e) => onRadioKeydown(e, opt.id as SortMode)}
 				class="min-h-11 px-3 rounded-md text-xs font-medium transition-colors text-center {active ? 'bg-primary text-white' : 'text-text-muted hover:text-text'}"
 			>
 				{opt.label}
@@ -300,6 +334,7 @@
 	<div class="flex flex-col gap-2">
 		{#each sortedFolders as folder (folder.path)}
 			{@const expanded = expandedFolder === folder.path}
+			{@const reason = isSearching ? matchReason(folder, normalizedQuery) : null}
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(() => playContent(folder.path), folder.track_count === 0, isNowPlaying('folder', folder.path))}
@@ -307,6 +342,10 @@
 					<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{folder.name}</p>
 						<p class="text-xs text-text-muted">{t('content.tracks', { count: folder.track_count })}{folder.duration_seconds ? ` · ${formatDuration(folder.duration_seconds)}` : ''}</p>
+						{#if reason && reason.kind === 'track'}
+							<!-- Track-match surfaces why this folder is in the search result set. -->
+							<p class="text-xs text-primary/80 truncate mt-0.5">{t('library.search_match_track', { track: reason.title })}</p>
+						{/if}
 					</button>
 					{@render chevron(expanded, () => toggleFolder(folder.path))}
 				</div>

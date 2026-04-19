@@ -350,6 +350,7 @@ export default {
 	'library.search_placeholder': 'Search library',
 	'library.search_clear': 'Clear search',
 	'library.search_no_results': 'Nothing found for «{query}»',
+	'library.search_match_track': 'Match: {track}',
 	// Auth (login sheet)
 	// Gyro calibration
 	'gyro.calibrate': 'Calibrate gestures',

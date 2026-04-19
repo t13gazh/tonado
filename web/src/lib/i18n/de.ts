@@ -356,6 +356,7 @@ export default {
 	'library.search_clear': 'Suche löschen',
 	'library.search_no_results': 'Nichts gefunden für «{query}»',
 	'library.search_match_track': 'Treffer: {track}',
+	'library.search_hits_aria': '{count} Treffer für «{query}»',
 	// Gyro calibration
 	'gyro.calibrate': 'Gesten kalibrieren',
 	'gyro.calibrate_desc': 'Damit die Box Kippen und Schütteln richtig erkennt, muss der Sensor einmalig kalibriert werden.',

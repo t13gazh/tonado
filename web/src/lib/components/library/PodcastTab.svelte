@@ -7,6 +7,7 @@
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { librarySearch, normalizeForSearch } from '$lib/stores/librarySearch.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
 
@@ -57,8 +58,19 @@
 		});
 	}
 
+	// Shared library search — sticky bar on the page feeds this via librarySearch.
+	const searchQuery = $derived(librarySearch.query);
+	const normalizedQuery = $derived(normalizeForSearch(searchQuery.trim()));
+	const isSearching = $derived(normalizedQuery.length > 0);
+
+	// Filter by podcast name only — episode titles are loaded lazily on expand,
+	// so including them would force an N×feed pre-fetch for every keystroke on
+	// a Pi Zero W (same cost constraint as FolderTab documents).
 	const sortedPodcasts = $derived.by(() => {
-		const arr = [...podcasts];
+		const filtered = isSearching
+			? podcasts.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery))
+			: podcasts;
+		const arr = [...filtered];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => b.id - a.id);
 		} else if (sortMode === 'episodes') {
@@ -212,6 +224,11 @@
 {/if}
 {#if podcasts.length === 0}
 	<div class="text-center py-12 text-text-muted text-sm">{t('library.no_podcasts')}</div>
+{:else if sortedPodcasts.length === 0}
+	<!-- Search filtered out every podcast; distinct from the "no podcasts at all" state. -->
+	<div class="text-center py-12 text-text-muted">
+		<p class="text-sm">{t('library.search_no_results', { query: searchQuery })}</p>
+	</div>
 {:else}
 	<div class="flex flex-col gap-2">
 		{#each sortedPodcasts as podcast (podcast.id)}

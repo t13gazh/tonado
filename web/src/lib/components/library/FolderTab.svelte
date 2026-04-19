@@ -10,21 +10,16 @@
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import Icon from '$lib/components/Icon.svelte';
-	import SearchBar from '$lib/components/library/SearchBar.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { librarySearch, normalizeForSearch } from '$lib/stores/librarySearch.svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import type { Snippet } from 'svelte';
 
-	// Normalize for accent-insensitive, case-insensitive comparison.
-	// ß → ss is handled separately since it's not a combining diacritic.
-	function normalize(s: string): string {
-		return s
-			.toLowerCase()
-			.normalize('NFD')
-			.replace(/\p{Diacritic}/gu, '')
-			.replace(/ß/g, 'ss');
-	}
+	// Re-alias the shared normalize helper so the existing matchReason /
+	// trackCache logic below stays untouched. Every library tab now derives
+	// its filter from the same normalization rules (see librarySearch store).
+	const normalize = normalizeForSearch;
 
 	interface Props {
 		folders: MediaFolder[];
@@ -76,8 +71,10 @@
 		});
 	}
 
-	// Free-text search — not persisted, resets on navigation. Debounced in SearchBar.
-	let searchQuery = $state('');
+	// Free-text search — owned by the page-level sticky SearchBar and shared
+	// across every library tab via `librarySearch`. Not persisted — resets on
+	// navigation. Debouncing happens in SearchBar (200 ms).
+	const searchQuery = $derived(librarySearch.query);
 	const normalizedQuery = $derived(normalize(searchQuery.trim()));
 	const isSearching = $derived(normalizedQuery.length > 0);
 
@@ -351,8 +348,10 @@
 	}
 </script>
 
-<!-- Free-text search sits above the sort control. Not persisted across sessions. -->
-<SearchBar value={searchQuery} oninput={(v) => (searchQuery = v)} />
+<!--
+	Search is rendered as a sticky bar on the library page (`+page.svelte`) so
+	it stays visible across all tabs and uses the shared `librarySearch` store.
+-->
 
 <div class="flex items-center justify-between gap-2 mb-3">
 	<!--

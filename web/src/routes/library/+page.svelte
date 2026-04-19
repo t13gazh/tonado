@@ -9,7 +9,9 @@
 	import RadioTab from '$lib/components/library/RadioTab.svelte';
 	import PodcastTab from '$lib/components/library/PodcastTab.svelte';
 	import PlaylistTab from '$lib/components/library/PlaylistTab.svelte';
+	import SearchBar from '$lib/components/library/SearchBar.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { librarySearch, normalizeForSearch } from '$lib/stores/librarySearch.svelte';
 	import { onMount } from 'svelte';
 
 	const playerState = $derived(getPlayerState());
@@ -44,6 +46,36 @@
 	async function loadRadio() { loadingRadio = true; try { stations = await streams.listRadio(); } catch (e) { setError(e); } finally { loadingRadio = false; } }
 	async function loadPodcasts() { loadingPodcasts = true; try { podcasts = await streams.listPodcasts(); } catch (e) { setError(e); } finally { loadingPodcasts = false; } }
 	async function loadPlaylists() { loadingPlaylists = true; try { allPlaylists = await playlistsApi.list(); } catch (e) { setError(e); } finally { loadingPlaylists = false; } }
+
+	// Normalized search query shared with every tab via the librarySearch store.
+	// The tabs own the actual filter logic; the page only needs a cheap name-based
+	// counter per tab for the badge count shown in the tab labels. For FolderTab
+	// this is a lower bound — it additionally matches on track titles once its
+	// lazy cache is populated; the badge stays accurate for the common case where
+	// the folder name matches and avoids pre-fetching tracks on the page level.
+	const normalizedQuery = $derived(normalizeForSearch(librarySearch.query.trim()));
+	const isSearching = $derived(normalizedQuery.length > 0);
+	const folderHits = $derived(
+		isSearching
+			? folders.filter((f) => normalizeForSearch(f.name).includes(normalizedQuery)).length
+			: 0,
+	);
+	const radioHits = $derived(
+		isSearching
+			? stations.filter((s) => normalizeForSearch(s.name).includes(normalizedQuery)).length
+			: 0,
+	);
+	const podcastHits = $derived(
+		isSearching
+			? podcasts.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery)).length
+			: 0,
+	);
+	const playlistHits = $derived(
+		isSearching
+			? allPlaylists.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery)).length
+			: 0,
+	);
+	const totalHits = $derived(folderHits + radioHits + podcastHits + playlistHits);
 </script>
 
 <!--
@@ -93,12 +125,49 @@
 		<div class="mb-4"><HealthBanner type="warning" message={t('health.storage_low', { free_mb: getHealth()?.storage.free_mb ?? 0 })} /></div>
 	{/if}
 
-	<div class="flex gap-2 mb-4 overflow-x-auto">
-		{#each [['folders', t('content.tab_folders')], ['radio', t('content.tab_radio')], ['podcasts', t('content.tab_podcasts')], ['playlists', t('content.tab_playlists')]] as [key, label]}
-			<button onclick={() => (tab = key as Tab)}
-				class="px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors {tab === key ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'}"
-			>{label}</button>
-		{/each}
+	<!--
+		Sticky region: SearchBar + tab navigation stay visible while the list below
+		scrolls. z-10 sits below the global health-banner bar (z-20 in +layout.svelte).
+		`bg-surface/95 backdrop-blur` keeps the rows behind visually muted while
+		still readable during fast scroll. The `-mx-4 px-4` cancels the page padding
+		so the blurred background extends edge-to-edge, preventing a seam at the
+		left/right during scroll.
+	-->
+	<div class="sticky top-0 z-10 -mx-4 px-4 pt-1 bg-surface/95 backdrop-blur">
+		<SearchBar
+			value={librarySearch.query}
+			oninput={(v) => librarySearch.setQuery(v)}
+		/>
+
+		{#if isSearching}
+			<!--
+				Screen-reader-only live region that announces how many matches the
+				current query turned up across all tabs. Visual match counts are
+				baked into each tab label via the (N) badge below.
+			-->
+			<p class="sr-only" aria-live="polite">
+				{t('library.search_hits_aria', { count: totalHits, query: librarySearch.query })}
+			</p>
+		{/if}
+
+		<div class="flex gap-2 mb-4 overflow-x-auto">
+			{#each [
+				{ key: 'folders', label: t('content.tab_folders'), hits: folderHits },
+				{ key: 'radio', label: t('content.tab_radio'), hits: radioHits },
+				{ key: 'podcasts', label: t('content.tab_podcasts'), hits: podcastHits },
+				{ key: 'playlists', label: t('content.tab_playlists'), hits: playlistHits },
+			] as entry (entry.key)}
+				{@const active = tab === entry.key}
+				<button onclick={() => (tab = entry.key as Tab)}
+					class="px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors {active ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'}"
+				>
+					{entry.label}{#if isSearching}
+						<!-- Inline badge keeps the button pill shape; no extra component required. -->
+						<span class="ml-1 tabular-nums {active ? 'text-white/80' : 'text-text-muted'}">({entry.hits})</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	{#if error}

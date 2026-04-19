@@ -356,6 +356,7 @@ export default {
 	'library.search_clear': 'Clear search',
 	'library.search_no_results': 'Nothing found for «{query}»',
 	'library.search_match_track': 'Match: {track}',
+	'library.search_hits_aria': '{count} matches for «{query}»',
 	// Auth (login sheet)
 	// Gyro calibration
 	'gyro.calibrate': 'Calibrate gestures',

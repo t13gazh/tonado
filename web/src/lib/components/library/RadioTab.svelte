@@ -6,6 +6,7 @@
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
+	import { librarySearch, normalizeForSearch } from '$lib/stores/librarySearch.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
 
@@ -56,8 +57,19 @@
 		});
 	}
 
+	// Shared library search — sticky bar on the page feeds this via librarySearch.
+	const searchQuery = $derived(librarySearch.query);
+	const normalizedQuery = $derived(normalizeForSearch(searchQuery.trim()));
+	const isSearching = $derived(normalizedQuery.length > 0);
+
+	// Filter first (by station name — the only meaningful field for a radio row),
+	// then sort. Station URLs deliberately do not participate in search: they
+	// are technical identifiers the user never types / expects to match against.
 	const sortedStations = $derived.by(() => {
-		const arr = [...stations];
+		const filtered = isSearching
+			? stations.filter((s) => normalizeForSearch(s.name).includes(normalizedQuery))
+			: stations;
+		const arr = [...filtered];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => b.id - a.id);
 		} else {
@@ -177,6 +189,12 @@
 {/if}
 {#if stations.length === 0}
 	<div class="text-center py-12 text-text-muted text-sm">{t('library.no_stations')}</div>
+{:else if sortedStations.length === 0}
+	<!-- Empty state when a search query filters everything out; distinct from
+	     the "no stations at all" state above. -->
+	<div class="text-center py-12 text-text-muted">
+		<p class="text-sm">{t('library.search_no_results', { query: searchQuery })}</p>
+	</div>
 {:else}
 	<div class="flex flex-col gap-2">
 		{#each sortedStations as station (station.id)}

@@ -8,6 +8,7 @@
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
 	import CoverArt from '$lib/components/CoverArt.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import { librarySearch, normalizeForSearch } from '$lib/stores/librarySearch.svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import type { Snippet } from 'svelte';
@@ -59,11 +60,21 @@
 		});
 	}
 
-	// Derived sorted view — does not mutate the prop.
+	// Shared library search — sticky bar on the page feeds this via librarySearch.
+	const searchQuery = $derived(librarySearch.query);
+	const normalizedQuery = $derived(normalizeForSearch(searchQuery.trim()));
+	const isSearching = $derived(normalizedQuery.length > 0);
+
+	// Derived filtered + sorted view — does not mutate the prop.
+	// Filter: playlist name only. Playlist items (entries) are fetched lazily on
+	// expand, so they stay outside the cheap client-side filter.
 	// Recent: created_at DESC (newest first); falls back to id DESC when timestamp missing.
 	// Duration: longest first — empty playlists sink to the bottom.
 	const sortedPlaylists = $derived.by(() => {
-		const arr = [...allPlaylists];
+		const filtered = isSearching
+			? allPlaylists.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery))
+			: allPlaylists;
+		const arr = [...filtered];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => {
 				const av = a.created_at ?? '';
@@ -234,6 +245,11 @@
 {/if}
 {#if allPlaylists.length === 0}
 	<div class="text-center py-12 text-text-muted text-sm">{t('content.playlist_empty')}</div>
+{:else if sortedPlaylists.length === 0}
+	<!-- Search filtered out every playlist; distinct from "no playlists at all". -->
+	<div class="text-center py-12 text-text-muted">
+		<p class="text-sm">{t('library.search_no_results', { query: searchQuery })}</p>
+	</div>
 {:else}
 	<div class="flex flex-col gap-2">
 		{#each sortedPlaylists as pl (pl.id)}

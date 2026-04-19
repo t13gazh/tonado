@@ -16,6 +16,7 @@
 	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 
 	/* Spacing for safe areas (mobile) */
+	--spacing-safe-top: env(safe-area-inset-top, 0px);
 	--spacing-safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -69,6 +70,11 @@ body {
 }
 .animate-fade-up {
 	animation: fade-up 0.3s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+	.animate-fade-up {
+		animation: none;
+	}
 }
 
 /* Indeterminate progress bar */

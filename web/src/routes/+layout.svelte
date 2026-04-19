@@ -59,10 +59,10 @@
 	<title>Tonado</title>
 </svelte:head>
 
-<div class="relative flex flex-col h-dvh bg-surface">
+<div class="relative flex flex-col h-dvh bg-surface pt-[var(--spacing-safe-top,0px)]">
 	<!-- Health warnings -->
 	{#if !isSetupRoute}
-		<div class="flex flex-col gap-2 px-3 pt-2 empty:hidden">
+		<div class="sticky top-0 z-20 flex flex-col gap-2 px-3 pt-2 bg-surface/95 backdrop-blur empty:hidden">
 			{#if isBackendOffline()}
 				<HealthBanner type="error" message={t('health.backend_offline')} />
 			{:else}

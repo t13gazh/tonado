@@ -22,9 +22,34 @@
 	};
 </script>
 
-<div class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm {colors[type]}">
+<div class="health-banner flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm {colors[type]}">
 	<svg class="w-5 h-5 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 		<path stroke-linecap="round" stroke-linejoin="round" d={icons[type]} />
 	</svg>
 	<span>{message}</span>
 </div>
+
+<style>
+	.health-banner {
+		opacity: 1;
+		transform: translateY(0);
+		transition: opacity 200ms ease-out, transform 200ms ease-out;
+	}
+	@starting-style {
+		.health-banner {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.health-banner {
+			transition: opacity 150ms ease-out;
+			transform: none;
+		}
+		@starting-style {
+			.health-banner {
+				transform: none;
+			}
+		}
+	}
+</style>

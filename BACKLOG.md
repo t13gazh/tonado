@@ -14,7 +14,7 @@
 - [ ] Pi-Kompatibilitätsmatrix Live-Tests auf Zero W / Pi 4 / Pi 5 (H8).
 - [ ] Install-Script End-to-End auf echter SD-Karte (>= 16 GB, frisches Bookworm-Lite).
 - [ ] Performance-Optimierung Pi Zero W (Health-Endpoint, CPU-Idle-Last).
-- [ ] Hardcoded UI-Strings → i18n.
+- [x] Hardcoded UI-Strings → i18n (bereits umgesetzt — 559 `t()`-Aufrufe, 0 hardcoded Strings in allen 29 Svelte-Komponenten, Audit 2026-04-19).
 
 ## Setup-Wizard (offen)
 

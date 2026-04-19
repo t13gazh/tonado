@@ -69,12 +69,23 @@
 		size === 'sm' ? 'text-xl' : size === 'lg' ? 'text-7xl' : 'text-4xl'
 	);
 
-	function handleError() {
+	function handleError(e: Event) {
+		// Race-safety: a stale response from the previous `src` must not clobber
+		// the current load state. If the image that errored is no longer the one
+		// bound to the element, ignore the event.
+		const el = e.currentTarget as HTMLImageElement | null;
+		if (el && src && !el.src.endsWith(src)) return;
 		failed = true;
 		loaded = false;
 	}
 
-	function handleLoad() {
+	function handleLoad(e: Event) {
+		// Race-safety: when the user skips tracks faster than the network can
+		// deliver, a prior response may arrive after `src` already points at the
+		// next cover. Only flip `loaded` on if the loaded image matches the
+		// current `src` prop — otherwise we would flash the previous track's art.
+		const el = e.currentTarget as HTMLImageElement | null;
+		if (el && src && !el.src.endsWith(src)) return;
 		loaded = true;
 	}
 
@@ -101,6 +112,7 @@
 			src={src}
 			alt={title}
 			loading={eager ? 'eager' : 'lazy'}
+			decoding="async"
 			onerror={handleError}
 			onload={handleLoad}
 			class="absolute inset-0 w-full h-full object-cover transition-opacity duration-200 {loaded ? 'opacity-100' : 'opacity-0'}"

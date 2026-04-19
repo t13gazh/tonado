@@ -8,6 +8,7 @@
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
+	import CoverArt from '$lib/components/CoverArt.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import SearchBar from '$lib/components/library/SearchBar.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -30,11 +31,13 @@
 		onError: (msg: string) => void;
 		onReloadFolders: () => Promise<void>;
 		playCircle: Snippet<[onclick: () => void, disabled?: boolean, nowActive?: boolean]>;
-		thumbnail: Snippet<[src: string | null, fallbackIcon: string]>;
 		chevron: Snippet<[expanded: boolean, onclick: () => void]>;
 	}
 
-	let { folders, onError, onReloadFolders, playCircle, thumbnail, chevron }: Props = $props();
+	// `thumbnail` snippet was retired: folders now render CoverArt directly so the
+	// on-disk / embedded cover served by `GET /api/library/cover` can flow through
+	// the same load/fallback pipeline as radio/podcast/playlist rows.
+	let { folders, onError, onReloadFolders, playCircle, chevron }: Props = $props();
 
 	// Sort mode (persisted in localStorage). Default: alphabetical — matches prior behaviour.
 	type SortMode = 'alpha' | 'recent' | 'duration';
@@ -399,7 +402,15 @@
 			<div class="bg-surface-light rounded-xl overflow-hidden">
 				<div class="flex items-center gap-2.5 p-3">
 					{@render playCircle(() => playContent(folder.path), folder.track_count === 0, isNowPlaying('folder', folder.path))}
-					{@render thumbnail(folder.cover_path, 'folder')}
+					<!--
+					  Folder cover: resolved by `GET /api/library/cover?path=…&kind=folder`,
+					  which prefers an on-disk `cover.*` file and falls back to the first
+					  embedded APIC/Picture tag. CoverArt handles 404/error via the
+					  gradient + initial tile so folders without any art still render.
+					-->
+					<div class="w-10 h-10 flex-shrink-0">
+						<CoverArt src={library.coverUrl(folder.path, 'folder')} title={folder.name} size="sm" />
+					</div>
 					<button onclick={() => toggleFolder(folder.path)} class="flex-1 min-w-0 text-left">
 						<p class="text-sm font-medium text-text truncate">{folder.name}</p>
 						<p class="text-xs text-text-muted">{t('content.tracks', { count: folder.track_count })}{folder.duration_seconds ? ` · ${formatDuration(folder.duration_seconds)}` : ''}</p>

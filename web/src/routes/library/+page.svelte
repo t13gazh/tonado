@@ -114,7 +114,8 @@
 		{#if loadingFolders}
 			<div class="flex justify-center py-12"><Spinner /></div>
 		{:else}
-			<FolderTab {folders} {onError} onReloadFolders={loadFolders} {playCircle} {thumbnail} {chevron} />
+			<!-- `thumbnail` not forwarded: folder rows render CoverArt directly. -->
+			<FolderTab {folders} {onError} onReloadFolders={loadFolders} {playCircle} {chevron} />
 		{/if}
 	{:else if tab === 'radio'}
 		{#if loadingRadio}

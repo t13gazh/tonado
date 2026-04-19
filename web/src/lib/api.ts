@@ -313,8 +313,19 @@ export interface PlaylistSummary {
 	created_at: string | null;
 }
 
+export interface PlaylistItem {
+	id: number;
+	position: number;
+	content_type: string;
+	content_path: string;
+	title: string | null;
+	duration_seconds: number;
+	// Backend-resolved cover for stream/podcast items (null for folder/track/playlist).
+	thumbnail_url?: string | null;
+}
+
 export interface PlaylistDetail extends PlaylistSummary {
-	items: { id: number; position: number; content_type: string; content_path: string; title: string | null; duration_seconds: number }[];
+	items: PlaylistItem[];
 }
 
 export const playlistsApi = {

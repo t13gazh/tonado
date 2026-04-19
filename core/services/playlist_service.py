@@ -33,6 +33,10 @@ class PlaylistItem:
     content_path: str
     title: str | None = None
     duration_seconds: float = 0
+    # Optional cover/logo URL for stream and podcast items. folder/track items
+    # leave this as None — the frontend builds those from `content_path` via
+    # the library cover endpoint.
+    thumbnail_url: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -199,8 +203,52 @@ class PlaylistService(BaseService):
                 content_path=row[3], title=row[4],
             )
             item.duration_seconds = self._resolve_duration(item)
+            item.thumbnail_url = await self._resolve_thumbnail(item)
             items.append(item)
         return items
+
+    async def _resolve_thumbnail(self, item: PlaylistItem) -> str | None:
+        """Return a logo/cover URL for stream- and podcast-typed items.
+
+        Stream items carry the radio-station URL directly in ``content_path``
+        and match ``radio_stations.url``. Podcast items may store either a
+        ``podcast:<id>`` marker (set by card-driven playback) or the raw feed
+        URL (set by frontend add_item flows) — both shapes are resolved.
+
+        Folder, track and playlist items return None: the frontend derives
+        their cover from ``content_path`` via the library cover endpoint.
+        """
+        ctype = str(item.content_type)
+        path = item.content_path
+
+        if ctype == ContentType.STREAM:
+            cursor = await self._db.execute(
+                "SELECT logo_url FROM radio_stations WHERE url = ? LIMIT 1",
+                (path,),
+            )
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+
+        if ctype == ContentType.PODCAST:
+            # Two canonical shapes: "podcast:<id>" or a raw feed URL.
+            if path.startswith("podcast:"):
+                try:
+                    pid = int(path.split(":", 1)[1])
+                except (ValueError, IndexError):
+                    return None
+                cursor = await self._db.execute(
+                    "SELECT logo_url FROM podcasts WHERE id = ? LIMIT 1",
+                    (pid,),
+                )
+            else:
+                cursor = await self._db.execute(
+                    "SELECT logo_url FROM podcasts WHERE feed_url = ? LIMIT 1",
+                    (path,),
+                )
+            row = await cursor.fetchone()
+            return row[0] if row and row[0] else None
+
+        return None
 
     def _resolve_duration(self, item: PlaylistItem) -> float:
         """Calculate duration for a playlist item based on its content."""

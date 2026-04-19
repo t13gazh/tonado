@@ -156,3 +156,79 @@ async def test_rename_to_own_name_different_case_is_allowed(service: PlaylistSer
     assert ok is True
     got = await service.get_playlist(p.id)
     assert got is not None and got.name == "MIX"
+
+
+# --- Thumbnail resolution (FLAG C1) ---
+
+
+@pytest.mark.asyncio
+async def test_playlist_items_include_stream_logo(
+    service: PlaylistService, tmp_db: aiosqlite.Connection
+) -> None:
+    """Stream items carry the matching radio_stations.logo_url."""
+    await tmp_db.execute(
+        "INSERT INTO radio_stations (name, url, category, logo_url) VALUES (?, ?, ?, ?)",
+        ("MausRadio", "http://radio.example.com/stream.mp3", "kinder", "http://radio.example.com/logo.png"),
+    )
+    await tmp_db.commit()
+
+    p = await service.create_playlist("Streams")
+    await service.add_item(p.id, ContentType.STREAM, "http://radio.example.com/stream.mp3", "Maus")
+
+    got = await service.get_playlist(p.id)
+    assert got is not None
+    assert len(got.items) == 1
+    assert got.items[0].thumbnail_url == "http://radio.example.com/logo.png"
+    # to_dict() must expose the field so the router payload carries it.
+    assert got.items[0].to_dict()["thumbnail_url"] == "http://radio.example.com/logo.png"
+
+
+@pytest.mark.asyncio
+async def test_playlist_items_include_podcast_logo(
+    service: PlaylistService, tmp_db: aiosqlite.Connection
+) -> None:
+    """Podcast items resolve logo via feed_url OR 'podcast:<id>' marker."""
+    cursor = await tmp_db.execute(
+        "INSERT INTO podcasts (name, feed_url, logo_url) VALUES (?, ?, ?)",
+        ("Checker Tobi", "http://feeds.example.com/checker.xml", "http://feeds.example.com/logo.jpg"),
+    )
+    await tmp_db.commit()
+    podcast_id = cursor.lastrowid
+
+    p = await service.create_playlist("Podcasts")
+    # Shape A: feed URL directly in content_path
+    await service.add_item(p.id, ContentType.PODCAST, "http://feeds.example.com/checker.xml", "Feed")
+    # Shape B: "podcast:<id>" marker (card-driven flow)
+    await service.add_item(p.id, ContentType.PODCAST, f"podcast:{podcast_id}", "Marker")
+
+    got = await service.get_playlist(p.id)
+    assert got is not None
+    assert len(got.items) == 2
+    assert all(it.thumbnail_url == "http://feeds.example.com/logo.jpg" for it in got.items)
+
+
+@pytest.mark.asyncio
+async def test_playlist_items_track_has_no_thumbnail_url(service: PlaylistService) -> None:
+    """Folder/track items leave thumbnail_url as None — frontend builds cover from path."""
+    p = await service.create_playlist("Library")
+    await service.add_item(p.id, ContentType.FOLDER, "Hoerspiele", "Hoerspiele")
+
+    got = await service.get_playlist(p.id)
+    assert got is not None
+    assert len(got.items) == 1
+    assert got.items[0].thumbnail_url is None
+    # The field is present in to_dict but None.
+    assert got.items[0].to_dict()["thumbnail_url"] is None
+
+
+@pytest.mark.asyncio
+async def test_playlist_items_stream_without_match_has_no_thumbnail(
+    service: PlaylistService,
+) -> None:
+    """Stream URL that is not in the catalog → thumbnail_url stays None."""
+    p = await service.create_playlist("Orphans")
+    await service.add_item(p.id, ContentType.STREAM, "http://unknown.example.com/x.mp3", "Unknown")
+
+    got = await service.get_playlist(p.id)
+    assert got is not None
+    assert got.items[0].thumbnail_url is None

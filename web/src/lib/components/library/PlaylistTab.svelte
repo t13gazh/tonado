@@ -311,20 +311,20 @@
 						{#if expandedPlaylist && expandedPlaylist.items.length > 0}
 							<div class="flex flex-col">
 								<!--
-								  coverSrc only for filesystem-backed items. Backend playlist
-								  content_types are folder | stream | podcast | playlist | command;
-								  only `folder` maps to a real cover endpoint. stream/podcast/
-								  playlist/command have no cover route — hitting the endpoint would
-								  404 and force the CoverArt gradient fallback anyway, so skip the
-								  request and render the initial straight away. The stored
-								  `item.title` already carries the station/show/playlist name for a
-								  meaningful first letter.
+								  coverSrc precedence:
+								  1. folder → library cover endpoint (on-disk / embedded art)
+								  2. stream/podcast → backend-resolved thumbnail_url (station logo
+								     or podcast artwork). Playlist/command items and stream/podcast
+								     entries without a matching catalog row fall through to the
+								     CoverArt gradient fallback keyed on the (item.title) initial.
 								-->
 								{#each expandedPlaylist.items as item, i}
 									{@const itemTitle = item.title || parseTrackName(item.content_path).title}
 									{@const coverSrc = item.content_type === 'folder'
 										? library.coverUrl(item.content_path, 'folder')
-										: undefined}
+										: (item.content_type === 'stream' || item.content_type === 'podcast')
+											? (item.thumbnail_url ?? undefined)
+											: undefined}
 									<div class="flex items-center gap-2 py-1.5 text-xs {i > 0 ? 'border-t border-surface-lighter/50' : ''}">
 										<span class="w-5 text-text-muted text-right tabular-nums">{item.position}</span>
 										<div class="w-8 h-8 flex-shrink-0">

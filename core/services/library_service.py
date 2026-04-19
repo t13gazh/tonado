@@ -16,6 +16,8 @@ Duration is read from audio headers via mutagen.
 
 import asyncio
 import logging
+import os
+import re
 import shutil
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -25,6 +27,51 @@ from core.services.base import BaseService
 from core.utils.audio import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, get_duration
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidFolderName(ValueError):
+    """Raised when a folder name contains path-traversal, reserved, or empty chars."""
+
+
+class FolderNotFound(LookupError):
+    """Raised when a folder to rename does not exist."""
+
+
+class DuplicateFolderName(ValueError):
+    """Raised when the target folder name already exists (case-insensitive)."""
+
+
+# Windows reserved device names (case-insensitive) — illegal as directory names.
+_WINDOWS_RESERVED = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{i}" for i in range(1, 10)),
+    *(f"LPT{i}" for i in range(1, 10)),
+}
+
+# Disallowed characters in folder names. Slashes and backslashes would allow
+# path traversal; control characters (incl. NUL) break Linux/Windows alike.
+_FORBIDDEN_CHARS = re.compile(r'[\\/:\x00-\x1f\x7f<>:"|?*]')
+
+
+def validate_folder_name(name: str) -> str:
+    """Validate and normalise a folder name.
+
+    Returns the trimmed name. Raises InvalidFolderName on any violation.
+    """
+    if not name:
+        raise InvalidFolderName("Folder name must not be empty")
+    trimmed = name.strip()
+    if not trimmed:
+        raise InvalidFolderName("Folder name must not be empty")
+    if trimmed in (".", ".."):
+        raise InvalidFolderName("Folder name must not be '.' or '..'")
+    if ".." in Path(trimmed).parts:
+        raise InvalidFolderName("Folder name must not contain '..'")
+    if _FORBIDDEN_CHARS.search(trimmed):
+        raise InvalidFolderName("Folder name contains forbidden characters")
+    if trimmed.upper().split(".")[0] in _WINDOWS_RESERVED:
+        raise InvalidFolderName("Folder name is reserved")
+    return trimmed
 
 
 @dataclass
@@ -186,14 +233,72 @@ class LibraryService(BaseService):
         return True
 
     def rename_folder(self, old_name: str, new_name: str) -> bool:
-        """Rename a media folder."""
+        """Legacy unchecked rename. Kept for backward compat with tests.
+
+        Prefer ``rename_folder_checked`` which enforces validation + duplicate
+        handling and is the basis for the atomic reference-update flow in the
+        router.
+        """
         old_path = self._media_dir / old_name
         new_path = self._media_dir / new_name
         if not old_path.is_dir() or new_path.exists():
             return False
         old_path.rename(new_path)
-        logger.info("Renamed media folder: %s → %s", old_name, new_name)
+        logger.info("Renamed media folder: %s -> %s", old_name, new_name)
         return True
+
+    def rename_folder_checked(self, old_name: str, new_name: str) -> MediaFolder:
+        """Validate and rename a folder on disk.
+
+        Returns the new MediaFolder on success. Raises:
+          * InvalidFolderName  — new_name empty/traversal/reserved chars
+          * FolderNotFound     — old folder does not exist
+          * DuplicateFolderName — target already exists (case-insensitive),
+            except when it is the same entry being renamed (case-only change
+            like "Foo" -> "foo" on a case-insensitive filesystem).
+
+        Filesystem-only. Caller is responsible for DB reference updates and
+        must handle rollback on failures that occur after this returns.
+        """
+        clean_new = validate_folder_name(new_name)
+
+        old_path = self._media_dir / old_name
+        if not old_path.is_dir():
+            raise FolderNotFound(old_name)
+
+        new_path = self._media_dir / clean_new
+
+        # Duplicate check — case-insensitive over the existing directory
+        # listing. Self-match (rename same entry to different casing) must be
+        # allowed even though `new_path.exists()` may be True on Windows/APFS.
+        try:
+            existing = [e.name for e in self._media_dir.iterdir() if e.is_dir()]
+        except OSError:
+            existing = []
+        clean_lower = clean_new.lower()
+        for entry in existing:
+            if entry == old_name:
+                continue
+            if entry.lower() == clean_lower:
+                raise DuplicateFolderName(clean_new)
+
+        # Case-only rename on case-insensitive FS: os.rename refuses or no-ops.
+        # Route through a temp name so both directions work consistently.
+        if old_name != clean_new and old_name.lower() == clean_lower:
+            tmp_path = self._media_dir / f".__rename_tmp__{os.getpid()}_{clean_new}"
+            os.rename(old_path, tmp_path)
+            try:
+                os.rename(tmp_path, new_path)
+            except OSError:
+                # Best-effort rollback of the staging move
+                os.rename(tmp_path, old_path)
+                raise
+        else:
+            # Standard rename (atomic within the same volume).
+            os.rename(old_path, new_path)
+
+        logger.info("Renamed media folder: %s -> %s", old_name, clean_new)
+        return MediaFolder(name=clean_new, path=clean_new)
 
     def get_upload_path(self, folder_name: str, filename: str) -> Path:
         """Get the target path for an uploaded file."""

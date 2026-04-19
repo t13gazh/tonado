@@ -6,10 +6,13 @@
 	import { getPlayerState } from '$lib/stores/player.svelte';
 	import { isStorageCritical } from '$lib/stores/health.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
+	import { addToast } from '$lib/stores/toast.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import SearchBar from '$lib/components/library/SearchBar.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import type { Snippet } from 'svelte';
 
 	// Normalize for accent-insensitive, case-insensitive comparison.
@@ -183,6 +186,11 @@
 	let uploadTotal = $state(0);
 	let fileInputs = $state<Record<string, HTMLInputElement | null>>({});
 
+	// Rename state — mirrors the inline-edit pattern from PlaylistTab.
+	let renamingPath = $state<string | null>(null);
+	let renameValue = $state('');
+	let renameInput = $state<HTMLInputElement | null>(null);
+
 	// Login sheet state
 	let loginSheetOpen = $state(false);
 	let pendingAction = $state<(() => void | Promise<void>) | null>(null);
@@ -249,6 +257,59 @@
 			if (expandedFolder === name) expandedFolder = null;
 			await onReloadFolders();
 		} catch { onError(t('error.delete_failed')); }
+	}
+
+	async function startRename(folder: MediaFolder) {
+		renamingPath = folder.path;
+		renameValue = folder.name;
+		await tick();
+		renameInput?.focus();
+		renameInput?.select();
+	}
+
+	function cancelRename() {
+		renamingPath = null;
+		renameValue = '';
+	}
+
+	async function submitRename(folder: MediaFolder) {
+		const trimmed = renameValue.trim();
+		if (!trimmed) { onError(t('library.folder_name_required')); return; }
+		if (trimmed === folder.name) { cancelRename(); return; }
+		// Duplicate check (client-side; backend enforces too). Folder `path`
+		// equals the folder name, so we compare against it case-insensitively.
+		const duplicate = folders.some(
+			(f) => f.path !== folder.path && f.name.trim().toLowerCase() === trimmed.toLowerCase(),
+		);
+		if (duplicate) { onError(t('library.folder_name_duplicate')); return; }
+		// Simple client-side invalid-char guard — same character class the
+		// backend rejects. Backend remains source of truth.
+		if (/[\\/:\x00-\x1f\x7f<>:"|?*]/.test(trimmed)) {
+			onError(t('library.folder_name_invalid'));
+			return;
+		}
+		const oldPath = folder.path;
+		try {
+			await library.renameFolder(oldPath, trimmed);
+			renamingPath = null;
+			renameValue = '';
+			if (expandedFolder === oldPath) expandedFolder = trimmed;
+			await onReloadFolders();
+			addToast(t('library.folder_renamed'), 'success');
+		} catch (err) {
+			if (err instanceof ApiError) {
+				if (err.status === 409) onError(t('library.folder_name_duplicate'));
+				else if (err.status === 400) onError(t('library.folder_name_invalid'));
+				else onError(t('error.save_failed'));
+			} else {
+				onError(t('error.save_failed'));
+			}
+		}
+	}
+
+	function onRenameKeydown(e: KeyboardEvent, folder: MediaFolder) {
+		if (e.key === 'Enter') { e.preventDefault(); requireAuth(() => submitRename(folder)); }
+		else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
 	}
 
 	async function toggleFolder(name: string) {
@@ -350,7 +411,34 @@
 					{@render chevron(expanded, () => toggleFolder(folder.path))}
 				</div>
 				{#if expanded}
+					{@const isRenaming = renamingPath === folder.path}
 					<div class="px-3 pb-3 border-t border-surface-lighter">
+							<div class="py-2">
+								{#if isRenaming}
+									<div class="flex flex-col gap-2 p-2 bg-surface rounded-lg">
+										<label class="text-[10px] text-text-muted uppercase tracking-wider" for="folder-rename-{folder.path}">{t('library.folder_rename')}</label>
+										<input
+											id="folder-rename-{folder.path}"
+											bind:this={renameInput}
+											bind:value={renameValue}
+											onkeydown={(e) => onRenameKeydown(e, folder)}
+											type="text"
+											maxlength="200"
+											placeholder={t('content.folder_name')}
+											class="px-3 py-2 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary"
+										/>
+										<div class="flex gap-2 justify-end">
+											<button onclick={cancelRename} class="min-h-[44px] px-3 text-sm text-text-muted">{t('general.cancel')}</button>
+											<button onclick={() => requireAuth(() => submitRename(folder))} disabled={!renameValue.trim()} class="min-h-[44px] px-4 bg-primary disabled:opacity-30 text-white rounded-lg text-sm">{t('general.save')}</button>
+										</div>
+									</div>
+								{:else}
+									<button onclick={() => requireAuth(() => startRename(folder))} class="flex items-center gap-1.5 text-xs text-text-muted hover:text-text min-h-[44px]">
+										<Icon name="edit" size={14} />
+										{t('library.folder_rename')}
+									</button>
+								{/if}
+							</div>
 							<div class="flex items-center gap-2 py-2">
 								<button onclick={() => requireAuth(() => { fileInputs[folder.path]?.click(); })} class="flex items-center gap-1.5 px-3 py-1.5 bg-surface-lighter rounded-lg text-xs text-text-muted hover:text-text cursor-pointer">
 									<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>

@@ -1,14 +1,28 @@
 """Library and upload API routes."""
 
 import logging
+import os
 from pathlib import Path
 
+import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 
-from core.dependencies import get_auth_service, get_library_service, require_tier
+from core.dependencies import (
+    get_auth_service,
+    get_library_service,
+    get_player,
+    require_tier,
+)
 from core.services.auth_service import AuthService, AuthTier
-from core.services.library_service import LibraryService
+from core.services.library_service import (
+    DuplicateFolderName,
+    FolderNotFound,
+    InvalidFolderName,
+    LibraryService,
+)
+from core.services.player_service import PlayerService
 from core.utils.audio import AUDIO_EXTENSIONS, cover_etag, detect_image_mime, extract_cover
 from core.utils.upload import stream_to_disk
 
@@ -231,23 +245,155 @@ async def delete_folder(
     return {"status": "ok"}
 
 
-@router.put("/folders/{folder_name}/rename")
+class RenameFolderRequest(BaseModel):
+    new_name: str = Field(min_length=1, max_length=200)
+
+
+async def _update_path_references(
+    db: aiosqlite.Connection,
+    old_name: str,
+    new_name: str,
+) -> tuple[int, int]:
+    """Update card and playlist-item content_path references.
+
+    Conservative prefix match: rewrite any row where ``content_path`` equals
+    ``old_name`` (folder-as-content) or starts with ``old_name + '/'`` (tracks
+    within the folder). Returns (cards_updated, playlist_items_updated).
+
+    Caller must manage transaction boundaries.
+    """
+    old_prefix = f"{old_name}/"
+    new_prefix = f"{new_name}/"
+
+    cards_cur = await db.execute(
+        "UPDATE cards "
+        "SET content_path = CASE "
+        "  WHEN content_path = ? THEN ? "
+        "  WHEN SUBSTR(content_path, 1, ?) = ? "
+        "    THEN ? || SUBSTR(content_path, ?) "
+        "  ELSE content_path END "
+        "WHERE content_path = ? OR SUBSTR(content_path, 1, ?) = ?",
+        (
+            old_name, new_name,
+            len(old_prefix), old_prefix,
+            new_prefix, len(old_prefix) + 1,
+            old_name, len(old_prefix), old_prefix,
+        ),
+    )
+    cards_updated = cards_cur.rowcount or 0
+
+    items_cur = await db.execute(
+        "UPDATE playlist_items "
+        "SET content_path = CASE "
+        "  WHEN content_path = ? THEN ? "
+        "  WHEN SUBSTR(content_path, 1, ?) = ? "
+        "    THEN ? || SUBSTR(content_path, ?) "
+        "  ELSE content_path END "
+        "WHERE content_path = ? OR SUBSTR(content_path, 1, ?) = ?",
+        (
+            old_name, new_name,
+            len(old_prefix), old_prefix,
+            new_prefix, len(old_prefix) + 1,
+            old_name, len(old_prefix), old_prefix,
+        ),
+    )
+    items_updated = items_cur.rowcount or 0
+
+    return cards_updated, items_updated
+
+
+@router.put("/folders/{folder_name}")
 async def rename_folder(
     folder_name: str,
+    req: RenameFolderRequest,
     request: Request,
-    new_name: str = Form(...),
     svc: LibraryService = Depends(get_library_service),
     auth: AuthService = Depends(get_auth_service),
+    player: PlayerService = Depends(get_player),
 ) -> dict:
+    """Rename a media folder and atomically update all path references.
+
+    Updates ``cards.content_path`` and ``playlist_items.content_path`` for
+    both the folder-level references and track-level references (prefix
+    match ``<old>/...``). If the filesystem rename fails, SQL is rolled
+    back. If SQL fails after the FS rename succeeds, the directory is
+    renamed back.
+
+    Returns the new MediaFolder payload on success.
+    """
     require_tier(request, AuthTier.PARENT, auth)
     _safe_path(folder_name, svc)
-    safe_name = new_name.strip().replace("/", "_").replace("\\", "_")
-    if not safe_name:
-        raise HTTPException(400, "Invalid folder name")
-    _safe_path(safe_name, svc)
-    if not svc.rename_folder(folder_name, safe_name):
-        raise HTTPException(400, "Rename failed")
-    return {"status": "ok", "new_name": safe_name}
+
+    # Block rename while the player is actively using content from this
+    # folder — a running playback would otherwise lose its source.
+    state = player.state
+    if state.current_uri and (
+        state.current_uri == folder_name
+        or state.current_uri.startswith(f"{folder_name}/")
+    ):
+        raise HTTPException(409, "Ordner wird gerade abgespielt")
+
+    db: aiosqlite.Connection = request.app.state.db_manager.connection
+
+    try:
+        # Step 1: validate + rename directory (raises on issues).
+        folder = svc.rename_folder_checked(folder_name, req.new_name)
+    except InvalidFolderName as exc:
+        raise HTTPException(400, str(exc))
+    except FolderNotFound:
+        raise HTTPException(404, "Folder not found")
+    except DuplicateFolderName:
+        raise HTTPException(409, "Ein Ordner mit diesem Namen existiert bereits")
+    except OSError as exc:
+        logger.error("Folder rename failed on filesystem: %s", exc)
+        raise HTTPException(500, "Rename failed")
+
+    clean_new = folder.name
+
+    # Step 2: update DB references inside a transaction, with FS rollback on
+    # failure. aiosqlite's default isolation mode auto-begins a transaction
+    # on the first write, so we can just commit or roll back explicitly.
+    try:
+        cards_updated, items_updated = await _update_path_references(
+            db, folder_name, clean_new
+        )
+        await db.commit()
+    except Exception as exc:
+        logger.error("Reference update failed, rolling back FS rename: %s", exc)
+        try:
+            await db.rollback()
+        except Exception:
+            pass
+        # Best-effort FS rollback — reverse the directory move.
+        try:
+            os.rename(svc.media_dir / clean_new, svc.media_dir / folder_name)
+        except OSError as rb_exc:
+            logger.critical(
+                "FS rollback FAILED after SQL error: %s (folder now at '%s', "
+                "DB still pointing to '%s')",
+                rb_exc, clean_new, folder_name,
+            )
+        raise HTTPException(500, "Rename failed")
+
+    logger.info(
+        "Folder rename: '%s' -> '%s' (%d card(s), %d playlist item(s) updated)",
+        folder_name, clean_new, cards_updated, items_updated,
+    )
+
+    # Notify subscribers that the library changed so the frontend refreshes.
+    event_bus = getattr(request.app.state, "event_bus", None)
+    if event_bus is not None:
+        try:
+            await event_bus.publish(
+                "library_changed",
+                reason="folder_renamed",
+                old_name=folder_name,
+                new_name=clean_new,
+            )
+        except Exception as exc:
+            logger.warning("event_bus publish failed for folder_renamed: %s", exc)
+
+    return folder.to_dict()
 
 
 @router.post("/upload/{folder_name}")

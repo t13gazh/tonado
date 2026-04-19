@@ -108,6 +108,8 @@ async def client(tmp_path: Path):
     app.state.captive_portal = captive_portal
     app.state.connectivity_monitor = connectivity_monitor
     app.state.button_service = button_svc
+    app.state.db_manager = db_mgr
+    app.state.event_bus = event_bus
 
     # Include routers
     app.include_router(auth.router)
@@ -368,6 +370,7 @@ _PROTECTED: list[tuple[str, str, AuthTier, dict]] = [
 
     # Library
     ("DELETE", "/api/library/folders/nope", AuthTier.PARENT, {}),
+    ("PUT", "/api/library/folders/nope", AuthTier.PARENT, {"json": {"new_name": "x"}}),
 
     # Player outputs
     ("POST", "/api/player/outputs/1", AuthTier.PARENT, {"json": {"enabled": True}}),
@@ -707,6 +710,254 @@ async def test_rename_playlist_duplicate_case_insensitive(client):
     resp = await c.put(f"/api/playlists/{beta_id}", json={"name": "ALPHA"}, headers=headers)
     assert resp.status_code == 409
     assert resp.json()["detail"] == "Diese Playlist gibt es schon"
+
+
+# --- Folder rename (atomic reference update) -------------------------------
+
+
+def _seed_folder(media_root: Path, name: str, tracks: int = 2) -> None:
+    folder = media_root / name
+    folder.mkdir(parents=True, exist_ok=True)
+    for i in range(tracks):
+        (folder / f"track{i+1:02d}.mp3").write_bytes(b"\x00" * 64)
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_happy(client, tmp_path: Path):
+    """PUT /folders/{name} renames dir and returns new MediaFolder."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=2)
+
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "Maerchen"
+    assert body["path"] == "Maerchen"
+
+    assert (media_root / "Maerchen").is_dir()
+    assert not (media_root / "Hoerspiele").exists()
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_unknown(client, tmp_path: Path):
+    """Nonexistent folder → 404."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.put(
+        "/api/library/folders/nothing",
+        json={"new_name": "whatever"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_duplicate(client, tmp_path: Path):
+    """Existing target name → 409."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Alpha", tracks=1)
+    _seed_folder(media_root, "Beta", tracks=1)
+
+    resp = await c.put(
+        "/api/library/folders/Alpha",
+        json={"new_name": "Beta"},
+        headers=headers,
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_invalid_name(client, tmp_path: Path):
+    """Slash/backslash/empty/.. → 400."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Alpha", tracks=1)
+
+    for bad in ["a/b", "a\\b", ".."]:
+        resp = await c.put(
+            "/api/library/folders/Alpha",
+            json={"new_name": bad},
+            headers=headers,
+        )
+        assert resp.status_code == 400, f"accepted bad name {bad!r}"
+
+    # Empty/whitespace-only — pydantic rejects empty (422); whitespace trims to
+    # empty which raises InvalidFolderName → 400.
+    resp = await c.put(
+        "/api/library/folders/Alpha",
+        json={"new_name": ""},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+    resp = await c.put(
+        "/api/library/folders/Alpha",
+        json={"new_name": "   "},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_updates_card_reference(client, tmp_path: Path):
+    """cards.content_path pointing at the old name is rewritten."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=2)
+
+    # Create a card that points at the folder
+    resp = await c.post(
+        "/api/cards/",
+        json={
+            "card_id": "card-folder",
+            "name": "Hoerspiele",
+            "content_type": "folder",
+            "content_path": "Hoerspiele",
+        },
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    # And a second card pointing at a track inside the folder
+    resp = await c.post(
+        "/api/cards/",
+        json={
+            "card_id": "card-track",
+            "name": "Track",
+            "content_type": "folder",
+            "content_path": "Hoerspiele/track01.mp3",
+        },
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    # Rename
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    # Verify both card paths were rewritten
+    resp = await c.get("/api/cards/")
+    assert resp.status_code == 200
+    cards_by_id = {c_["card_id"]: c_ for c_ in resp.json()}
+    assert cards_by_id["card-folder"]["content_path"] == "Maerchen"
+    assert cards_by_id["card-track"]["content_path"] == "Maerchen/track01.mp3"
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_updates_playlist_items(client, tmp_path: Path):
+    """playlist_items.content_path pointing into the folder is rewritten."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=2)
+
+    # Create playlist + items
+    resp = await c.post("/api/playlists/", json={"name": "Mix"}, headers=headers)
+    assert resp.status_code == 201
+    pid = resp.json()["id"]
+
+    resp = await c.post(
+        f"/api/playlists/{pid}/items",
+        json={"content_type": "folder", "content_path": "Hoerspiele"},
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+    resp = await c.post(
+        f"/api/playlists/{pid}/items",
+        json={"content_type": "folder", "content_path": "Hoerspiele/track01.mp3"},
+        headers=headers,
+    )
+    assert resp.status_code in (200, 201)
+
+    # Rename
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    # Verify playlist items rewritten
+    resp = await c.get(f"/api/playlists/{pid}")
+    assert resp.status_code == 200
+    paths = [it["content_path"] for it in resp.json()["items"]]
+    assert "Maerchen" in paths
+    assert "Maerchen/track01.mp3" in paths
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_rollback_on_sql_failure(client, tmp_path: Path, monkeypatch):
+    """When the DB update raises, the filesystem rename must be rolled back."""
+    from core.routers import library as lib_router
+
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=1)
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("simulated sql failure")
+
+    monkeypatch.setattr(lib_router, "_update_path_references", boom)
+
+    resp = await c.put(
+        "/api/library/folders/Hoerspiele",
+        json={"new_name": "Maerchen"},
+        headers=headers,
+    )
+    assert resp.status_code == 500
+    # Filesystem must still show the old folder (rollback).
+    assert (media_root / "Hoerspiele").is_dir()
+    assert not (media_root / "Maerchen").exists()
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_blocked_while_playing(client, tmp_path: Path):
+    """Rename is refused while the player is using content from this folder."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+    media_root = tmp_path / "media"
+    _seed_folder(media_root, "Hoerspiele", tracks=1)
+
+    # Simulate active playback from the folder
+    player = c._transport.app.state.player_service
+    player._state.current_uri = "Hoerspiele/track01.mp3"
+
+    try:
+        resp = await c.put(
+            "/api/library/folders/Hoerspiele",
+            json={"new_name": "Maerchen"},
+            headers=headers,
+        )
+        assert resp.status_code == 409
+        assert "abgespielt" in resp.json()["detail"].lower()
+        # Dir untouched
+        assert (media_root / "Hoerspiele").is_dir()
+        assert not (media_root / "Maerchen").exists()
+    finally:
+        player._state.current_uri = ""
 
 
 # --- Post-review regression tests (K-1, K-3, M6 proper OOM check) ---

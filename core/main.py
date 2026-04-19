@@ -258,6 +258,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     event_bus = EventBus()
     services = await _create_services(settings, event_bus)
+    # Expose the event bus so routers can publish domain events without
+    # threading it through every dependency.
+    services["event_bus"] = event_bus
 
     # Store all services on app.state for FastAPI dependency injection
     for key, value in services.items():

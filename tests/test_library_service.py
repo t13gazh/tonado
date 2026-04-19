@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from core.services.library_service import LibraryService
+from core.services.library_service import (
+    DuplicateFolderName,
+    FolderNotFound,
+    InvalidFolderName,
+    LibraryService,
+    validate_folder_name,
+)
 
 
 @pytest.fixture
@@ -102,3 +108,81 @@ async def test_disk_usage(lib_service: LibraryService) -> None:
     assert stats["file_count"] == 3  # 2 tracks + 1 cover
     assert stats["folder_count"] == 1
     assert stats["total_bytes"] > 0
+
+
+# --- validate_folder_name ---------------------------------------------------
+
+
+@pytest.mark.parametrize("bad_name", ["", "   ", "..", ".", "foo/bar", "a\\b",
+                                       "a\x00b", "a<b", "a|b", "con", "PRN"])
+def test_validate_folder_name_rejects(bad_name: str) -> None:
+    with pytest.raises(InvalidFolderName):
+        validate_folder_name(bad_name)
+
+
+def test_validate_folder_name_trims() -> None:
+    assert validate_folder_name("  Album  ") == "Album"
+
+
+# --- rename_folder_checked --------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_happy(lib_service: LibraryService) -> None:
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Old Name", tracks=2)
+
+    folder = lib_service.rename_folder_checked("Old Name", "New Name")
+    assert folder.name == "New Name"
+    assert (lib_service._media_dir / "New Name").is_dir()
+    assert not (lib_service._media_dir / "Old Name").exists()
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_unknown(lib_service: LibraryService) -> None:
+    await lib_service.start()
+    with pytest.raises(FolderNotFound):
+        lib_service.rename_folder_checked("missing", "whatever")
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_duplicate(lib_service: LibraryService) -> None:
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Alpha", tracks=1)
+    _create_album(lib_service._media_dir, "Beta", tracks=1)
+    with pytest.raises(DuplicateFolderName):
+        lib_service.rename_folder_checked("Alpha", "Beta")
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_duplicate_case_insensitive(
+    lib_service: LibraryService,
+) -> None:
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Alpha", tracks=1)
+    _create_album(lib_service._media_dir, "Beta", tracks=1)
+    with pytest.raises(DuplicateFolderName):
+        lib_service.rename_folder_checked("Alpha", "BETA")
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_invalid_name(lib_service: LibraryService) -> None:
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Alpha", tracks=1)
+    for bad in ["", "   ", "..", "a/b", "a\\b", "a\x00b"]:
+        with pytest.raises(InvalidFolderName):
+            lib_service.rename_folder_checked("Alpha", bad)
+
+
+@pytest.mark.asyncio
+async def test_rename_folder_checked_case_only_self(
+    lib_service: LibraryService,
+) -> None:
+    """Case-only rename is allowed even on case-insensitive filesystems."""
+    await lib_service.start()
+    _create_album(lib_service._media_dir, "Hoerspiele", tracks=1)
+    folder = lib_service.rename_folder_checked("Hoerspiele", "hoerspiele")
+    assert folder.name == "hoerspiele"
+    # Directory now exists under the new casing. On case-insensitive FS the
+    # "Hoerspiele" lookup would still succeed — that's expected semantics.
+    assert (lib_service._media_dir / "hoerspiele").is_dir()

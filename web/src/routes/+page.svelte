@@ -400,11 +400,11 @@
 
 </script>
 
-<div class="relative flex flex-col items-center justify-between min-h-full px-4 py-4 gap-3 sm:px-6 sm:py-6 sm:gap-5 landscape:py-2">
+<div class="relative flex flex-col items-center justify-between min-h-full px-4 py-4 pb-6 gap-3 sm:px-6 sm:py-6 sm:pb-8 sm:gap-5 max-[374px]:gap-2 max-[374px]:py-2 landscape:py-2 landscape:gap-2">
 
 	<!-- Sleep timer indicator: absolute so it does not push cover art down -->
 	{#if sleepVisible}
-		<div bind:this={sleepPillRef} class="absolute top-[max(1rem,var(--spacing-safe-top))] left-1/2 -translate-x-1/2 z-10">
+		<div bind:this={sleepPillRef} class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
 			<button
 				bind:this={sleepTriggerRef}
 				type="button"
@@ -413,7 +413,7 @@
 				aria-expanded={sleepFading ? undefined : sleepMenuOpen}
 				aria-disabled={sleepFading || undefined}
 				aria-label={sleepFading ? t('player.sleep_fading') : t('player.sleep_menu_aria')}
-				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary/20 text-primary cursor-default' : sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
+				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-[transform,background-color,color,opacity] duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary/20 text-primary cursor-default' : sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
 			>
 				<svg class="w-4 h-4 {sleepFading ? 'animate-pulse' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -437,7 +437,7 @@
 						role="menuitem"
 						onclick={() => extendSleepTimer(5)}
 						disabled={sleepExtending}
-						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
+						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-[transform,background-color,color,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_extend_5_aria')}
 					>
 						{t('player.sleep_extend_5')}
@@ -448,7 +448,7 @@
 						role="menuitem"
 						onclick={() => extendSleepTimer(10)}
 						disabled={sleepExtending}
-						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
+						class="px-3 py-1.5 min-h-11 rounded-full text-xs font-medium text-text hover:bg-primary hover:text-white transition-[transform,background-color,color,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_extend_10_aria')}
 					>
 						{t('player.sleep_extend_10')}
@@ -459,7 +459,7 @@
 						role="menuitem"
 						onclick={cancelSleepTimer}
 						disabled={sleepCancelling}
-						class="p-2 min-h-11 min-w-11 flex items-center justify-center rounded-full text-text-muted hover:bg-surface-lighter hover:text-text transition duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
+						class="p-2 min-h-11 min-w-11 flex items-center justify-center rounded-full text-text-muted hover:bg-surface-lighter hover:text-text transition-[transform,background-color,color,opacity] duration-150 ease-out active:scale-[0.97] disabled:opacity-40 touch-manipulation"
 						aria-label={t('player.sleep_cancel')}
 					>
 						<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -473,7 +473,7 @@
 	{/if}
 
 	<!-- Cover Art -->
-	<div class="w-[min(70vw,38vh,18rem)] aspect-square max-w-72 landscape:w-[min(35vw,60vh)]">
+	<div class="w-[min(70vw,38vh,18rem)] aspect-square max-w-72 landscape:w-[min(28vw,55vh)]">
 		{#if hasTrack}
 			<!-- CoverArt reacts to `src`/`title` changes via $effect internally;
 			     a {#key} wrapper would force a full remount and cause a flash. -->
@@ -538,7 +538,7 @@
 				></div>
 				{#if canSeek && (seekThumbVisible || seekDragging)}
 					<div
-						class="absolute top-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow transition-[opacity,transform] duration-200 ease-out pointer-events-none {seekDragging ? '-translate-y-1/2 scale-110' : '-translate-y-1/2'}"
+						class="absolute top-1/2 -translate-x-1/2 w-4 h-4 bg-primary rounded-full shadow transition-opacity duration-200 ease-out pointer-events-none {seekDragging ? '-translate-y-1/2 scale-110' : '-translate-y-1/2'}"
 						style="left: {progress}%"
 					></div>
 				{/if}
@@ -556,7 +556,7 @@
 		{#if hasQueue}
 			<button
 				onclick={toggleShuffle}
-				class="p-2 transition duration-100 ease-out active:scale-[0.97] {shuffleOn ? 'text-primary' : 'text-text-muted hover:text-text'}"
+				class="p-2 transition-[transform,color] duration-100 ease-out active:scale-[0.97] {shuffleOn ? 'text-primary' : 'text-text-muted hover:text-text'}"
 				aria-label={shuffleOn ? t('player.shuffle_off') : t('player.shuffle_on')}
 			>
 				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -574,7 +574,7 @@
 			<button
 				onclick={() => player.previous()}
 				disabled={state.playlist_position <= 0 && state.repeat_mode === 'off'}
-				class="p-3 text-text-muted hover:text-text transition duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+				class="p-3 text-text-muted hover:text-text transition-[transform,color,opacity] duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
 				aria-label={t('player.previous')}
 			>
 				<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
@@ -587,7 +587,7 @@
 		<button
 			onclick={handleToggle}
 			disabled={!canPlay}
-			class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition duration-100 ease-out active:scale-[0.97] shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+			class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-[transform,background-color,opacity] duration-100 ease-out active:scale-[0.97] shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
 			aria-label={isPlaying ? t('player.pause') : t('player.play')}
 		>
 			{#if isPlaying}
@@ -606,7 +606,7 @@
 			<button
 				onclick={() => player.next()}
 				disabled={isLastTrack && state.repeat_mode === 'off'}
-				class="p-3 text-text-muted hover:text-text transition duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+				class="p-3 text-text-muted hover:text-text transition-[transform,color,opacity] duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
 				aria-label={t('player.next')}
 			>
 				<svg class="w-8 h-8" viewBox="0 0 24 24" fill="currentColor">
@@ -619,7 +619,7 @@
 		{#if !isLiveStream}
 			<button
 				onclick={() => player.repeat()}
-				class="p-2 transition duration-100 ease-out active:scale-[0.97] {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
+				class="p-2 transition-[transform,color] duration-100 ease-out active:scale-[0.97] {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
 				aria-label={t('player.repeat_aria')}
 			>
 				{#if state.repeat_mode === 'single'}
@@ -648,7 +648,7 @@
 	<div class="w-full max-w-sm flex items-center gap-3">
 		<button
 			onclick={toggleMute}
-			class="shrink-0 p-1 text-text-muted hover:text-text transition duration-100 ease-out active:scale-[0.97]"
+			class="shrink-0 p-1 text-text-muted hover:text-text transition-[transform,color] duration-100 ease-out active:scale-[0.97]"
 			aria-label={muted ? t('player.unmute') : t('player.mute')}
 		>
 			{#if muted || localVolume === 0}
@@ -687,7 +687,7 @@
 			<button
 				onclick={toggleBrowserAudio}
 				disabled={browserLoading}
-				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition duration-100 ease-out active:scale-[0.97] {browserPlaying ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'} {browserLoading ? 'opacity-70' : ''}"
+				class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs transition-[transform,background-color,color,opacity] duration-100 ease-out active:scale-[0.97] {browserPlaying ? 'bg-primary text-white' : 'bg-surface-light text-text-muted hover:text-text'} {browserLoading ? 'opacity-70' : ''}"
 			>
 				{#if browserLoading}
 					<div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -717,7 +717,7 @@
 		transform-origin: top center;
 		opacity: 1;
 		transform: translateX(-50%) scale(1);
-		transition: opacity 180ms ease-out, transform 180ms ease-out;
+		transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 	}
 	@starting-style {
 		.sleep-menu {

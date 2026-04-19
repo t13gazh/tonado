@@ -202,8 +202,8 @@ def _validate_folder_path(path: str, library: LibraryService) -> None:
     if Path(path).is_absolute() or path.startswith(("/", "\\")):
         raise HTTPException(400, "Ungültiger Pfad")
     try:
-        resolved = (library._media_dir / path).resolve()
-        media_resolved = library._media_dir.resolve()
+        resolved = (library.media_dir / path).resolve()
+        media_resolved = library.media_dir.resolve()
     except (OSError, ValueError):
         raise HTTPException(400, "Ungültiger Pfad")
     try:

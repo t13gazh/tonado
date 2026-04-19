@@ -79,7 +79,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 ## Status
 
-> **Alpha (v0.2.1)** — Installierbar und funktionsfähig, aber noch nicht auf breiter Hardware getestet. [Changelog](CHANGELOG.md)
+> **Alpha (v0.2.1)** — Installierbar und funktionsfähig auf Pi 3B+. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist Ziel für die Beta-Freigabe. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
@@ -105,9 +105,9 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 Die Doku ist nach Zielgruppe sortiert:
 
-- **Für Eltern** — [Vision](docs/VISION.md) · [Updates](docs/fuer-eltern/UPDATE.md) · [Backup](docs/fuer-eltern/BACKUP.md)
+- **Für Eltern** — [Vision](docs/VISION.md) · [Was Tonado kann](docs/fuer-eltern/features.md) · [Updates](docs/fuer-eltern/UPDATE.md) · [Backup](docs/fuer-eltern/BACKUP.md)
 - **Für Bastler** — [Installation](docs/fuer-bastler/installation.md) · [Hardware](docs/fuer-bastler/hardware.md)
-- **Für Entwickler** — [Mitmachen](CONTRIBUTING.md) · [Architektur](docs/fuer-entwickler/ARCHITEKTUR.md) · [Entwicklung](docs/fuer-entwickler/entwicklung.md) · [Roadmap](docs/fuer-entwickler/ROADMAP.md)
+- **Für Entwickler** — [Mitmachen](CONTRIBUTING.md) · [Architektur](docs/fuer-entwickler/ARCHITEKTUR.md) · [Entwicklung](docs/fuer-entwickler/entwicklung.md) · [Roadmap](docs/fuer-entwickler/ROADMAP.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
 ## Mitmachen
 

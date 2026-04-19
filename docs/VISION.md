@@ -77,7 +77,7 @@ Das ist der Moment. Dafür bauen wir.
 
 - **Keine Kopie.** Wir lösen das gleiche Problem — besser und günstiger.
 - **Kein Bastelprojekt.** Es soll sich anfühlen wie ein Produkt, nicht wie ein Hack.
-- **Keine eierlegende Wollmilchsau.** Kein Spotify-Player, kein Smart-Home-Hub, kein Bluetooth-Speaker. Es ist eine Musikbox für Kinder.
+- **Keine eierlegende Wollmilchsau.** Kein eigener Spotify-Player, kein Smart-Home-Hub, kein allgemeiner Bluetooth-Lautsprecher. Es ist eine Musikbox für Kinder. (Die Box *als Ziel* in der Spotify-App oder als AirPlay-Receiver ist eine andere Diskussion — siehe „Zukunft" unten, nur wenn es das Kinder-Erlebnis nicht verwässert.)
 - **Kein kommerzielles Produkt.** Open Source, Community-getrieben, MIT-Lizenz.
 
 ## Warum Tonado?
@@ -92,7 +92,8 @@ Das ist der Moment. Dafür bauen wir.
 
 ## Zukunft
 
-- Spotify Connect (Box als Receiver)
+- Spotify Connect / AirPlay / Chromecast — **nur als Empfänger** (Tonado taucht in Apps als Abspielziel auf, hat aber keine eigene Abo-Logik). Erwogen, wenn es das Kind-legt-Figur-auf-Erlebnis nicht verdrängt.
+- Pi-Image zum Flashen (Ersteinrichtung ohne SSH) — Kernziel Richtung „auch für nicht-technische Eltern".
 - BLE-Provisioning (Setup via App statt Captive Portal)
 - 3D-Druck-Gehäuse-Vorlagen
 - Community-Plugins (LED-Ring, Display, NFC-Figuren)

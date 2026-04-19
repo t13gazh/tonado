@@ -2,14 +2,14 @@
 
 Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächlich leistet, was bald dazu kommt und was in fernerer Zukunft vielleicht möglich wird. Kein Fachjargon, keine Code-Referenzen.
 
-## Was Tonado heute kann (Stand 0.2.1-alpha)
+## Was Tonado heute kann (Stand: Frühjahr 2026, Alpha-Version)
 
 ### Musik abspielen
 
-- **Figur auflegen → Musik spielt.** Eine Figur oder Karte mit eingebautem RFID-Chip auflegen, der Rest passiert von allein.
-- **Mehrere Quellen in einer Bibliothek:** eigene Musik-Dateien (MP3, FLAC, OGG, WAV), Internetradio, Podcasts als RSS-Feed und eigene Playlisten.
-- **Suche** über Ordner, Radio-Sender, Podcasts und Playlisten — auch mit Umlauten oder ohne („Ueber" findet „Über").
-- **Cover-Bilder** werden automatisch aus deinen Musik-Dateien gezogen oder aus einer `cover.jpg` im Ordner. Wenn nichts da ist, zeigt Tonado eine farbige Kachel mit dem Anfangsbuchstaben.
+- **Figur auflegen → Musik spielt.** Eine Figur oder Karte mit einem winzigen Funk-Chip auflegen, der Rest passiert von allein.
+- **Mehrere Quellen in einer Bibliothek:** eigene Musik-Dateien (gängige Formate), Internetradio, Podcasts als RSS-Feed und eigene Playlisten.
+- **Suche** über Ordner, Radio-Sender, Podcasts und Playlisten — Umlaute egal: „Ueber" findet auch „Über".
+- **Cover-Bilder** werden automatisch aus deinen Musik-Dateien gezogen oder aus einem Bild namens cover.jpg im Ordner. Wenn nichts da ist, zeigt Tonado eine farbige Kachel mit dem Anfangsbuchstaben.
 - **Verschiedene Quellen pro Figur:** eine Figur kann einem Ordner, einem Radiosender, einem Podcast oder einer Playlist zugeordnet werden.
 
 ### Einschlafen und Lautstärke
@@ -43,8 +43,8 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 
 - **Hardware-Wizard** erkennt automatisch, was angeschlossen ist — RFID-Reader, Audio-Ausgang, Gyro-Sensor, physische Tasten.
 - **Physische Tasten** für Lautstärke / Play-Pause / Skip — einfach an die Box schrauben, Tonado lernt sie im Setup.
-- **Ein- und Ausschalter** (mit OnOff SHIM): sauberes Hoch- und Herunterfahren per Taster, kein Stecker-Ziehen mehr.
-- **Gute Klangqualität mit HifiBerry MiniAmp:** kleiner Verstärker-Aufsatz für den Pi, Lautsprecher direkt anschließbar.
+- **Ein- und Ausschalter** (mit einem kleinen Zusatz-Modul, siehe Hardware-Anleitung): sauberes Hoch- und Herunterfahren per Taster, kein Stecker-Ziehen mehr.
+- **Gute Klangqualität:** kleiner Verstärker-Aufsatz (Details in der Hardware-Anleitung), Lautsprecher direkt anschließbar.
 
 ### Updates und Sicherheit
 
@@ -77,7 +77,7 @@ Diese Features sind geplant, die nächsten Schritte Richtung Beta.
 
 Diese Ideen sammeln wir. Manche brauchen zusätzliche Hardware, manche mehr Entwicklungszeit, manche hängen an offenen Fragen.
 
-- **Box-Name frei wählbar** — deine Box erreichbar unter z.B. `kinderzimmer.local`.
+- **Box-Name frei wählbar** — deine Box z.B. unter dem Namen „Kinderzimmer" erreichbar.
 - **Farbthema** der App nach Lieblingsfarbe des Kindes einstellbar.
 - **Fertiger Radio- und Podcast-Katalog** öffentlich-rechtlicher Kindersender — direkt in der App durchsuchen und hinzufügen.
 - **Kategorien und Tags** für die Bibliothek — Einschlafen, Weihnachten, Lieblingshörbuch.

@@ -1,73 +1,49 @@
 # Backup & Wiederherstellung
 
-Ein Backup sichert deine Konfiguration, deine Figuren-Zuordnungen und deine eigenen Radio/Podcast-Streams. Audio-Dateien selbst sind aktuell **nicht** Teil des Backups.
+Ein Backup sichert deine Konfiguration, deine Figuren-Zuordnungen und deine gespeicherten Radio-Sender und Podcasts. So kannst du jederzeit auf denselben Stand zurück — nach einem Umzug auf eine neue Box, nach einem Fehlgriff in den Einstellungen, oder einfach zur Sicherheit.
+
+Musik-Dateien selbst sind heute **nicht** Teil des Backups — die bewahrst du separat auf (z.B. auf deinem Computer, von wo du sie hochgeladen hast).
 
 ## Backup erstellen
 
-1. Web-App öffnen → **Einstellungen** → **System** → **Backup**.
-2. **Backup herunterladen** klicken.
-3. Die Datei heißt `tonado-backup-<datum>.json` und landet im Download-Ordner deines Geräts.
-4. Sicher aufbewahren — im besten Fall nicht auf dem gleichen Gerät wie die Box.
+1. In der App die **Einstellungen** öffnen.
+2. **System → Backup** aufrufen.
+3. **Backup herunterladen** tippen.
+4. Die Datei landet im Download-Ordner deines Handys oder Computers.
+5. Sicher aufbewahren — am besten nicht nur auf dem Gerät, mit dem du die Box bedienst.
 
-Für den Export brauchst du Eltern-PIN.
+Für den Export fragt die Box nach der Eltern-PIN.
 
-## Wiederherstellung
+## Backup einspielen
 
-1. Im gleichen Dialog **Backup einspielen** wählen.
-2. Die JSON-Datei hochladen.
-3. Bestätigen, dass bestehende Daten überschrieben werden dürfen.
-4. Die Box importiert Konfig, Karten und Streams. Audio-Dateien musst du separat übertragen (via SMB, sftp oder Upload).
+1. In der App unter **Einstellungen → System → Backup** die Option **Backup einspielen** wählen.
+2. Die gespeicherte Datei auswählen.
+3. Bestätigen, dass die bestehenden Einstellungen überschrieben werden dürfen.
+4. Die Box übernimmt deine Figuren-Zuordnungen, Einstellungen und gespeicherten Streams.
 
-Für den Import brauchst du Experten-PIN (höhere Schutzstufe, weil die Datei die gesamte Box überschreiben kann).
+Für den Import fragt die Box nach der Experten-PIN — weil ein Import die gesamte Box überschreiben kann.
 
 ## Was ist im Backup drin?
 
-| Teil | Enthalten |
-|------|-----------|
-| Figuren-/Karten-Zuordnungen (`cards`) | ✅ |
-| Eltern-Einstellungen (Lautstärke-Limits, Sleep-Timer-Defaults) | ✅ |
-| Hardware-Konfiguration (Audio-Output, GPIO-Button-Belegung, Gyro) | ✅ |
-| Gespeicherte WLAN-Credentials | ❌ (absichtlich — Credentials stehen nie im Backup) |
-| Audio-Secrets / JWT-Secret | ❌ (werden vor Export gefiltert) |
-| Playlist-Definitionen | ✅ (Referenzen auf Audio-Pfade, nicht die Dateien selbst) |
-| Radio-Stationen + Podcast-Feeds | ✅ |
-| Audio-Dateien (MP3, FLAC, OGG, Cover) | ❌ (wegen Größe — siehe Backlog „Vollbackup inkl. Content") |
+- Deine Figuren- und Karten-Zuordnungen (welche Figur spielt was).
+- Eltern-Einstellungen wie Lautstärke-Obergrenze und Standard-Einschlaftimer.
+- Die Hardware-Konfiguration, die der Einrichtungs-Assistent erkannt hat.
+- Deine eigenen Playlisten.
+- Deine Liste gespeicherter Radio-Sender und Podcast-Feeds.
 
-## Format
+**Nicht im Backup** (mit Absicht):
 
-Die Backup-Datei ist eine menschen-lesbare JSON mit folgender Struktur:
+- WLAN-Passwörter — werden aus Sicherheitsgründen nie gesichert.
+- Musik-Dateien selbst — wegen der Größe. Die überträgst du bei Bedarf über die Upload-Funktion in der App.
 
-```json
-{
-  "version": "1",
-  "exported_at": "2026-04-17T12:00:00Z",
-  "cards": [ ... ],
-  "config": { ... },
-  "playlists": [ ... ],
-  "streams": { "radio": [ ... ], "podcasts": [ ... ] }
-}
-```
+## Nach einem Hardware-Wechsel
 
-## Versions-Kompatibilität
+Wenn du das Backup auf eine andere Box einspielst — etwa weil die alte Box kaputt ist oder du auf einen schnelleren Raspberry Pi umsteigst — dann übernimmt die neue Box deine Figuren-Zuordnungen und Einstellungen. **Empfehlung:** Führe danach einmal den Einrichtungs-Assistenten neu aus (Einstellungen → System → Einrichtung neu starten). So stellt sich die neue Box auf ihre eigene Hardware ein. Deine Zuordnungen bleiben dabei erhalten.
 
-Tonado akzeptiert Backups von älteren `v0.2.x`-Versionen. Backups aus **zukünftigen** Versionen (`v0.3+`) werden aktuell mit einer Warnung importiert — fehlen Felder, werden sie ignoriert.
+## Wenn etwas nicht klappt
 
-## Cross-Box Wiederherstellung
+Starte die Box einfach neu und versuche es erneut. Hilft das nicht, melde dich bitte auf [GitHub](https://github.com/t13gazh/tonado/issues) — wir helfen gern.
 
-Backup von Pi A auf Pi B einspielen:
-- ✅ Karten- und Playlist-Zuordnungen übernehmen wenn die Audio-Pfade gleich sind.
-- ⚠️ Hardware-Config kann falsch sein — der Audio-Output `hw:1` existiert auf einem Pi mit anderer DAC-Konfiguration evtl. nicht.
-- **Empfehlung:** Nach dem Import erneut den Setup-Wizard starten (Einstellungen → System → **Einrichtung neu starten**, Experten-PIN). Das re-detektiert Hardware, Zuordnungen bleiben erhalten.
+## Für Technik-Profis
 
-## Automatische Backups
-
-Aktuell **nicht** implementiert. Im Backlog vorgesehen: tägliches Auto-Backup auf einen angeschlossenen USB-Stick.
-
-## Fehlersuche
-
-| Fehler | Ursache | Abhilfe |
-|--------|---------|---------|
-| `Invalid backup file` | JSON defekt / falsche Kodierung | Neu exportieren |
-| `Not a valid Tonado backup` | Fremdes Format oder Version-Feld fehlt | Prüfe, dass die Datei mit `{"version": ...}` beginnt |
-| Import-Checkliste zeigt Fehler | Schema-Validation: Pflichtfelder fehlen | Details in der Meldung — die ersten 5 Fehler werden gelistet |
-| Cards importiert aber Audio spielt nicht | Audio-Dateien fehlen im Media-Ordner | Audio-Dateien manuell nach `/home/<user>/tonado/media/` kopieren |
+Technische Details zum Backup-Format (JSON-Struktur, Versions-Kompatibilität, Cross-Box-Wiederherstellung, CLI-Pfade, Fehlercodes): siehe **[Backup-Details für Bastler](../fuer-bastler/backup-details.md)**.

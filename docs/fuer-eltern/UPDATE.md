@@ -1,63 +1,34 @@
-# Tonado aktualisieren
+# Updates
 
-Diese Anleitung richtet sich an Endnutzer. Du brauchst kein SSH und keinen Git-Client — alles läuft über die Web-App.
+Tonado bekommt regelmäßig neue Funktionen und Fehlerbehebungen. Du musst nichts davon manuell machen — ein Klick in der App reicht.
 
-## Schnellversion
+## In 2 Minuten aktualisieren
 
-1. Web-App öffnen → **Einstellungen** (Experten-Login: PIN eingeben falls gesetzt).
-2. **System** → **Update** → **Nach Updates suchen**.
-3. Wenn ein Update gefunden wird, Changelog durchlesen und **Update installieren** klicken.
-4. Die Box startet sich am Ende neu. Wenige Sekunden später läuft sie wieder.
+1. In der App die **Einstellungen** öffnen (Experten-Login, falls PIN gesetzt).
+2. **System → Update → Nach Updates suchen** antippen.
+3. Wenn ein Update da ist: die Änderungsübersicht kurz anschauen und **Update installieren** tippen.
+4. Die Box startet sich am Ende selbst neu. Kurz warten, dann läuft sie wieder.
 
-**Wichtig:** Während der Installation die Box nicht vom Strom trennen.
+**Wichtig:** Während das Update läuft, die Box nicht vom Strom trennen.
 
-## Was passiert im Hintergrund
+## Was passiert beim Update
 
-- Tonado zieht die neueste Version per `git pull` aus dem öffentlichen Repo.
-- Wenn sich die Python-Abhängigkeiten geändert haben (`pyproject.toml`), werden sie nachinstalliert.
-- Schlägt die Dependency-Installation fehl, rollt Tonado automatisch auf die vorherige Version zurück — inklusive Abhängigkeiten. Du wirst mit einer Fehlermeldung darauf hingewiesen.
-- Zuletzt wird der Service neu gestartet (Audio fällt für 5-15 Sekunden aus, je nach Pi-Modell).
+Die Box holt sich die neue Version, installiert sie und startet sich frisch. Falls dabei etwas schief geht, kehrt sie automatisch zur vorherigen Version zurück — und meldet sich mit einer Fehlermeldung. Du verlierst also nichts.
 
-## Voraussetzungen
+Der Audio-Ausgang ist während des Neustarts kurz weg (ein paar Sekunden). Danach spielt deine Musik weiter, deine Figuren-Zuordnungen und Einstellungen bleiben erhalten.
 
-- Der Pi muss online sein (Internet erreichbar, nicht nur LAN).
-- Der Installations-Pfad (Standard: `/opt/tonado`) muss ein Git-Checkout sein. Bei manueller Installation per `install.sh` ist das automatisch der Fall.
-- **Experten-PIN muss gesetzt sein.** Ohne PIN verweigert die Box Updates aus Sicherheitsgründen.
+## Wann solltest du updaten?
 
-## Fehlersuche
+Updates sind empfohlen, aber nicht verpflichtend. Wenn etwas wunderbar läuft, musst du nichts ändern. Wenn du neue Funktionen oder Fehlerbehebungen willst, ist das Update der schnellste Weg dahin.
 
-| Symptom | Ursache | Abhilfe |
-|---------|---------|---------|
-| "Kein Git-Repository" | Pi wurde per ZIP statt `install.sh` eingerichtet | Neu installieren oder `git init` manuell (Experten) |
-| "git pull fehlgeschlagen" | Lokale Änderungen / kein Internet | Logs prüfen (`journalctl -u tonado`), Box neustarten |
-| "Abhängigkeiten konnten nicht installiert werden. Rollback durchgeführt." | Neue Python-Version fehlt, Speicher voll, Paket-Registry down | `df -h` + `pip install -e .[pi]` manuell, dann Issue öffnen |
-| Update hängt > 10 min auf dem Pi Zero W | ARMv6 kompiliert aiosqlite neu (bekannt) | Warten — erstmaliger Build dauert einmalig 20-30 min |
+Die Box prüft **nicht** selbstständig auf Updates im Hintergrund — sie baut keine eigenen Internetverbindungen auf. Du entscheidest, wann gesucht wird.
 
-## Manuelles Update (nur Experten)
+## Wenn etwas nicht klappt
 
-Auf der Box per SSH:
-```bash
-cd /opt/tonado
-git pull
-.venv/bin/pip install -e ".[pi]"
-sudo systemctl restart tonado
-```
+Starte die Box einmal neu (Stecker ziehen, kurz warten, wieder einstecken — oder wenn du den Ein-/Ausschalter hast, darüber). Startet sie wieder, läuft in der Regel auch dein Update-Versuch beim nächsten Mal. Hilft das nicht, melde dich bitte auf [GitHub](https://github.com/t13gazh/tonado/issues) — wir helfen gern.
 
-## Rollback
+## Für Technik-Profis
 
-Falls ein Update schief geht und der Auto-Rollback nicht reichte:
-```bash
-cd /opt/tonado
-git log --oneline -5         # letzte Commits anschauen
-git reset --hard <commit>    # auf den gewünschten Commit
-.venv/bin/pip install -e ".[pi]"
-sudo systemctl restart tonado
-```
+Heute zieht jede Update-Suche den aktuellen Stand vom `main`-Branch (Alpha-Phase). Ab der Beta-Version gibt es getaggte Releases mit Changelog und optional manueller Freigabe pro Update.
 
-## Update-Benachrichtigungen
-
-Die Web-App prüft **nicht automatisch** auf Updates. Du musst sie manuell anstoßen. Hintergrund: Die Box soll keine Hintergrund-Internetverbindungen aufbauen.
-
-## Release-Kanäle
-
-Tonado ist aktuell in der Alpha-Phase: Das Update-Verfahren zieht jeden neuen Commit auf dem `main`-Branch. Ab Beta (`v0.2.0-beta`) gibt es getaggte Releases mit Changelog und optional manueller Freigabe pro Update.
+Für das manuelle Update via SSH, Rollback auf einen bestimmten Commit und Fehlersuche im Log: siehe **[Update-Details für Bastler](../fuer-bastler/update-details.md)**.

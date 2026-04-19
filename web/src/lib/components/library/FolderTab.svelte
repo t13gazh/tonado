@@ -6,9 +6,20 @@
 	import { isStorageCritical } from '$lib/stores/health.svelte';
 	import { canManageLibrary, isParentPinSet } from '$lib/stores/auth.svelte';
 	import LoginSheet from '$lib/components/LoginSheet.svelte';
+	import SearchBar from '$lib/components/library/SearchBar.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
+
+	// Normalize for accent-insensitive, case-insensitive comparison.
+	// ß → ss is handled separately since it's not a combining diacritic.
+	function normalize(s: string): string {
+		return s
+			.toLowerCase()
+			.normalize('NFD')
+			.replace(/\p{Diacritic}/gu, '')
+			.replace(/ß/g, 'ss');
+	}
 
 	interface Props {
 		folders: MediaFolder[];
@@ -62,9 +73,54 @@
 		radioRefs[nextMode]?.focus();
 	}
 
-	// Derived sorted view — does not mutate the prop array.
+	// Free-text search — not persisted, resets on navigation. Debounced in SearchBar.
+	let searchQuery = $state('');
+	const normalizedQuery = $derived(normalize(searchQuery.trim()));
+	const isSearching = $derived(normalizedQuery.length > 0);
+
+	// Lazy track cache per folder path for cross-folder track-name search.
+	// Only populated while searching; cleared when query becomes empty again.
+	let trackCache = $state<Record<string, MediaTrack[]>>({});
+	let tracksLoaded = $state(false);
+
+	$effect(() => {
+		// Kick off a best-effort bulk fetch the first time the user starts typing.
+		// Failure is silent — name-only search still works as fallback.
+		if (isSearching && !tracksLoaded) {
+			tracksLoaded = true;
+			void loadAllTracks();
+		}
+		if (!isSearching) {
+			// Free memory once the search is closed; next search reloads fresh.
+			trackCache = {};
+			tracksLoaded = false;
+		}
+	});
+
+	async function loadAllTracks() {
+		const targets = folders.map((f) => f.path);
+		const results = await Promise.allSettled(targets.map((p) => library.tracks(p)));
+		const next: Record<string, MediaTrack[]> = {};
+		results.forEach((r, i) => {
+			if (r.status === 'fulfilled') next[targets[i]] = r.value;
+		});
+		trackCache = next;
+	}
+
+	function folderMatches(folder: MediaFolder, q: string): boolean {
+		if (!q) return true;
+		if (normalize(folder.name).includes(q)) return true;
+		const tracks = trackCache[folder.path];
+		if (!tracks) return false;
+		return tracks.some((tr) => normalize(parseTrackName(tr.filename).title).includes(q));
+	}
+
+	// Derived view: filter first (if searching), then sort. Does not mutate the prop.
 	const sortedFolders = $derived.by(() => {
-		const arr = [...folders];
+		const filtered = isSearching
+			? folders.filter((f) => folderMatches(f, normalizedQuery))
+			: folders;
+		const arr = [...filtered];
 		if (sortMode === 'recent') {
 			// Newest first: highest mtime at the top. Undefined/0 falls to the end.
 			arr.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));
@@ -197,6 +253,9 @@
 	}
 </script>
 
+<!-- Free-text search sits above the sort control. Not persisted across sessions. -->
+<SearchBar value={searchQuery} oninput={(v) => (searchQuery = v)} />
+
 <div class="flex items-center justify-between gap-2 mb-3">
 	<!--
 		Segmented control for sort mode. Radiogroup semantics so keyboard
@@ -233,6 +292,10 @@
 {/if}
 {#if folders.length === 0}
 	<div class="text-center py-16 text-text-muted"><p class="text-sm">{t('library.empty')}</p><p class="text-xs mt-1">{t('library.empty_hint')}</p></div>
+{:else if sortedFolders.length === 0}
+	<div class="text-center py-12 text-text-muted">
+		<p class="text-sm">{t('library.search_no_results', { query: searchQuery })}</p>
+	</div>
 {:else}
 	<div class="flex flex-col gap-2">
 		{#each sortedFolders as folder (folder.path)}

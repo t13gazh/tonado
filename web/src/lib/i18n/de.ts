@@ -346,6 +346,9 @@ export default {
 	'library.playlist_name_required': 'Bitte gib einen Namen ein.',
 	'library.playlist_name_duplicate': 'Diese Playlist gibt es schon. Bitte wähle einen anderen Namen.',
 	'library.upload_progress': 'Datei {current} von {total}...',
+	'library.search_placeholder': 'In der Bibliothek suchen',
+	'library.search_clear': 'Suche löschen',
+	'library.search_no_results': 'Nichts gefunden für «{query}»',
 	// Gyro calibration
 	'gyro.calibrate': 'Gesten kalibrieren',
 	'gyro.calibrate_desc': 'Damit die Box Kippen und Schütteln richtig erkennt, muss der Sensor einmalig kalibriert werden.',

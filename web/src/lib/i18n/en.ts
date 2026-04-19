@@ -346,6 +346,9 @@ export default {
 	'library.playlist_name_required': 'Please enter a name.',
 	'library.playlist_name_duplicate': 'A playlist with this name already exists. Please choose another.',
 	'library.upload_progress': 'File {current} of {total}...',
+	'library.search_placeholder': 'Search library',
+	'library.search_clear': 'Clear search',
+	'library.search_no_results': 'Nothing found for «{query}»',
 	// Auth (login sheet)
 	// Gyro calibration
 	'gyro.calibrate': 'Calibrate gestures',

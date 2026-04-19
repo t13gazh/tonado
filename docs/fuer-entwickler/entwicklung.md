@@ -123,5 +123,5 @@ Kurzfassung: Service-Architektur mit Event-Bus. Unabhängige Python-Services kom
 
 - [Architektur](ARCHITEKTUR.md) — Service-Diagramm, Datenmodell, Security
 - [Roadmap](ROADMAP.md) — Meilensteine und Phasen
-- [Vision](VISION.md) — Produktvision und UX-Prinzipien
-- [Hardware](hardware.md) — Unterstützte Hardware und Verkabelung
+- [Vision](../VISION.md) — Produktvision und UX-Prinzipien
+- [Hardware](../fuer-bastler/hardware.md) — Unterstützte Hardware und Verkabelung

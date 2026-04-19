@@ -2,7 +2,7 @@
 
 Vollständige Anleitung zur Installation von Tonado auf einem Raspberry Pi.
 
-> **Schnellstart:** Die Kurzversion findest du in der [README](../README.md#schnellstart).
+> **Schnellstart:** Die Kurzversion findest du in der [README](../../README.md#schnellstart).
 
 ## Voraussetzungen
 
@@ -83,7 +83,7 @@ less install.sh              # Script lesen
 sudo bash install.sh         # wenn OK: ausführen
 ```
 
-Siehe auch [SECURITY.md](../SECURITY.md) für unser Sicherheitsmodell.
+Siehe auch [SECURITY.md](../../SECURITY.md) für unser Sicherheitsmodell.
 
 ### Was das Script macht
 

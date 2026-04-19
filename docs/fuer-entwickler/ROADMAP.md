@@ -84,7 +84,7 @@
 - Dokumentation für Endanwender
 
 ## Meilenstein 1.5: Beta-Readiness (v0.2.x → v0.2.0-beta)
-> Pre-Beta-Härtung. Referenz: [`PRE-BETA-AUDIT.md`](PRE-BETA-AUDIT.md). Kein neues Feature, nur Qualität.
+> Pre-Beta-Härtung. Referenz: [`PRE-BETA-AUDIT.md`](../archive/PRE-BETA-AUDIT.md). Kein neues Feature, nur Qualität.
 
 - **Security-Härtung** (Phase 1): Auth-Lockdown nach Setup, X-Real-IP hinter nginx, Path-Traversal auf `/play-folder`, Captive-Portal WPA2 + Timeout, Watchdog entschärft, Tier-Checks, globales Rate-Limit, sanitized Error-Responses. ✅ erledigt
 - **Update-Härtung** (Phase 2): `asyncio.Lock` + pip-Rollback + Tests für `/update/apply`, `/update/check` PARENT-gated. ✅ erledigt
@@ -96,7 +96,7 @@
 
 ## Meilenstein 2: Erweiterungen (Zukunft)
 
-> **Leitplanke:** Tonado bleibt eine Kinder-Musikbox, kein Smart-Home-Hub (siehe [VISION](VISION.md#was-tonado-nicht-ist)). Erweiterungen, die das Kernerlebnis „Figur auflegen → Musik spielt" erweitern, nicht ersetzen.
+> **Leitplanke:** Tonado bleibt eine Kinder-Musikbox, kein Smart-Home-Hub (siehe [VISION](../VISION.md#was-tonado-nicht-ist)). Erweiterungen, die das Kernerlebnis „Figur auflegen → Musik spielt" erweitern, nicht ersetzen.
 
 - Spotify Connect — **nur als Receiver** (Box erscheint in der Spotify-App als Abspielziel). Keine Spotify-Player-Logik in Tonado selbst.
 - AirPlay / Chromecast — ebenfalls Receiver-Modus

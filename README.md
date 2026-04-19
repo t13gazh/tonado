@@ -33,7 +33,7 @@ Jede Figur oder Karte enthält einen kleinen RFID-Chip (13.56 MHz), den die Box 
 
 **Gesamtkosten: ca. 70–100 €** — eigene Musik, kein Abo, keine laufenden Kosten.
 
-Alle Details zu Modellen, Optionen und Verkabelung: **[Hardware-Anleitung](docs/hardware.md)**
+Alle Details zu Modellen, Optionen und Verkabelung: **[Hardware-Anleitung](docs/fuer-bastler/hardware.md)**
 
 ## Schnellstart
 
@@ -59,7 +59,7 @@ Das Script erledigt alles automatisch — Pakete, Audio, RFID, Webserver. Dauert
 
 Browser öffnen, `http://<hostname>.local` aufrufen, Musik hochladen, Figuren zuweisen — fertig.
 
-Ausführliche Anleitung mit Troubleshooting: **[Installationsanleitung](docs/installation.md)**
+Ausführliche Anleitung mit Troubleshooting: **[Installationsanleitung](docs/fuer-bastler/installation.md)**
 
 ## Aktualisierung
 
@@ -75,7 +75,7 @@ cd /opt/tonado && sudo -u pi git pull && sudo systemctl restart tonado
 
 Tonado ist gebaut mit **Svelte 5**, **FastAPI**, **MPD** und **SQLite**. Hardware-Services laufen auf Windows/Mac im Mock-Modus.
 
-Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklung.md)**
+Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entwickler/entwicklung.md)**
 
 ## Status
 
@@ -100,6 +100,14 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/entwicklu
 - **Captive-Portal-Setup noch nicht mit nicht-technischer Zielgruppe getestet.** Pi aus dem Karton → AP → WLAN einrichten läuft lokal, wurde aber nicht mit einem „frischen" Anwender validiert.
 
 **Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).
+
+## Dokumentation
+
+Die Doku ist nach Zielgruppe sortiert:
+
+- **Für Eltern** — [Vision](docs/VISION.md) · [Updates](docs/fuer-eltern/UPDATE.md) · [Backup](docs/fuer-eltern/BACKUP.md)
+- **Für Bastler** — [Installation](docs/fuer-bastler/installation.md) · [Hardware](docs/fuer-bastler/hardware.md)
+- **Für Entwickler** — [Mitmachen](CONTRIBUTING.md) · [Architektur](docs/fuer-entwickler/ARCHITEKTUR.md) · [Entwicklung](docs/fuer-entwickler/entwicklung.md) · [Roadmap](docs/fuer-entwickler/ROADMAP.md)
 
 ## Mitmachen
 

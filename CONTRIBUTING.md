@@ -15,7 +15,7 @@ Schön, dass du mithelfen willst. Tonado ist ein Open-Source-Projekt, das eine K
    - Code, Commits, Kommentare: Englisch.
    - UI-Strings und User-Doku: Deutsch mit echten Umlauten (ä/ö/ü/ß — nie ae/oe/ue).
    - Branch: `main` (nicht `master`).
-3. **Lokal aufsetzen.** [docs/installation.md](docs/installation.md) für den Pi, [docs/entwicklung.md](docs/entwicklung.md) für die Dev-Umgebung (Backend: `pip install -e ".[dev]"`, Frontend: `cd web && npm install`).
+3. **Lokal aufsetzen.** [docs/fuer-bastler/installation.md](docs/fuer-bastler/installation.md) für den Pi, [docs/fuer-entwickler/entwicklung.md](docs/fuer-entwickler/entwicklung.md) für die Dev-Umgebung (Backend: `pip install -e ".[dev]"`, Frontend: `cd web && npm install`).
 4. **Git-Hooks installieren.** Einmalig nach dem Clone: `bash scripts/install-hooks.sh`. Der Pre-Commit-Hook blockiert `feat:`/`fix:`-Commits, die Source-Code (core/ oder web/src/) ändern, aber keinen CHANGELOG.md-Eintrag mitbringen. Ohne Hook geht dir das durch — das ist dann aber ein PR-Blocker im Review.
 
 ## Workflow

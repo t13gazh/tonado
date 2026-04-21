@@ -21,6 +21,11 @@
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error).
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden.
 
+## Doku-Pflege
+
+- [ ] **Hardware-Claims durch Experten prüfen.** Aussagen in `docs/fuer-bastler/hardware.md` zu Einbau, Pin-Belegung und Kompatibilität stichprobenartig gegen Datenblätter validieren. Konkreter Startpunkt: „HifiBerry MiniAmp passt nur in eine Richtung" (Zeile 33) — der 40-Pin-GPIO-Header ist mechanisch symmetrisch, also mechanisch drehbar (elektrisch dann aber falsch). Formulierung schärfen (z.B. „mechanisch in beide Richtungen aufsteckbar, elektrisch ist aber nur eine Ausrichtung korrekt — achte auf den Pin-1-Marker"). Generell: Bei Unsicherheit entweder Quelle zitieren oder im Review nachfragen.
+- [ ] **FAQ-Formulierung „Box vom Internet trennen" klären.** `docs/fuer-eltern/FAQ.md:19` und `docs/fuer-eltern/features.md:103` suggerieren, Offline-Betrieb sei heute schon als bewusste Einstellung da. Technisch kann man den Router abschalten — aber der saubere „Offline-Modus" mit UI-Schalter + deaktivierten Streaming-Features ist Prio 2 (siehe unten), noch nicht umgesetzt. Solange das Feature fehlt: Doku-Formulierung auf heutigen Stand zurücknehmen („funktioniert ohne Internet-Verbindung für lokale Dateien" statt „dauerhaft vom Internet trennen").
+
 ## Prio 1 — Kernfunktionen
 
 - [ ] **Sleep-Timer verlängern aus dem Player-Pill:** Klick auf den Pill öffnet Mini-Sheet mit „+5 Min / +10 Min / Abbrechen". Typischer Eltern-Workflow wenn Kind noch wach ist. Aktuell nur Abbrechen möglich, Neustart nur über Einstellungen.
@@ -95,6 +100,7 @@
 ## Prio 4 — Zukunft / Hardware-abhängig
 
 - [ ] **Aufnahme über Mikrofon am Pi:** USB-Mikro oder I2S MEMS-Mikro (INMP441/SPH0645) anschließen, direkt an der Box aufnehmen statt über Handy-Browser. Karte auflegen + Knopf drücken = aufnehmen.
+- [ ] **Spotify-Integration (Musik/Hörbücher abspielen):** Eine Möglichkeit, Spotify-Inhalte über Tonado zu hören. ⚠️ Vision-Konflikt: [VISION](docs/VISION.md#was-tonado-nicht-ist) sagt „kein eigener Spotify-Player" — nur Receiver-Modus (Box erscheint in der Spotify-App als Abspielziel) ist erwogen. Offene Frage (Product Owner): Reicht der Receiver-Modus (Spotify Connect via librespot, Elternhandy steuert, Kind hört über die Box), oder soll die Figur-auf-Box-Logik auf Spotify-Inhalte erweitert werden (eigener Player, Figur = Spotify-Playlist/Hörbuch)? Letzteres erfordert Premium-Account + Client-Lizenz + UX-Integration in den Figuren-Wizard und würde die Vision-Aussage entsprechend aufweichen.
 - [ ] **Bluetooth-Speaker-Modus:** Box als normaler BT-Lautsprecher vom Handy nutzen. ⚠️ Vision-Konflikt: In [VISION](docs/VISION.md#was-tonado-nicht-ist) steht „kein Bluetooth-Speaker", weil Tonado eine Kinder-Musikbox ist, kein allgemeiner Lautsprecher. Nur weiter verfolgen, wenn ein klarer Kinder-Use-Case erkennbar ist (z.B. Handy als temporäre Hörbuch-Quelle, wenn Figur fehlt). ⚠️ Technisch: BT und WiFi teilen sich den Chip (Pi Zero W, 3B+), BT-Audio (A2DP) + WiFi gleichzeitig = Interferenzen/Stottern. Evtl. nur auf Pi 4/5 sinnvoll oder mit USB-BT-Dongle.
 - [ ] **BT-Kopfhörer-Unterstützung:** Kabellose Kopfhörer mit der Box koppeln. Separate Kopfhörer-Lautstärkegrenze (Gehörschutz). ⚠️ Gleiche HW-Einschränkung wie BT-Speaker. Braucht PulseAudio/PipeWire zwischen MPD und ALSA — verkompliziert Audio-Pipeline.
 - [ ] **NFC-Smartphone-Interaktion:** RFID-Reader erkennt Smartphone (NFC/HCE auf 13,56 MHz). Use Cases: (a) Ersteinrichtung ohne PIN — Handy auflegen = vertraut, physische Nähe als Auth, (b) Gastmodus — Besucherkind legt Handy auf → eingeschränkter Zugriff, (c) BT-Speaker/Streaming aktivieren — Handy auflegen schaltet Box in BT-Modus, (d) Handsfree-Steuerung durch physische Geste statt App. ⚠️ iPhone-HCE stark eingeschränkt, Android braucht native App (kein reines PWA).

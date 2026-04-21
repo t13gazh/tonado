@@ -238,14 +238,14 @@
 
 <div class="flex flex-col h-dvh">
 	<!-- Fixed header -->
-	<div class="shrink-0 px-4 pt-4 pb-2 relative">
+	<div class="shrink-0 px-4 pt-4 pb-2 relative z-10">
 		<h1 class="text-xl font-bold text-text text-center">{t('setup.title')}</h1>
 		{#if currentHelpKey}
 			<button
 				type="button"
 				onclick={openHelp}
 				aria-label={t('help.open_aria')}
-				class="absolute top-3 right-3 p-2 text-text-muted hover:text-text rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+				class="absolute top-3 right-3 z-20 p-2 min-h-11 min-w-11 inline-flex items-center justify-center text-text-muted hover:text-text rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
 			>
 				<Icon name="help-circle" size={20} />
 			</button>

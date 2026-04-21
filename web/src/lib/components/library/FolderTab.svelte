@@ -83,10 +83,15 @@
 	let trackCache = $state<Record<string, MediaTrack[]>>({});
 	let tracksLoaded = $state(false);
 
+	// Track-content search is expensive: fanning out `library.tracks()` over 200
+	// folders on a Pi Zero W costs ~4 s and several MB of RAM. We therefore wait
+	// until the query is meaningful (>=3 chars) before triggering the bulk
+	// fetch. Folder-name matches are derived synchronously from the already
+	// loaded `folders` prop, so they stay instant for 1–2 char queries.
+	const TRACK_SEARCH_MIN_CHARS = 3;
+
 	$effect(() => {
-		// Kick off a best-effort bulk fetch the first time the user starts typing.
-		// Failure is silent — name-only search still works as fallback.
-		if (isSearching && !tracksLoaded) {
+		if (isSearching && normalizedQuery.length >= TRACK_SEARCH_MIN_CHARS && !tracksLoaded) {
 			tracksLoaded = true;
 			void loadAllTracks();
 		}
@@ -330,7 +335,18 @@
 		try {
 			for (let i = 0; i < files.length; i++) {
 				uploadCurrent = i + 1; uploadProgress = 0;
-				await library.upload(folderName, files[i], (pct) => { uploadProgress = pct; });
+				const file = files[i];
+				// Image drops should land as folder cover, not as a track file.
+				// Without this branch the file ends up as `IMG_1234.jpg` in the
+				// folder and the scanner never surfaces it as cover art (embedded
+				// ID3 art would win). The cover endpoint renames to `cover.{ext}`
+				// so on-disk art beats ID3 as documented in the library service.
+				if (file.type.startsWith('image/')) {
+					await library.uploadCover(folderName, file);
+					uploadProgress = 100;
+				} else {
+					await library.upload(folderName, file, (pct) => { uploadProgress = pct; });
+				}
 			}
 			await onReloadFolders();
 			if (expandedFolder === folderName) folderTracks = await library.tracks(folderName);

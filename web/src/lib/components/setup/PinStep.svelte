@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { t } from '$lib/i18n';
-	import { authApi, setupApi } from '$lib/api';
+	import { authApi, setupApi, ApiError } from '$lib/api';
+	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
 		saved: boolean;
@@ -11,27 +13,106 @@
 
 	let { saved = $bindable(), error, onError, onSaved }: Props = $props();
 
-	let parentPin = $state('');
-	let parentPinRepeat = $state('');
-	let expertPin = $state('');
-	let expertPinRepeat = $state('');
-	let saving = $state(false);
-	let localError = $state('');
+	// Four-digit OTP-style inputs for each PIN.
+	const PIN_LENGTH = 4;
+	const emptyPin = () => Array.from({ length: PIN_LENGTH }, () => '');
 
+	let parentDigits = $state<string[]>(emptyPin());
+	let parentRepeatDigits = $state<string[]>(emptyPin());
+	let expertDigits = $state<string[]>(emptyPin());
+	let expertRepeatDigits = $state<string[]>(emptyPin());
+
+	// Element refs for auto-focus-advance / backspace-back.
+	let parentInputs: HTMLInputElement[] = [];
+	let parentRepeatInputs: HTMLInputElement[] = [];
+	let expertInputs: HTMLInputElement[] = [];
+	let expertRepeatInputs: HTMLInputElement[] = [];
+
+	let saving = $state(false);
+	let localError = $state<string | null>(null);
+
+	// Joined strings for validation / submit.
+	const parentPin = $derived(parentDigits.join(''));
+	const parentPinRepeat = $derived(parentRepeatDigits.join(''));
+	const expertPin = $derived(expertDigits.join(''));
+	const expertPinRepeat = $derived(expertRepeatDigits.join(''));
 	const expertPairComplete = $derived(expertPin.length > 0 || expertPinRepeat.length > 0);
 
+	/** Accept digit-only, single char; auto-advance on input. */
+	function handleDigitInput(
+		digits: string[],
+		inputs: HTMLInputElement[],
+		index: number,
+		e: Event,
+	): void {
+		const el = e.target as HTMLInputElement;
+		const sanitized = el.value.replace(/\D/g, '').slice(-1);
+		digits[index] = sanitized;
+		// Write back the sanitized value (protects against paste / non-digits).
+		el.value = sanitized;
+		if (sanitized && index < PIN_LENGTH - 1) {
+			inputs[index + 1]?.focus();
+			inputs[index + 1]?.select();
+		}
+	}
+
+	/** Backspace on empty cell jumps back; Arrow-Left/Right navigate. */
+	function handleDigitKeydown(
+		digits: string[],
+		inputs: HTMLInputElement[],
+		index: number,
+		e: KeyboardEvent,
+	): void {
+		if (e.key === 'Backspace' && !digits[index] && index > 0) {
+			e.preventDefault();
+			inputs[index - 1]?.focus();
+			inputs[index - 1]?.select();
+			return;
+		}
+		if (e.key === 'ArrowLeft' && index > 0) {
+			e.preventDefault();
+			inputs[index - 1]?.focus();
+			inputs[index - 1]?.select();
+			return;
+		}
+		if (e.key === 'ArrowRight' && index < PIN_LENGTH - 1) {
+			e.preventDefault();
+			inputs[index + 1]?.focus();
+			inputs[index + 1]?.select();
+		}
+	}
+
+	/** Paste a 4-digit PIN at once: fill all cells, move focus to last. */
+	function handleDigitPaste(
+		digits: string[],
+		inputs: HTMLInputElement[],
+		e: ClipboardEvent,
+	): void {
+		const pasted = e.clipboardData?.getData('text')?.replace(/\D/g, '') ?? '';
+		if (!pasted) return;
+		e.preventDefault();
+		for (let i = 0; i < PIN_LENGTH; i++) {
+			digits[i] = pasted[i] ?? '';
+		}
+		const lastFilled = Math.min(pasted.length, PIN_LENGTH) - 1;
+		if (lastFilled >= 0) {
+			inputs[lastFilled]?.focus();
+			inputs[lastFilled]?.select();
+		}
+	}
+
 	function validate(): string | null {
-		if (parentPin.length < 4) return t('setup.pin_too_short');
+		if (parentPin.length < PIN_LENGTH) return t('setup.pin_too_short');
 		if (parentPin !== parentPinRepeat) return t('setup.pin_mismatch');
 		if (expertPairComplete) {
-			if (expertPin.length < 4) return t('setup.pin_too_short');
+			if (expertPin.length < PIN_LENGTH) return t('setup.pin_too_short');
 			if (expertPin !== expertPinRepeat) return t('setup.pin_mismatch');
 		}
 		return null;
 	}
 
 	async function save() {
-		localError = '';
+		localError = null;
 		const err = validate();
 		if (err) {
 			localError = err;
@@ -48,7 +129,15 @@
 			saved = true;
 			onSaved();
 		} catch (e) {
-			const msg = e instanceof Error ? e.message : t('setup.pin_save_failed');
+			// Translate status-based errors — never leak raw backend strings.
+			let msg: string;
+			if (e instanceof ApiError) {
+				if (e.status === 403) msg = t('setup.pin_access_denied');
+				else if (e.status === 401) msg = t('setup.pin_unauthorized');
+				else msg = t('setup.pin_save_failed');
+			} else {
+				msg = t('setup.pin_save_failed');
+			}
 			localError = msg;
 			onError(msg);
 		} finally {
@@ -63,69 +152,136 @@
 	export async function submit() {
 		await save();
 	}
+
+	// Prefer the local (structured) error over the page-level fallback.
+	const visibleError = $derived(localError ?? (error ? error : null));
+
+	onMount(() => {
+		if (!saved) parentInputs[0]?.focus();
+	});
 </script>
 
 <div class="flex flex-col gap-4">
 	<h2 class="text-lg font-semibold text-text text-center">{t('setup.pin_title')}</h2>
 	<p class="text-sm text-text-muted text-center">{t('setup.pin_desc')}</p>
 
-	<div class="flex flex-col gap-2">
-		<label class="text-sm text-text" for="pin-parent">{t('setup.pin_parent_label')}</label>
-		<input
-			id="pin-parent"
-			type="password"
-			inputmode="numeric"
-			autocomplete="new-password"
-			maxlength="32"
-			bind:value={parentPin}
-			placeholder={t('setup.pin_parent_placeholder')}
-			disabled={saving || saved}
-			class="bg-surface-light rounded-lg px-4 py-3 text-text placeholder:text-text-muted focus:ring-2 focus:ring-primary outline-none"
-		/>
-		<input
-			type="password"
-			inputmode="numeric"
-			autocomplete="new-password"
-			maxlength="32"
-			bind:value={parentPinRepeat}
-			placeholder={t('setup.pin_confirm_label')}
-			disabled={saving || saved}
-			class="bg-surface-light rounded-lg px-4 py-3 text-text placeholder:text-text-muted focus:ring-2 focus:ring-primary outline-none"
-		/>
-	</div>
+	<!-- Parent PIN (required, fixed 4 digits) -->
+	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text">{t('setup.pin_parent_label')}</legend>
+		<div
+			class="flex gap-2 justify-center"
+			role="group"
+			aria-label={t('setup.pin_parent_label')}
+			aria-describedby={visibleError ? 'pin-error' : undefined}
+		>
+			{#each parentDigits as digit, i (i)}
+				<input
+					bind:this={parentInputs[i]}
+					type="password"
+					inputmode="numeric"
+					autocomplete="new-password"
+					maxlength="1"
+					value={digit}
+					oninput={(e) => handleDigitInput(parentDigits, parentInputs, i, e)}
+					onkeydown={(e) => handleDigitKeydown(parentDigits, parentInputs, i, e)}
+					onpaste={(e) => handleDigitPaste(parentDigits, parentInputs, e)}
+					onfocus={(e) => (e.target as HTMLInputElement).select()}
+					aria-label={t('setup.pin_parent_digit', { n: i + 1 })}
+					aria-invalid={visibleError ? 'true' : undefined}
+					class="w-14 h-16 text-center text-2xl font-semibold tabular-nums bg-surface border-2 border-surface-lighter rounded-xl text-text focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none transition-colors"
+				/>
+			{/each}
+		</div>
+	</fieldset>
 
-	<div class="flex flex-col gap-2">
-		<label class="text-sm text-text" for="pin-expert">{t('setup.pin_expert_label')}</label>
-		<p class="text-xs text-text-muted">{t('setup.pin_expert_hint')}</p>
-		<input
-			id="pin-expert"
-			type="password"
-			inputmode="numeric"
-			autocomplete="new-password"
-			maxlength="32"
-			bind:value={expertPin}
-			placeholder={t('setup.pin_parent_placeholder')}
-			disabled={saving || saved}
-			class="bg-surface-light rounded-lg px-4 py-3 text-text placeholder:text-text-muted focus:ring-2 focus:ring-primary outline-none"
-		/>
-		<input
-			type="password"
-			inputmode="numeric"
-			autocomplete="new-password"
-			maxlength="32"
-			bind:value={expertPinRepeat}
-			placeholder={t('setup.pin_confirm_label')}
-			disabled={saving || saved}
-			class="bg-surface-light rounded-lg px-4 py-3 text-text placeholder:text-text-muted focus:ring-2 focus:ring-primary outline-none"
-		/>
-	</div>
+	<!-- Parent PIN repeat -->
+	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text">{t('setup.pin_confirm_label')}</legend>
+		<div
+			class="flex gap-2 justify-center"
+			role="group"
+			aria-label={t('setup.pin_confirm_label')}
+			aria-describedby={visibleError ? 'pin-error' : undefined}
+		>
+			{#each parentRepeatDigits as digit, i (i)}
+				<input
+					bind:this={parentRepeatInputs[i]}
+					type="password"
+					inputmode="numeric"
+					autocomplete="new-password"
+					maxlength="1"
+					value={digit}
+					oninput={(e) => handleDigitInput(parentRepeatDigits, parentRepeatInputs, i, e)}
+					onkeydown={(e) => handleDigitKeydown(parentRepeatDigits, parentRepeatInputs, i, e)}
+					onpaste={(e) => handleDigitPaste(parentRepeatDigits, parentRepeatInputs, e)}
+					onfocus={(e) => (e.target as HTMLInputElement).select()}
+					aria-label={t('setup.pin_parent_repeat_digit', { n: i + 1 })}
+					class="w-14 h-16 text-center text-2xl font-semibold tabular-nums bg-surface border-2 border-surface-lighter rounded-xl text-text focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none transition-colors"
+				/>
+			{/each}
+		</div>
+	</fieldset>
+
+	<!-- Expert PIN (optional, also 4 digits) -->
+	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text">{t('setup.pin_expert_label')}</legend>
+		<p class="text-xs text-text-muted text-center">{t('setup.pin_expert_hint')}</p>
+		<div
+			class="flex gap-2 justify-center"
+			role="group"
+			aria-label={t('setup.pin_expert_label')}
+			aria-describedby={visibleError ? 'pin-error' : undefined}
+		>
+			{#each expertDigits as digit, i (i)}
+				<input
+					bind:this={expertInputs[i]}
+					type="password"
+					inputmode="numeric"
+					autocomplete="new-password"
+					maxlength="1"
+					value={digit}
+					oninput={(e) => handleDigitInput(expertDigits, expertInputs, i, e)}
+					onkeydown={(e) => handleDigitKeydown(expertDigits, expertInputs, i, e)}
+					onpaste={(e) => handleDigitPaste(expertDigits, expertInputs, e)}
+					onfocus={(e) => (e.target as HTMLInputElement).select()}
+					aria-label={t('setup.pin_expert_digit', { n: i + 1 })}
+					class="w-14 h-16 text-center text-2xl font-semibold tabular-nums bg-surface border-2 border-surface-lighter rounded-xl text-text focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none transition-colors"
+				/>
+			{/each}
+		</div>
+	</fieldset>
+
+	<!-- Expert PIN repeat -->
+	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text">{t('setup.pin_confirm_label')}</legend>
+		<div
+			class="flex gap-2 justify-center"
+			role="group"
+			aria-label={t('setup.pin_confirm_label')}
+			aria-describedby={visibleError ? 'pin-error' : undefined}
+		>
+			{#each expertRepeatDigits as digit, i (i)}
+				<input
+					bind:this={expertRepeatInputs[i]}
+					type="password"
+					inputmode="numeric"
+					autocomplete="new-password"
+					maxlength="1"
+					value={digit}
+					oninput={(e) => handleDigitInput(expertRepeatDigits, expertRepeatInputs, i, e)}
+					onkeydown={(e) => handleDigitKeydown(expertRepeatDigits, expertRepeatInputs, i, e)}
+					onpaste={(e) => handleDigitPaste(expertRepeatDigits, expertRepeatInputs, e)}
+					onfocus={(e) => (e.target as HTMLInputElement).select()}
+					aria-label={t('setup.pin_expert_repeat_digit', { n: i + 1 })}
+					class="w-14 h-16 text-center text-2xl font-semibold tabular-nums bg-surface border-2 border-surface-lighter rounded-xl text-text focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none transition-colors"
+				/>
+			{/each}
+		</div>
+	</fieldset>
 
 	{#if saved}
 		<p class="text-sm text-green-400 text-center">{t('setup.pin_saved')}</p>
 	{/if}
-	{#if localError}
-		<p class="text-sm text-red-400 text-center">{localError}</p>
-	{:else if error}
-		<p class="text-sm text-red-400 text-center">{error}</p>
-	{/if}
+
+	<InlineError message={visibleError} id="pin-error" />
 </div>

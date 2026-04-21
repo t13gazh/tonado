@@ -45,6 +45,10 @@ class TimerService(BaseService):
         self._sleep_active: bool = False
         self._fading: bool = False
         self._pre_fade_volume: int | None = None
+        # Last volume value the fade itself set. Used to distinguish fade-driven
+        # player_state_changed echoes from real user intervention (turning the
+        # volume back up during fade must cancel the timer).
+        self._last_fade_target: int | None = None
         self._last_activity: float = time.monotonic()
         self._cached_max_volume: int | None = None
         self._max_volume_loaded: bool = False
@@ -101,8 +105,18 @@ class TimerService(BaseService):
         return self._sleep_remaining
 
     async def cancel_sleep_timer(self) -> None:
-        """Cancel the active sleep timer and any ongoing fade-out."""
+        """Cancel the active sleep timer and any ongoing fade-out.
+
+        Fade and countdown run as independent tasks (B1 semantics): both
+        must be cancelled and awaited so a subsequent start_sleep_timer
+        does not race with a half-cancelled fade still touching the volume.
+        """
         was_active = self._sleep_active or self._fading
+        # Snapshot the pre-fade volume before tearing down the fade task:
+        # the task's own CancelledError handler also restores volume, but
+        # awaiting that restore before we run our own set_volume below
+        # avoids a brief dip if the task happened to be mid-step.
+        restore_volume = self._pre_fade_volume if self._fading else None
         if self._fade_task:
             self._fade_task.cancel()
             try:
@@ -116,9 +130,12 @@ class TimerService(BaseService):
                 await self._sleep_task
             except asyncio.CancelledError:
                 pass
-        # Restore original volume if fade was in progress
-        if self._fading and self._pre_fade_volume is not None:
-            await self._player.set_volume(self._pre_fade_volume)
+            self._sleep_task = None
+        # Restore original volume if fade was in progress. The fade task's
+        # CancelledError branch already does this, but it only runs if the
+        # task had actually started; belt-and-suspenders for robustness.
+        if restore_volume is not None:
+            await self._player.set_volume(restore_volume)
         self._fading = False
         self._pre_fade_volume = None
         self._sleep_active = False
@@ -152,35 +169,83 @@ class TimerService(BaseService):
             logger.exception("Failed to publish sleep_timer_updated")
 
     async def _sleep_countdown(self) -> None:
-        try:
-            while self._sleep_remaining > 0:
-                await asyncio.sleep(1)
-                self._sleep_remaining -= 1
+        """Count down remaining seconds; start fade-out *inside* the window.
 
-            # Timer expired — start fade-out before stopping
-            logger.info("Sleep timer expired, starting fade-out")
-            self._fade_task = asyncio.create_task(self._fade_out())
-            await self._fade_task
-        except asyncio.CancelledError:
-            pass
-
-    async def _fade_out(self) -> None:
-        """Gradually reduce volume to 0, then stop playback and restore volume."""
+        B1 semantics: the fade runs concurrently with the countdown — once
+        ``remaining <= fade_duration`` the fade task is spawned and both
+        tasks tick together until ``remaining == 0``, at which point the
+        fade is already at volume 0 and playback is stopped. The total
+        timer duration the user requested is therefore exactly the time
+        until silence, not until fade-start.
+        """
         try:
+            # Resolve fade duration once so countdown and fade agree on it.
             fade_duration = await self._config.get("sleep_fade_duration")
             if fade_duration is None or fade_duration <= 0:
                 fade_duration = self.DEFAULT_FADE_DURATION
+            # Clamp: a fade longer than the whole timer would never start.
+            fade_duration = min(int(fade_duration), int(self._sleep_remaining))
+
+            fade_started = False
+            while self._sleep_remaining > 0:
+                if not fade_started and self._sleep_remaining <= fade_duration:
+                    fade_started = True
+                    self._fade_task = asyncio.create_task(
+                        self._fade_out(duration=fade_duration),
+                    )
+                await asyncio.sleep(1)
+                self._sleep_remaining -= 1
+
+            # Countdown exhausted. If fade was started, wait for it to finish
+            # its final volume steps and stop_playback(); if not (fade_duration
+            # was 0 for some reason), stop playback ourselves.
+            if self._fade_task is not None:
+                try:
+                    await self._fade_task
+                except asyncio.CancelledError:
+                    pass
+            else:
+                await self._player.stop_playback()
+                self._sleep_active = False
+                self._sleep_remaining = 0
+                await self._publish_sleep_state()
+                await self._event_bus.publish("sleep_timer_expired")
+        except asyncio.CancelledError:
+            pass
+
+    async def _fade_out(self, duration: float | None = None) -> None:
+        """Gradually reduce volume to 0, then stop playback and restore volume.
+
+        Under B1 semantics this runs *in parallel* with the tail of the
+        countdown task. ``duration`` is the target fade length in seconds
+        (normally equal to the time-until-zero that the countdown has left
+        when the fade is spawned). When omitted, the config value is used —
+        kept for callers that still want the legacy "fade after zero" shape.
+        """
+        try:
+            if duration is None:
+                fade_duration = await self._config.get("sleep_fade_duration")
+                if fade_duration is None or fade_duration <= 0:
+                    fade_duration = self.DEFAULT_FADE_DURATION
+            else:
+                fade_duration = duration
 
             start_volume = self._player.state.volume
             if start_volume <= 0:
-                # Already silent — just stop
+                # Already silent — don't touch the volume; wait for the
+                # countdown to finish, then stop playback ourselves.
+                if fade_duration > 0:
+                    await asyncio.sleep(fade_duration)
                 await self._player.stop_playback()
                 self._sleep_active = False
+                self._sleep_remaining = 0
+                self._fading = False
                 await self._publish_sleep_state()
                 await self._event_bus.publish("sleep_timer_expired")
                 return
 
             self._pre_fade_volume = start_volume
+            self._last_fade_target = start_volume
             self._fading = True
             await self._publish_sleep_state()
 
@@ -202,6 +267,7 @@ class TimerService(BaseService):
                     return
 
                 new_volume = max(0, start_volume - int(start_volume * i / step_count))
+                self._last_fade_target = new_volume
                 await self._player.set_volume(new_volume)
 
             # Fade complete — stop playback
@@ -223,6 +289,11 @@ class TimerService(BaseService):
                 await self._player.set_volume(self._pre_fade_volume)
                 self._pre_fade_volume = None
             self._fading = False
+            self._last_fade_target = None
+            # Clear sleep state so the UI does not show a stale "active 0s" pill.
+            self._sleep_active = False
+            self._sleep_remaining = 0
+            await self._publish_sleep_state()
 
     # --- Volume enforcement ---
 
@@ -280,27 +351,34 @@ class TimerService(BaseService):
         await self._enforce_max_volume()
         self._last_activity = time.monotonic()
 
-        # Detect manual volume change during fade-out → cancel fade and timer
-        if self._fading and self._pre_fade_volume is not None:
+        # Detect manual volume change during fade-out → cancel fade and timer.
+        # The fade itself calls set_volume which echoes back as player_state_changed.
+        # We track the last value the fade *asked for* in `_last_fade_target` and
+        # treat any reported value significantly above it as user intervention
+        # (tolerance absorbs float/int rounding between MPD and our steps).
+        if self._fading and self._last_fade_target is not None:
             reported_volume = state.get("volume")
-            if reported_volume is not None:
-                # The fade itself sets volume via player.set_volume which also
-                # triggers this event. We detect "manual" changes by checking if
-                # the volume went UP during a fade (user intervention).
-                if reported_volume > self._player.state.volume:
-                    logger.info(
-                        "Manual volume change during fade (%d), cancelling",
-                        reported_volume,
-                    )
-                    self._fading = False
-                    self._pre_fade_volume = None
-                    if self._fade_task:
-                        self._fade_task.cancel()
-                        self._fade_task = None
-                    if self._sleep_task:
-                        self._sleep_task.cancel()
-                    self._sleep_active = False
-                    self._sleep_remaining = 0
+            if reported_volume is not None and reported_volume > self._last_fade_target + 2:
+                logger.info(
+                    "Manual volume change during fade (%d), cancelling",
+                    reported_volume,
+                )
+                was_active = self._sleep_active or self._fading
+                self._fading = False
+                self._pre_fade_volume = None
+                self._last_fade_target = None
+                if self._fade_task:
+                    self._fade_task.cancel()
+                    self._fade_task = None
+                # Countdown runs independently under B1 — cancel it too
+                # so the timer does not keep ticking to 0 in the background.
+                if self._sleep_task:
+                    self._sleep_task.cancel()
+                    self._sleep_task = None
+                self._sleep_active = False
+                self._sleep_remaining = 0
+                if was_active:
+                    await self._publish_sleep_state()
 
     async def _on_config_changed(self, key: str = "", **_) -> None:
         """Invalidate cached config values when config changes."""

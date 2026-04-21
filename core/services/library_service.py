@@ -148,15 +148,26 @@ class LibraryService(BaseService):
             tracks = [f for f in entry.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
             cover = self._find_cover(entry)
             total_duration = sum(get_duration(f) for f in tracks)
-            # Folder mtime: use max mtime of contents (audio + cover) to reflect
-            # "when did this album last change"; fall back to directory mtime.
+            # Folder mtime: start with the directory's own stat so an empty folder
+            # (no tracks, no cover) still sorts sensibly under "newest first" —
+            # previously empty folders collapsed to mtime=0 and pooled at the end
+            # of the list, making the view look alphabetically scrambled. Then we
+            # refine upwards with the max mtime of the folder's contents to
+            # reflect "when did this album last change".
+            try:
+                mtime = entry.stat().st_mtime
+            except OSError:
+                mtime = 0
             try:
                 content_mtimes = [f.stat().st_mtime for f in tracks]
                 if cover:
                     content_mtimes.append(cover.stat().st_mtime)
-                mtime = max(content_mtimes) if content_mtimes else entry.stat().st_mtime
+                if content_mtimes:
+                    mtime = max(mtime, max(content_mtimes))
             except OSError:
-                mtime = 0
+                # Transient stat failure on a track / cover file: keep the
+                # directory mtime we already captured instead of dropping to 0.
+                pass
 
             folders.append(MediaFolder(
                 name=entry.name,
@@ -178,13 +189,21 @@ class LibraryService(BaseService):
         tracks = [f for f in folder_path.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS]
         cover = self._find_cover(folder_path)
         total_duration = sum(get_duration(f) for f in tracks)
+        # Keep in lock-step with `_list_folders_sync` above — see comment there
+        # for why the directory's own mtime is the floor rather than 0 for
+        # empty folders.
+        try:
+            mtime = folder_path.stat().st_mtime
+        except OSError:
+            mtime = 0
         try:
             content_mtimes = [f.stat().st_mtime for f in tracks]
             if cover:
                 content_mtimes.append(cover.stat().st_mtime)
-            mtime = max(content_mtimes) if content_mtimes else folder_path.stat().st_mtime
+            if content_mtimes:
+                mtime = max(mtime, max(content_mtimes))
         except OSError:
-            mtime = 0
+            pass
 
         return MediaFolder(
             name=folder_name,

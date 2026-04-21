@@ -9,7 +9,26 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Behoben
 
+- **Player-Seite scrollt nicht mehr auf kleinen Smartphones.** Das Doppel-Polster unten (Safe-Area + Nav-Höhe gleichzeitig) ist raus, die Controls rutschen nicht mehr hinter die untere Leiste und das Cover wird oben nicht mehr angeschnitten.
+- **Cover-Art füllt den Rahmen wirklich aus.** Der Cover-Kasten ist jetzt strikt quadratisch und schrumpft nicht mehr gegen die Höhe — keine schwarzen Balken mehr, auch wenn das Bild quadratisch ist.
+- **Hochgeladene Ordner-Cover gewinnen über eingebettete ID3-Cover.** Legst du ein Bild in einen Ordner (oder ziehst es beim Upload mit rein), wird es automatisch als `cover.jpg` abgelegt und im Player angezeigt — egal welches Cover die MP3 intern mitbringt.
+- **Setup-Hilfe erscheint auch im ersten (Hardware-) Schritt.** Das Fragezeichen wurde vorher vom Spinner-Overlay verdeckt.
+- **Unübersetzter „Error: Access denied" beim PIN-Setzen ist weg.** Fehlermeldungen kommen jetzt komplett auf Deutsch und konsistent mit dem Rest der App — auch wenn die Box schon eine PIN kennt.
+- **Suche in der Bibliothek zeigt nur noch ein Lösch-Kreuz.** Der zusätzliche Browser-X ist unterdrückt, das eigene X bleibt.
+- **Sortierung in der Bibliothek klappt auch bei leeren Ordnern.** Leere Ordner landen nicht mehr alle am Ende, sondern werden nach dem Änderungsdatum des Ordners selbst einsortiert.
+- **WLAN-Rettung zeigt die aktive Wartezeit.** Ein Ring hebt den gewählten Preset hervor; neue Installationen bekommen 5 Minuten als Vorauswahl.
+- **Sleep-Timer bricht jetzt wirklich ab, wenn jemand während des Fades die Lautstärke hochdreht.** Die Erkennung hat vorher immer gegen den schon aktualisierten Wert verglichen — jetzt merkt der Timer, dass eingegriffen wurde.
 - **Browser-Audio bricht nicht mehr bei Stream-Wechsel ab.** Backend-Proxy räumt httpx-Verbindungen sauber ab (`AsyncExitStack`), MPD httpd hält seinen Output dauerhaft offen (`always_on`), und ein neues WebSocket-Signal `player:stream_ready` löst das Reload deterministisch aus statt per 2.5s-Timeout zu raten. MIME-Type wird aus dem MPD-Stream übernommen (Icy-Metadata durchgeschleift).
+
+### Verbessert
+
+- **Sleep-Timer-Pill bleibt über jedem Cover lesbar.** Solider dunkler Hintergrund statt halbtransparent mit blauer Schrift. Die letzte Minute wird warm (amber), der Fade selbst klar als Primary-Zustand mit einem einzelnen ruhigen Puls markiert — statt doppelt zu blinken.
+- **Sleep-Timer läuft genau bis 0.** Der Fade-Out beginnt jetzt vor Timer-Ende, sodass bei 0 tatsächlich Stille ist. Bisher lief der Countdown auf 0, _dann_ erst wurde es leiser — das wirkte kaputt.
+- **PIN-Eingabe im Setup-Wizard ist als Eingabe erkennbar.** Vier einzelne Ziffern-Boxen (OTP-Stil) statt eines schmalen Felds, das wie ein Button aussah. Automatisches Weiterspringen, Backspace zurück, ArrowLinks/Rechts zum Navigieren, Paste einer 4-stelligen PIN auf einmal. Erster Kasten bekommt beim Öffnen den Fokus.
+- **Hilfe-Überschriften klingen wie Hilfe, nicht wie Diagnose.** „Falls das WLAN nicht auftaucht" statt „WLAN wird nicht gefunden" — und analog für Figur, Ton, App, Hardware.
+- **Schließen-X im Hilfe-Sheet sitzt klassisch rechts oben.** 44×44 Touch-Target, Drag-Handle bleibt als visueller Hinweis auf Mobile.
+- **Library-Suche tippt flüssig.** 300 ms Debounce + `requestIdleCallback` schieben die teure Filter-Arbeit aus dem Tipp-Pfad heraus, während ein dezenter Spinner im Suchfeld zeigt, dass im Hintergrund gefiltert wird.
+- **WLAN-Rettung: QR-Code neben den Zugangsdaten.** Auf Desktop 2-spaltig (Daten links, QR rechts), auf Mobile gestapelt. „QR-Code drucken" ist jetzt ein richtiger Primary-Button mit Drucker-Icon statt einem Text-Link. Der Scan-Hinweis ist raus — ein QR-Code erklärt sich selbst.
 
 ### Doku
 
@@ -20,6 +39,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Hinzugefügt
 
+- **Einheitliche Inline-Fehlermeldungen.** Neue `InlineError`-Komponente (Symbol + Text, sanfte rote Farbtöne, `role="alert"`) löst die Wildwuchs-Meldungen in Formularen ab und koppelt `aria-invalid` / `aria-describedby` korrekt an die Eingabefelder.
 - **Hilfe im Setup-Wizard:** Fragezeichen-Icon in jedem Schritt öffnet ein Info-Sheet mit Troubleshooting-Tipps (WLAN nicht gefunden, Figur wird nicht erkannt, kein Ton, App findet Box nicht, Hardware unvollständig). Funktioniert offline — kein Netz nötig.
 - **Cover-Art im Player und in der Bibliothek:** Bilder aus ID3-Tags (MP3, FLAC, OGG, MP4, WMA) oder einer `cover.jpg`/`cover.png` im Ordner werden automatisch angezeigt. Fallback: farbige Kachel mit Anfangsbuchstabe.
 - **Suche in der Bibliothek:** Freitext-Suche über alle vier Tabs (Ordner, Radio, Podcasts, Playlisten) mit Tab-Treffer-Zählern und Umlaut-/Diacritic-toleranter Suche ("uber" findet "Über").

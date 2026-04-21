@@ -60,7 +60,9 @@ async def test_sleep_timer_cancel(timer_setup):
 @pytest.mark.asyncio
 async def test_sleep_timer_stops_playback(timer_setup):
     timer, player, config, _ = timer_setup
-    # Use very short fade to keep test fast
+    # Use very short fade to keep test fast. Under B1 semantics the fade
+    # runs *inside* the countdown, so total time-to-silence == timer length
+    # (here ~3 s). 8 s wait gives generous margin for the MockMPDClient.
     await config.set("sleep_fade_duration", 2)
     await player.play_url("http://test.mp3")
     assert player.state.state.value == "playing"
@@ -204,14 +206,20 @@ async def test_sleep_timer_cancel_while_idle_is_silent(timer_setup):
 
 @pytest.mark.asyncio
 async def test_sleep_timer_fades_volume(timer_setup):
-    """Volume should decrease during fade-out before stopping."""
+    """Volume should decrease during fade-out before stopping.
+
+    Under B1 semantics the fade runs *inside* the countdown: when the
+    requested timer is shorter than the configured fade_duration, the
+    fade is clamped to the timer length and starts immediately. Total
+    time to silence == the original timer length.
+    """
     timer, player, config, _ = timer_setup
     await config.set("sleep_fade_duration", 2)
     await player.play_url("http://test.mp3")
     await player.set_volume(80)
 
-    await timer.start_sleep_timer(0.02)  # ~1.2 second countdown
-    # Wait for countdown + fade (1.2s + 2s) + margin
+    await timer.start_sleep_timer(0.02)  # ~1.2 second total window
+    # Fade lives inside the window (clamped to ~1s); wait for window + margin.
     await asyncio.sleep(6)
 
     assert player.state.state.value == "stopped"
@@ -233,16 +241,21 @@ async def test_sleep_timer_status_shows_fading(timer_setup):
 
 @pytest.mark.asyncio
 async def test_sleep_fade_cancel_restores_volume(timer_setup):
-    """Cancelling during fade-out should restore original volume."""
+    """Cancelling during fade-out should restore original volume.
+
+    B1 semantics: with a ~1.2 s timer and a configured 5 s fade, the
+    fade is clamped to fit inside the timer and starts almost immediately,
+    so by the time we cancel at t≈2 s the fade task is already running.
+    """
     timer, player, config, _ = timer_setup
     await config.set("sleep_fade_duration", 5)
     await player.play_url("http://test.mp3")
     await player.set_volume(70)
 
     await timer.start_sleep_timer(0.02)
-    await asyncio.sleep(2)  # Let fade start
+    await asyncio.sleep(2)  # Let fade start (and usually finish, under B1)
 
-    # Cancel while fading
+    # Cancel while fading (or right after — cancel is idempotent)
     await timer.cancel_sleep_timer()
 
     # Volume should be restored

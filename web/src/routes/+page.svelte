@@ -176,21 +176,28 @@
 	// wall-clock drift since it arrived. `sleepTick` forces a recompute.
 	const sleepRemaining = $derived.by(() => {
 		sleepTick; // subscribe to tick
-		if (!sleepSnapshot.active || sleepSnapshot.fading) return sleepSnapshot.remaining_seconds;
+		if (!sleepSnapshot.active) return sleepSnapshot.remaining_seconds;
+		// Fade runs INSIDE the countdown now: remaining keeps counting down
+		// during fade, too, so the wall-clock drift still applies.
 		const driftSec = sleepSnapshot.received_at
 			? Math.max(0, (performance.now() - sleepSnapshot.received_at) / 1000)
 			: 0;
 		return Math.max(0, Math.floor(sleepSnapshot.remaining_seconds - driftSec));
 	});
 	const sleepFading = $derived(sleepSnapshot.active && sleepSnapshot.fading);
+	// Keep the pill visible while the fade is still in progress, even when
+	// the per-second remaining display has ticked to 0 on the client.
 	const sleepVisible = $derived(sleepSnapshot.active && (sleepFading || sleepRemaining > 0));
+	// Warn-styling (final minute) is suppressed during fade — fade owns its own style.
 	const sleepFinalMinute = $derived(sleepVisible && !sleepFading && sleepRemaining < 60);
 	// Display label:
 	// - fading → dedicated text, no countdown
 	// - < 60s → per-second "Noch X Sek."
 	// - >= 60s → per-minute "X Min." (quantized so the label only flips on minute boundaries)
 	const sleepLabel = $derived.by(() => {
-		if (sleepFading) return t('player.sleep_fading');
+		if (sleepFading) {
+			return t('player.sleep_fading_seconds', { seconds: Math.max(0, sleepRemaining) });
+		}
 		if (sleepRemaining < 60) {
 			return t('player.sleep_seconds', { seconds: Math.max(0, sleepRemaining) });
 		}
@@ -199,7 +206,7 @@
 	// Stable text for screen readers: only changes on minute boundaries, fade entry, or final-minute entry
 	const sleepAnnounce = $derived.by(() => {
 		if (!sleepVisible) return '';
-		if (sleepFading) return t('player.sleep_fading');
+		if (sleepFading) return t('player.sleep_announce_fading');
 		if (sleepRemaining < 60) return t('player.sleep_announce_final');
 		return t('player.sleep_announce_minutes', { minutes: Math.floor(sleepRemaining / 60) });
 	});
@@ -328,9 +335,11 @@
 	// so aria-live screen readers only speak on minute flips / final-minute
 	// entry / fade entry. During fade-out no tick is needed.
 	$effect(() => {
-		if (!sleepSnapshot.active || sleepSnapshot.fading) return;
+		if (!sleepSnapshot.active) return;
 		// Re-enter on each snapshot change (start/extend/cancel/fade)
 		void sleepSnapshot.received_at;
+		// Fade now runs inside the countdown — keep ticking so the
+		// per-second "Noch {s} Sek. (wird leiser)" label stays live.
 		const id = setInterval(() => { sleepTick = performance.now(); }, 1000);
 		return () => clearInterval(id);
 	});
@@ -389,7 +398,7 @@
 
 </script>
 
-<div class="relative flex flex-col items-center justify-between min-h-full px-4 py-4 pb-6 gap-3 sm:px-6 sm:py-6 sm:pb-8 sm:gap-5 max-[374px]:gap-2 max-[374px]:py-2 landscape:py-2 landscape:gap-2">
+<div class="relative flex flex-col items-center justify-between min-h-full px-4 py-4 gap-3 sm:px-6 sm:py-6 sm:gap-5 max-[374px]:gap-2 max-[374px]:py-2 landscape:py-2 landscape:gap-2">
 
 	<!-- Sleep timer indicator: absolute so it does not push cover art down -->
 	{#if sleepVisible}
@@ -401,14 +410,14 @@
 				aria-haspopup={sleepFading ? undefined : 'menu'}
 				aria-expanded={sleepFading ? undefined : sleepMenuOpen}
 				aria-disabled={sleepFading || undefined}
-				aria-label={sleepFading ? t('player.sleep_fading') : t('player.sleep_menu_aria')}
-				class="flex items-center gap-1 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-sm transition-[transform,background-color,color,opacity] duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary/20 text-primary cursor-default' : sleepFinalMinute ? 'bg-primary/15 text-primary' : 'bg-surface-light text-text-muted'}"
+				aria-label={sleepFading ? t('player.sleep_announce_fading') : t('player.sleep_menu_aria')}
+				class="flex items-center gap-1.5 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-lg backdrop-blur-sm transition-[transform,background-color,color,opacity] duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary text-white ring-1 ring-primary-light/40 animate-pulse cursor-default' : sleepFinalMinute ? 'bg-amber-500 text-neutral-900 ring-1 ring-amber-300/50' : 'bg-surface-light/95 text-text ring-1 ring-white/5'}"
 			>
-				<svg class="w-4 h-4 {sleepFading ? 'animate-pulse' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 				</svg>
 				<span class="font-medium" aria-hidden="true">
-					{#if sleepFading}{t('player.sleep_fading')}{:else}{t('player.sleep_remaining', { time: sleepLabel })}{/if}
+					{#if sleepFading}{sleepLabel}{:else}{t('player.sleep_remaining', { time: sleepLabel })}{/if}
 				</span>
 				<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
 			</button>
@@ -462,7 +471,7 @@
 	{/if}
 
 	<!-- Cover Art -->
-	<div class="w-[min(70vw,38vh,18rem)] aspect-square max-w-72 landscape:w-[min(28vw,55vh)]">
+	<div class="w-full max-w-[min(70vw,38vh,18rem)] aspect-square shrink-0 landscape:max-w-[min(28vw,55vh)]">
 		{#if hasTrack}
 			<!-- CoverArt reacts to `src`/`title` changes via $effect internally;
 			     a {#key} wrapper would force a full remount and cause a flash. -->
@@ -478,7 +487,7 @@
 
 	<!-- Track info below cover -->
 	{#if hasTrack}
-		<div class="text-center max-w-sm w-full overflow-hidden mt-2 sm:mt-3">
+		<div class="text-center max-w-sm w-full overflow-hidden mt-2 sm:mt-3 shrink-0">
 			{#if trackInfo.folder || state.current_album}
 				<p class="text-xs text-text-muted truncate">{state.current_album || trackInfo.folder}</p>
 			{/if}
@@ -493,7 +502,7 @@
 	{/if}
 
 	<!-- Progress bar -->
-	<div class="w-full max-w-sm">
+	<div class="w-full max-w-sm shrink-0">
 		{#if state.loading}
 			<div class="w-full h-2 bg-surface-lighter rounded-full overflow-hidden">
 				<div class="h-full w-1/3 bg-primary rounded-full animate-indeterminate"></div>
@@ -537,28 +546,10 @@
 			<span>{formatTime(state.duration)}</span>
 		</div>
 		{/if}
-		<!-- Inline sleep countdown near progress bar: fixed height prevents layout shift.
-		     Intentional divergence from the pill above: the pill uses natural-language
-		     "X Min." / "Noch X Sek." for at-a-glance primary status, while the inline
-		     countdown renders mm:ss (via formatTime) for a compact secondary glance
-		     near the progress bar. Both are kept in sync via the same sleepRemaining
-		     source; only the formatting differs. Final-minute colour is amber-400,
-		     matching the Warnung token in docs/UI-GUIDELINES.md section 1. -->
-		<div class="h-4 flex items-center justify-center text-xs mt-1" aria-hidden="true">
-			{#if sleepVisible && !sleepFading}
-				<span class={sleepFinalMinute ? 'text-amber-400 font-medium' : 'text-text-muted'}>
-					{#if sleepRemaining < 60}
-						{t('player.sleep_countdown_seconds', { time: formatTime(Math.max(0, sleepRemaining)) })}
-					{:else}
-						{t('player.sleep_countdown_minutes', { minutes: Math.floor(sleepRemaining / 60) })}
-					{/if}
-				</span>
-			{/if}
-		</div>
 	</div>
 
 	<!-- Controls -->
-	<div class="flex items-center gap-4">
+	<div class="flex items-center gap-4 shrink-0">
 		<!-- Shuffle: only with multiple tracks in queue -->
 		{#if hasQueue}
 			<button
@@ -652,7 +643,7 @@
 
 
 	<!-- Volume with mute -->
-	<div class="w-full max-w-sm flex items-center gap-3">
+	<div class="w-full max-w-sm flex items-center gap-3 shrink-0">
 		<button
 			onclick={toggleMute}
 			class="shrink-0 p-1 text-text-muted hover:text-text transition-[transform,color] duration-100 ease-out active:scale-[0.97]"
@@ -690,7 +681,7 @@
 
 	<!-- Audio output toggle -->
 	{#if outputs.length > 1}
-		<div class="w-full max-w-sm flex justify-center">
+		<div class="w-full max-w-sm flex justify-center shrink-0">
 			<button
 				onclick={toggleBrowserAudio}
 				disabled={browserLoading}

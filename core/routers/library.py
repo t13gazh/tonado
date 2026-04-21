@@ -104,11 +104,13 @@ async def get_cover(
     return FileResponse(cover_path, headers=headers)
 
 
-# Covers are dynamic (users can replace cover.jpg or re-tag tracks), so
-# `immutable` would serve stale art for up to an hour. Instead: advertise a
-# 1 h freshness window and attach an ETag so browsers can revalidate cheaply
-# with a conditional GET (→ 304 when mtime+size unchanged).
-_COVER_CACHE_CONTROL = "public, max-age=3600"
+# Covers are dynamic (users can replace cover.jpg or re-tag tracks). A long
+# freshness window means a fresh upload appears stale for the full window,
+# so we keep max-age tight and rely on the ETag conditional GET (→ 304 when
+# mtime+size unchanged) for bandwidth. must-revalidate forces browsers to
+# hit the server once the 60 s window elapses rather than silently reusing
+# the cached response.
+_COVER_CACHE_CONTROL = "public, max-age=60, must-revalidate"
 
 
 def _resolve_library_path(relative: str, svc: LibraryService) -> Path:

@@ -35,7 +35,7 @@
 
 	// WiFi rescue (auto-fallback AP)
 	let wlanRescueEnabled = $state(true);
-	let wlanRescueTimeoutSeconds = $state(180);
+	let wlanRescueTimeoutSeconds = $state(300);
 	let apCredentials = $state<{ ssid: string; password: string } | null>(null);
 	let apQrDataUrl = $state('');
 	let apPasswordCopied = $state(false);
@@ -72,7 +72,7 @@
 			gyroEnabled = (allConfig['gyro.enabled'] as boolean) ?? true;
 			gyroSensitivity = (allConfig['gyro.sensitivity'] as string) ?? 'normal';
 			wlanRescueEnabled = (allConfig['wifi.auto_fallback_enabled'] as boolean) ?? true;
-			wlanRescueTimeoutSeconds = (allConfig['wifi.fallback_timeout_seconds'] as number) ?? 180;
+			wlanRescueTimeoutSeconds = (allConfig['wifi.fallback_timeout_seconds'] as number) ?? 300;
 
 			// Credentials + QR are only reachable with a PARENT token
 			if (authStatus?.authenticated) {
@@ -464,35 +464,54 @@
 			<p class="text-xs text-text-muted mb-3">{t('settings.wlan_rescue_desc')}</p>
 
 			{#if wlanRescueEnabled && apCredentials}
-				<div class="bg-surface rounded-lg p-3 text-xs mb-3">
-					<div class="text-text-muted mb-2">{t('settings.wlan_rescue_ap_info')}</div>
-					<div class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 items-center">
-						<span class="text-text-muted">{t('settings.wlan_rescue_ap_network')}</span>
-						<span class="font-mono">{apCredentials.ssid}</span>
-						<span class="text-text-muted">{t('settings.wlan_rescue_ap_password')}</span>
-						<span class="font-mono break-all">{apCredentials.password}</span>
-					</div>
-					<div class="flex gap-2 mt-3">
-						<button
-							onclick={copyApPassword}
-							class="flex-1 px-3 py-1.5 bg-primary hover:bg-primary-light text-white rounded-lg text-xs font-medium transition-colors"
-						>
-							{apPasswordCopied ? t('settings.wlan_rescue_ap_copied') : t('settings.wlan_rescue_ap_copy')}
-						</button>
-						<button
-							onclick={printApQr}
-							disabled={!apQrDataUrl}
-							class="flex-1 px-3 py-1.5 bg-surface hover:bg-surface-lighter text-text rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-						>
-							{t('settings.wlan_rescue_ap_qr_print')}
-						</button>
-					</div>
-					{#if apQrDataUrl}
-						<div class="flex items-start gap-3 mt-3">
-							<img src={apQrDataUrl} alt="QR" class="w-24 h-24 rounded bg-white p-1 shrink-0" />
-							<p class="text-xs text-text-muted leading-snug">{t('settings.wlan_rescue_ap_qr_hint')}</p>
+				<div class="bg-surface rounded-lg p-3 sm:p-4 mb-3">
+					<div class="text-xs text-text-muted mb-3">{t('settings.wlan_rescue_ap_info')}</div>
+					<div class="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+						<!-- Credentials left (mobile: top) -->
+						<div class="flex flex-col gap-2 text-xs">
+							<div class="flex flex-col gap-0.5">
+								<span class="text-text-muted">{t('settings.wlan_rescue_ap_network')}</span>
+								<span class="font-mono break-all">{apCredentials.ssid}</span>
+							</div>
+							<div class="flex flex-col gap-0.5">
+								<span class="text-text-muted">{t('settings.wlan_rescue_ap_password')}</span>
+								<div class="flex items-center gap-2">
+									<span class="font-mono break-all flex-1">{apCredentials.password}</span>
+									<button
+										onclick={copyApPassword}
+										class="px-3 py-1.5 bg-primary hover:bg-primary-light text-white rounded-lg text-xs font-medium transition-colors shrink-0"
+									>
+										{apPasswordCopied ? t('settings.wlan_rescue_ap_copied') : t('settings.wlan_rescue_ap_copy')}
+									</button>
+								</div>
+							</div>
 						</div>
-					{/if}
+
+						<!-- QR right (mobile: bottom) -->
+						{#if apQrDataUrl}
+							<div class="flex flex-col items-center gap-2 sm:items-end">
+								<div class="p-2 bg-white rounded-xl shadow-sm">
+									<img
+										src={apQrDataUrl}
+										alt={t('settings.wlan_rescue_qr_aria')}
+										class="w-40 h-40 sm:w-44 sm:h-44 block"
+									/>
+								</div>
+								<button
+									onclick={printApQr}
+									disabled={!apQrDataUrl}
+									class="w-full sm:w-auto px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1.5"
+								>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+										<polyline points="6 9 6 2 18 2 18 9"/>
+										<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+										<rect x="6" y="14" width="12" height="8"/>
+									</svg>
+									{t('settings.wlan_rescue_ap_qr_print')}
+								</button>
+							</div>
+						{/if}
+					</div>
 				</div>
 			{/if}
 
@@ -500,11 +519,14 @@
 				<div class="flex items-center gap-2 mb-1">
 					<span class="text-xs text-text-muted">{t('settings.wlan_rescue_interval')}</span>
 				</div>
-				<div class="flex gap-1">
+				<div class="flex gap-1" role="radiogroup" aria-label={t('settings.wlan_rescue_interval')}>
 					{#each RESCUE_PRESETS as preset}
+						{@const isActive = wlanRescueTimeoutSeconds === preset.seconds}
 						<button
 							onclick={() => setWlanRescueInterval(preset.seconds)}
-							class="flex-1 px-2 py-1.5 rounded-lg text-xs transition-colors {wlanRescueTimeoutSeconds === preset.seconds ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
+							role="radio"
+							aria-checked={isActive}
+							class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors {isActive ? 'bg-primary text-white ring-2 ring-primary ring-offset-2 ring-offset-surface-light' : 'bg-surface text-text-muted hover:text-text'}"
 						>
 							{t(preset.key)}
 						</button>

@@ -26,6 +26,8 @@ DEFAULTS: dict[str, tuple[Any, str]] = {
     "sleep_timer.enabled": (False, "bool"),
     "sleep_timer.minutes": (30, "int"),
     "system.idle_shutdown_minutes": (0, "int"),
+    "wifi.auto_fallback_enabled": (True, "bool"),
+    "wifi.fallback_timeout_seconds": (300, "int"),  # 5 min — matches medium preset
 }
 
 

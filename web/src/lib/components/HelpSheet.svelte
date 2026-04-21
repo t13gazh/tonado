@@ -120,17 +120,15 @@
 			bind:this={sheetEl}
 			class="help-sheet bg-surface-light w-full sm:w-[28rem] max-h-[85vh] rounded-t-2xl sm:rounded-2xl flex flex-col overflow-hidden"
 		>
-			<!-- Header: drag handle + close -->
-			<div class="shrink-0 flex items-center justify-between px-5 pt-4 pb-2">
-				<div class="flex-1 flex justify-center sm:hidden">
-					<div class="w-10 h-1 rounded-full bg-surface-lighter"></div>
-				</div>
+			<!-- Header: visual drag handle (non-interactive) + close button top-right -->
+			<div class="shrink-0 relative flex items-center justify-center px-5 pt-4 pb-2">
+				<div class="w-10 h-1 rounded-full bg-surface-lighter sm:hidden" aria-hidden="true"></div>
 				<button
 					bind:this={closeBtnEl}
 					type="button"
 					onclick={close}
 					aria-label={t('help.close_aria')}
-					class="p-1.5 text-text-muted hover:text-text rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+					class="absolute top-3 right-3 p-2 min-h-11 min-w-11 inline-flex items-center justify-center rounded-full text-text-muted hover:text-text hover:bg-surface-lighter transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
 				>
 					<Icon name="x" size={20} />
 				</button>

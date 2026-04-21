@@ -240,7 +240,7 @@ export const library = {
 			const xhr = new XMLHttpRequest();
 			const form = new FormData();
 			form.append('file', file);
-			xhr.open('POST', `${BASE}/library/upload/${folder}`);
+			xhr.open('POST', `${BASE}/library/upload/${encodeURIComponent(folder)}`);
 			const token = getAuthToken();
 			if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 			if (onProgress) {
@@ -250,6 +250,26 @@ export const library = {
 			}
 			xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new ApiError(xhr.statusText, xhr.status)));
 			xhr.onerror = () => reject(new ApiError('Upload failed', 0));
+			xhr.send(form);
+		});
+	},
+	/**
+	 * Upload a cover image for a folder. Hits `POST /library/upload/{folder}/cover`,
+	 * which renames the file to `cover.{ext}` so the library scanner picks it up
+	 * over any embedded ID3 artwork. Use this instead of `upload()` whenever the
+	 * user drops an image file — a raw upload would land as `IMG_1234.jpg` and
+	 * never be recognised as cover art.
+	 */
+	uploadCover: (folder: string, file: File) => {
+		return new Promise<void>((resolve, reject) => {
+			const xhr = new XMLHttpRequest();
+			const form = new FormData();
+			form.append('file', file);
+			xhr.open('POST', `${BASE}/library/upload/${encodeURIComponent(folder)}/cover`);
+			const token = getAuthToken();
+			if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+			xhr.onload = () => (xhr.status < 400 ? resolve() : reject(new ApiError(xhr.statusText, xhr.status)));
+			xhr.onerror = () => reject(new ApiError('Cover upload failed', 0));
 			xhr.send(form);
 		});
 	},

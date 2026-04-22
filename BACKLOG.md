@@ -8,11 +8,12 @@
 
 Scope für v0.2.0-beta: die physisch vorhandene Hardware — Pi 3B+ und Pi Zero W. Pi 4 / Pi 5 werden in Post-Beta nachgezogen, sobald ein Gerät verfügbar ist.
 
-- [ ] Captive-Portal-First-Boot E2E auf 2 SD-Images (Pi 3B+, Zero W) — braucht Hardware. Pi aus dem Karton → AP → WLAN einrichten → erster Karten-Play, nicht-technisch durchgespielt (K4).
-- [ ] Pi-Kompatibilitätsmatrix Live-Tests auf Pi 3B+ und Zero W (H8). Pi 4 / Pi 5 Verifikation: Post-Beta, nicht blockierend.
-- [ ] Install-Script End-to-End auf echter SD-Karte (>= 16 GB, frisches Bookworm-Lite).
-- [ ] Performance-Optimierung Pi Zero W (Health-Endpoint, CPU-Idle-Last).
+- [x] Install-Script End-to-End auf echter SD-Karte (2026-04-22 auf Zero W mit 4 GB Bookworm-Lite durchgespielt, Service startet sauber).
+- [x] Pi-Kompatibilitätsmatrix Live-Tests auf Pi 3B+ und Zero W (H8) — Zero W 0.2.1-alpha: Install sauber, CPU 40 °C idle, RAM 160/427 MB, keine Errors in 10 min. 3B+ ebenfalls live.
+- [x] Performance-Optimierung Pi Zero W — Idle-Werte entspannt, keine Optimierung für Beta nötig (siehe Zahlen oben).
 - [x] Hardcoded UI-Strings → i18n (bereits umgesetzt — 559 `t()`-Aufrufe, 0 hardcoded Strings in allen 29 Svelte-Komponenten, Audit 2026-04-19).
+
+**Captive-Portal-First-Boot E2E** ist an das Pi-Image gebunden und rückt daher mit in Post-Beta: mit dem heutigen Install-Script muss der Pi ohnehin vorher per WLAN oder LAN erreichbar sein, weil das Script via `curl | sudo bash` über SSH läuft. Erst das Pi-Image zum Flashen (Prio-3 unten) macht das AP-First-Boot-Szenario realistisch — siehe [`docs/fuer-entwickler/install-strategy.md`](docs/fuer-entwickler/install-strategy.md).
 
 ## Setup-Wizard (offen)
 
@@ -21,6 +22,7 @@ Scope für v0.2.0-beta: die physisch vorhandene Hardware — Pi 3B+ und Pi Zero 
 
 ## UX-Polish (Post-Beta)
 
+- [ ] **UI-Konsistenz-Welle: gemeinsames Komponenten-Set bauen.** Der Audit am 2026-04-22 ([`docs/archive/ui-consistency-audit-2026-04-22.md`](docs/archive/ui-consistency-audit-2026-04-22.md)) fand 9 visuelle Sprachen für „Auswahl aus N", 3 Toggle-Varianten, 6 Fehlerdarstellungen, 3 Primary-Button-Höhen, 4 Settings-Row-Layouts. Für Beta sind die vier sichtbarsten Punkte lokal gefixt; systemisch bleibt das offen. Vorgeschlagene Kern-Komponenten: `<Button variant size>`, `<SettingRow>`, `<ToggleRow>`, `<SegmentSelect>`, `<PinEntry>`. Blueprints existieren bereits im Code (iOS-Switch in WLAN-Rettung, Segmented-Control in Library-Sort, OTP-Cells in PinStep). Aufwand: 2-3 Tage inkl. Migration aller Call-Sites. Zuerst die Komponenten bauen, dann in separaten Commits jede Einstellungen-Seite umstellen.
 - [ ] **ContentPicker „Belegte Figur"-Hinweis visuell polieren.** Heute steht eine dezente Zeile „Figur: Name" unter jedem belegten Eintrag. Funktional gut, optisch fad. Emil-Review: evtl. farbiges Chip/Badge mit Figuren-Icon + Name, oder Name links im Hauptblock statt untendrunter; das gesamte Row-Rhythmus-Gefühl mit echten Karten einmal durchspielen. Priorisiert nach Beta.
 - [ ] **OnOff SHIM: Hold-Delay + Power-LED-Patterns.** Aktuell triggert ein kurzer Tastendruck sofort den Shutdown. Gewünscht: (a) erst nach 3 s Drücken-und-Halten triggert Shutdown, während der Haltezeit blinkt die Power-LED als Feedback („ich höre dich, weiter halten = Ja"); (b) nach dem Start blinkt die Power-LED so lange, bis alle Services ready sind, danach Dauerleuchten. Technisch: `gpiomon`/Userspace-Listener mit Zeitmessung, LED via GPIO (SHIM nutzt üblicherweise GPIO 17 Button + GPIO 4 PowerOff; LED-Pin aus SHIM-Spec verifizieren). Braucht Hardware-Test am OnOff-SHIM-Pi.
 

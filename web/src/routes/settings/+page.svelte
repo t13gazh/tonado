@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import QRCode from 'qrcode';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { isBackendOffline, isGyroAvailable } from '$lib/stores/health.svelte';
 	import { addToast } from '$lib/stores/toast.svelte';
@@ -318,7 +319,9 @@
 	<h1 class="text-xl font-bold mb-4">{t('settings.title')}</h1>
 
 	{#if error}
-		<div class="mb-3 text-sm text-red-400">{error}</div>
+		<div class="mb-3">
+			<InlineError message={error} />
+		</div>
 	{/if}
 
 	<!-- Login section -->
@@ -339,7 +342,9 @@
 					</button>
 			</div>
 			{#if loginError}
-				<p class="text-xs text-red-400 mt-2">{loginError}</p>
+				<div class="mt-2">
+					<InlineError message={loginError} />
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -428,7 +433,7 @@
 						onclick={() => { gyroEnabled = !gyroEnabled; saveSetting('gyro.enabled', gyroEnabled); }}
 						class="px-3 py-1 rounded-full text-xs font-medium transition-colors {gyroEnabled ? 'bg-primary text-white' : 'bg-surface text-text-muted'}"
 					>
-						{gyroEnabled ? t('settings.gyro_enabled') : t('settings.gyro_disabled')}
+						{gyroEnabled ? t('settings.on') : t('settings.off')}
 					</button>
 				</div>
 				{#if gyroEnabled}
@@ -526,7 +531,7 @@
 							onclick={() => setWlanRescueInterval(preset.seconds)}
 							role="radio"
 							aria-checked={isActive}
-							class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors {isActive ? 'bg-primary text-white ring-2 ring-primary ring-offset-2 ring-offset-surface-light' : 'bg-surface text-text-muted hover:text-text'}"
+							class="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors {isActive ? 'bg-primary text-white' : 'bg-surface text-text-muted hover:text-text'}"
 						>
 							{t(preset.key)}
 						</button>

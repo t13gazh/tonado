@@ -209,15 +209,6 @@
 								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
 							</svg>
 						</button>
-						<button
-							onclick={() => (deletingCard = card)}
-							class="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center bg-surface/80 rounded-lg backdrop-blur-sm text-text-muted hover:text-red-400"
-							aria-label={t('general.delete')}
-						>
-							<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-								<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
-							</svg>
-						</button>
 					</div>
 				</div>
 			{/each}
@@ -275,6 +266,19 @@
 					class="flex-1 px-4 py-2.5 bg-primary hover:bg-primary-light disabled:opacity-50 rounded-lg text-white text-sm font-medium transition-colors"
 				>
 					{t('general.save')}
+				</button>
+			</div>
+
+			<!-- Danger zone: delete this card -->
+			<div class="mt-4 pt-4 border-t border-surface-lighter">
+				<button
+					onclick={() => { if (editingCard) { deletingCard = editingCard; editingCard = null; } }}
+					class="w-full px-4 py-2.5 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-red-400 text-sm font-medium transition-colors inline-flex items-center justify-center gap-2"
+				>
+					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14z"/>
+					</svg>
+					{t('card.delete')}
 				</button>
 			</div>
 		</div>

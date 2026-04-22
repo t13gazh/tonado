@@ -2,6 +2,7 @@
 	import { t } from '$lib/i18n';
 	import type { HardwareDetection, SystemInfoData, WifiStatus } from '$lib/api';
 	import Icon from '$lib/components/Icon.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
 		hardware: HardwareDetection | null;
@@ -60,5 +61,5 @@
 
 	<p class="text-xs text-text-muted max-w-xs">{t('setup.homescreen_hint')}</p>
 
-	{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+	{#if error}<InlineError message={error} />{/if}
 </div>

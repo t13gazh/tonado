@@ -3,6 +3,7 @@
 	import { setupApi, systemApi, type HardwareDetection, type SystemInfoData } from '$lib/api';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
 		hardware: HardwareDetection | null;
@@ -107,5 +108,5 @@
 		</div>
 	{/if}
 
-	{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+	{#if error}<InlineError message={error} />{/if}
 </div>

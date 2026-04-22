@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { setupApi, player, type HardwareAudioOutput } from '$lib/api';
+	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
 		hardwareAudio: HardwareAudioOutput[];
@@ -122,5 +123,5 @@
 		</div>
 	{/if}
 
-	{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+	{#if error}<InlineError message={error} />{/if}
 </div>

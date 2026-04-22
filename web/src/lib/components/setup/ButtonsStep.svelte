@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import Icon from '$lib/components/Icon.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 	import { createButtonScan, type ButtonAssignment } from '$lib/button-scan.svelte';
 
 	interface Props {
@@ -186,7 +187,7 @@
 		{/if}
 
 		{#if error}
-			<p class="text-sm text-red-400">{error}</p>
+			<InlineError message={error} />
 			<button onclick={() => retryScan()} class="text-sm text-primary font-medium">{t('general.retry')}</button>
 		{:else if scan.currentButton}
 			<p class="text-sm text-text-muted animate-pulse">{t('buttons.waiting')}</p>
@@ -251,7 +252,7 @@
 			{t('buttons.test_start')}
 		</button>
 
-		{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+		{#if error}<InlineError message={error} />{/if}
 	</div>
 {/if}
 
@@ -285,6 +286,6 @@
 			{/if}
 		</div>
 
-		{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+		{#if error}<InlineError message={error} />{/if}
 	</div>
 {/if}

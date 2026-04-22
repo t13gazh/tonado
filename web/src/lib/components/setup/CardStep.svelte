@@ -8,6 +8,7 @@
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import ContentPicker from '$lib/components/ContentPicker.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 	import { createCardScan } from '$lib/card-scan.svelte';
 
 	interface Props {
@@ -107,7 +108,7 @@
 			<p class="text-sm text-text-muted">{t('wizard.step_scan_desc')}</p>
 		</div>
 		{#if error}
-			<p class="text-sm text-red-400">{error}</p>
+			<InlineError message={error} />
 			{#if scan.autoRetryCountdown > 0}
 				<p class="text-xs text-text-muted">{t('wizard.auto_retry', { seconds: scan.autoRetryCountdown })}</p>
 			{/if}
@@ -145,7 +146,7 @@
 				class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary placeholder:text-text-muted/50" />
 		</label>
 
-		{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+		{#if error}<InlineError message={error} />{/if}
 	</div>
 {/if}
 

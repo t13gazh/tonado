@@ -3,6 +3,7 @@
 	import { setupApi, type WifiNetwork, type WifiStatus } from '$lib/api';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Icon from '$lib/components/Icon.svelte';
+	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
 		wifiStatus: WifiStatus | null;
@@ -125,5 +126,5 @@
 		{/if}
 	{/if}
 
-	{#if error}<p class="text-sm text-red-400">{error}</p>{/if}
+	{#if error}<InlineError message={error} />{/if}
 </div>

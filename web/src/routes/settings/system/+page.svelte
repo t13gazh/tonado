@@ -429,6 +429,8 @@
 							{t('system.reboot')}
 						{/if}
 					</button>
+				</div>
+				<div class="mt-4 pt-4 border-t border-surface-lighter">
 					{#if confirmShutdown}
 						<button onclick={() => { doPowerAction('shutdown'); confirmShutdown = false; }} disabled={!!powerAction} class="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 							{#if powerAction === 'shutdown'}

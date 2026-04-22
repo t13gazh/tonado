@@ -53,6 +53,7 @@ export default {
 	'card.unassigned': 'Nicht zugewiesen',
 	'card.add': 'Neue Figur',
 	'card.edit': 'Figur bearbeiten',
+	'card.delete': 'Figur löschen',
 	'card.delete_confirm': '"{name}" wirklich löschen?',
 	'card.empty': 'Noch keine Figuren eingerichtet',
 	'card.empty_hint': 'Tippe auf "+", um eine Figur oder Karte einzurichten.',

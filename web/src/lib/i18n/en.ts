@@ -53,6 +53,7 @@ export default {
 	'card.unassigned': 'Not assigned',
 	'card.add': 'New figure',
 	'card.edit': 'Edit figure',
+	'card.delete': 'Delete figure',
 	'card.delete_confirm': 'Really delete "{name}"?',
 	'card.empty': 'No figures set up yet',
 	'card.empty_hint': 'Tap "+" to set up a figure or card.',

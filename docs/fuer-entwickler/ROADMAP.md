@@ -89,9 +89,9 @@
 - **Security-Härtung** (Phase 1): Auth-Lockdown nach Setup, X-Real-IP hinter nginx, Path-Traversal auf `/play-folder`, Captive-Portal WPA2 + Timeout, Watchdog entschärft, Tier-Checks, globales Rate-Limit, sanitized Error-Responses. ✅ erledigt
 - **Update-Härtung** (Phase 2): `asyncio.Lock` + pip-Rollback + Tests für `/update/apply`, `/update/check` PARENT-gated. ✅ erledigt
 - **Test-Coverage** (Phase 3): playlist/button/websocket/gyro_service Service-Tests, parametrisierter Auth-Matrix-Test, 2s-Cooldown-Test. ✅ erledigt
-- **Captive-Portal + Install E2E** (Phase 4): First-Boot-Flow auf 3 SD-Images, Install-Script Idempotenz, nginx-Limits für Zero W. ⏳ braucht Hardware
+- **Captive-Portal + Install E2E** (Phase 4): First-Boot-Flow auf 2 SD-Images (Pi 3B+ + Zero W), Install-Script Idempotenz, nginx-Limits für Zero W. Pi 4 / Pi 5 Verifikation: Post-Beta. ⏳ braucht Hardware
 - **Doku + Aufräumen** (Phase 5): CONTRIBUTING, SECURITY, UPDATE, BACKUP, Audit-Archiv, Pi-Kompatibilitätsmatrix. ✅ erledigt
-- **Product-Decisions** (Phase 6): Gyro Tilt-forward/back (Volume vs. play_pause). ⏳ braucht User
+- **Product-Decisions** (Phase 6): Gyro Tilt-forward/back (Volume vs. play_pause). ✅ erledigt (K8-Kopplung an `card.remove_pauses`)
 - **WLAN-Rettung** (Post-Audit): `ConnectivityMonitor` startet das bestehende Captive Portal automatisch, wenn das Heim-WLAN anhaltend nicht erreichbar ist. Eltern-UI mit AP-Credentials + druckbarem QR-Code. ✅ erledigt (Live-Test auf Pi offen)
 
 ## Meilenstein 2: Erweiterungen (Zukunft)

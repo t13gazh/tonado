@@ -19,6 +19,11 @@ Scope für v0.2.0-beta: die physisch vorhandene Hardware — Pi 3B+ und Pi Zero 
 - [ ] Status-LED Steuerung via ButtonService (GPIO 23, Blinkmuster für Boot/Play/Error).
 - [ ] Hilfe/Troubleshooting als Popup aus Git-Docs laden.
 
+## UX-Polish (Post-Beta)
+
+- [ ] **ContentPicker „Belegte Figur"-Hinweis visuell polieren.** Heute steht eine dezente Zeile „Figur: Name" unter jedem belegten Eintrag. Funktional gut, optisch fad. Emil-Review: evtl. farbiges Chip/Badge mit Figuren-Icon + Name, oder Name links im Hauptblock statt untendrunter; das gesamte Row-Rhythmus-Gefühl mit echten Karten einmal durchspielen. Priorisiert nach Beta.
+- [ ] **OnOff SHIM: Hold-Delay + Power-LED-Patterns.** Aktuell triggert ein kurzer Tastendruck sofort den Shutdown. Gewünscht: (a) erst nach 3 s Drücken-und-Halten triggert Shutdown, während der Haltezeit blinkt die Power-LED als Feedback („ich höre dich, weiter halten = Ja"); (b) nach dem Start blinkt die Power-LED so lange, bis alle Services ready sind, danach Dauerleuchten. Technisch: `gpiomon`/Userspace-Listener mit Zeitmessung, LED via GPIO (SHIM nutzt üblicherweise GPIO 17 Button + GPIO 4 PowerOff; LED-Pin aus SHIM-Spec verifizieren). Braucht Hardware-Test am OnOff-SHIM-Pi.
+
 ## Doku-Pflege
 
 - [ ] **Hardware-Claims breit prüfen.** Punktuelle Reviews wurden gemacht (HifiBerry-Ausrichtung, GPIO-25-Doppelnutzung, PN532-I2C-Adresse). Rest von `docs/fuer-bastler/hardware.md` noch durch einen Bastler mit echtem Pi/HAT gegenlesen lassen, bevor die Doku in Beta geht.

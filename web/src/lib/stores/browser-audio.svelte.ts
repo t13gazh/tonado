@@ -42,8 +42,13 @@ function clearRetry(): void {
 
 function retryStream(): void {
 	if (!_active || !audioElement || _retryCount >= MAX_RETRIES) {
+		// If the element is actually playing despite exhausted retries
+		// (a parallel path recovered), leave `_active` as-is so the UI
+		// stays in sync. Otherwise give up cleanly.
 		_loading = false;
-		_active = false;
+		if (!audioElement || audioElement.paused) {
+			_active = false;
+		}
 		clearRetry();
 		return;
 	}
@@ -53,13 +58,23 @@ function retryStream(): void {
 		if (!_active || !audioElement) return;
 		audioElement.src = streamUrl();
 		audioElement.load();
-		audioElement.play().catch(() => { retryStream(); });
+		audioElement.play().catch((err: unknown) => {
+			// AbortError fires when a newer load()/play() interrupts this one —
+			// that's the expected path during rapid track changes, not a failure.
+			if (err instanceof DOMException && err.name === 'AbortError') return;
+			retryStream();
+		});
 	}, RETRY_DELAY_MS);
 }
 
 export function setBrowserAudioElement(el: HTMLAudioElement): void {
 	audioElement = el;
 	el.addEventListener('playing', () => {
+		// Source of truth: if the element is actually playing, the button
+		// MUST reflect "on" and "not loading" regardless of prior failed
+		// retries. A stale retry-exhaustion path may have flipped _active
+		// off — heal that here so the UI matches audible reality.
+		_active = true;
 		_loading = false;
 		clearRetry();
 	});
@@ -84,7 +99,10 @@ export function startBrowserAudio(): void {
 	_active = true;
 	audioElement.src = streamUrl();
 	audioElement.load();
-	audioElement.play().catch(() => { retryStream(); });
+	audioElement.play().catch((err: unknown) => {
+		if (err instanceof DOMException && err.name === 'AbortError') return;
+		retryStream();
+	});
 }
 
 export function stopBrowserAudio(): void {
@@ -114,5 +132,10 @@ export function reloadBrowserAudio(): void {
 	// now that the backend guarantees the new stream is live.
 	audioElement.src = streamUrl();
 	audioElement.load();
-	audioElement.play().catch(() => { retryStream(); });
+	audioElement.play().catch((err: unknown) => {
+		// AbortError fires when a newer load()/play() supersedes this one —
+		// that's the expected path during rapid reloads, not a failure.
+		if (err instanceof DOMException && err.name === 'AbortError') return;
+		retryStream();
+	});
 }

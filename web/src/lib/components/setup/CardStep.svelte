@@ -142,7 +142,7 @@
 		<label class="block">
 			<span class="text-xs text-text-muted mb-1 block">{t('wizard.content_name')}</span>
 			<input type="text" bind:value={scan.cardName} placeholder={t('wizard.name_placeholder')}
-				class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary placeholder:text-text-muted/50" />
+				class="w-full px-3 py-2.5 bg-surface-light border border-surface-lighter rounded-lg text-text text-sm focus:outline-none focus:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary placeholder:text-text-muted/50" />
 		</label>
 
 		{#if error}<p class="text-sm text-red-400">{error}</p>{/if}

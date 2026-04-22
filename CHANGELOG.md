@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.3.0-beta] — 2026-04-22
+
+Erste Beta — aus der Alpha-Linie promoviert, nachdem Pi 3B+ und Pi Zero W auf frischer Hardware live verifiziert sind, 398 Backend-Tests grün sind und die wichtigsten UX-Polishs + Konsistenz-Fixes drin sind.
+
 ### Verbessert
 
 - **Figuren-Wizard zeigt direkt, welcher Inhalt schon einer Figur gehört.** Bei jedem Ordner, Radio, Podcast oder Playlist im Auswahl-Dialog steht eine dezente Zeile „Figur: Name", sobald der Eintrag bereits mit einer Figur verknüpft ist. Ersetzt den zuvor sichtbaren Bibliothek-Filter, den wir wieder entfernt haben — die Frage „was ist frei?" gehört dorthin, wo eine neue Figur angelegt wird, nicht in die Browsing-Ansicht.
@@ -117,6 +121,7 @@ Erster funktionsfähiger Release. Alle 8 Meilenstein-1-Phasen implementiert.
 - Auto-Updates, Backup/Restore, OverlayFS-Vorbereitung
 - 113 Backend-Tests, 1.3 MB Frontend (gzipped)
 
+[0.3.0-beta]: https://github.com/t13gazh/tonado/compare/v0.2.1-alpha...v0.3.0-beta
 [0.2.1-alpha]: https://github.com/t13gazh/tonado/compare/v0.2.0-alpha...v0.2.1-alpha
 [0.2.0-alpha]: https://github.com/t13gazh/tonado/compare/v0.1.0-alpha...v0.2.0-alpha
 [0.1.0-alpha]: https://github.com/t13gazh/tonado/releases/tag/v0.1.0-alpha

@@ -79,7 +79,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 ## Status
 
-> **Alpha (v0.2.1)** — Installierbar und funktionsfähig auf Pi 3B+. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist Ziel für die Beta-Freigabe. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
+> **Beta (v0.3.0)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist das nächste Ziel nach Beta. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
@@ -88,7 +88,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 | Modell | Status | Hinweise |
 |--------|--------|----------|
 | Raspberry Pi 3B+ | ✅ Beta-getestet | Referenz-Plattform. HifiBerry MiniAmp + RC522 + MPU6050 + GPIO-Buttons verifiziert. |
-| Raspberry Pi Zero W | ⚠️ Experimentell | Installation auf 0.1.0-alpha verifiziert, für 0.2.x nicht re-getestet. Erster Build 20-30 min wegen aiosqlite-Kompilierung auf ARMv6. |
+| Raspberry Pi Zero W | ✅ Beta-getestet | Install-Script End-to-End auf 4 GB Bookworm-Lite SD verifiziert (2026-04-22). Backend-Idle: CPU 40 °C, RAM 160/427 MB. Erster Build 20-30 min wegen aiosqlite-Kompilierung auf ARMv6. |
 | Raspberry Pi Zero 2 W | ⚠️ Experimentell | Nicht getestet, sollte aber ähnlich Pi 3B+ laufen (ARM64). |
 | Raspberry Pi 4 | ❓ Ungetestet | Sollte funktionieren — Rückmeldungen willkommen. |
 | Raspberry Pi 5 | ❓ Ungetestet | Neuer GPIO-Controller (RP1); gpiod v2 sollte abstrahieren, nicht verifiziert. |

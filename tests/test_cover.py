@@ -226,8 +226,32 @@ async def test_cover_endpoint_track_with_embedded_art(cover_client) -> None:
     resp = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
     assert resp.status_code == 200
     assert resp.headers["content-type"] == "image/jpeg"
-    assert "max-age=3600" in resp.headers["cache-control"]
+    # Covers use a short max-age so that re-uploading a folder cover is visible
+    # quickly; the ETag is the freshness signal, not a long cache window.
+    assert "max-age=60" in resp.headers["cache-control"]
     assert resp.content == _TINY_JPEG
+
+
+@pytest.mark.asyncio
+async def test_cover_endpoint_track_prefers_folder_cover_over_embedded(cover_client) -> None:
+    """An on-disk `cover.jpg` in the track's folder must win over ID3 embedded art.
+
+    Rationale: re-uploading a folder cover should be visible on the player hero
+    even when the MP3 itself carries a (possibly stale) APIC frame. This mirrors
+    the folder-endpoint behaviour for the `kind=track` path.
+    """
+    client, media = cover_client
+    album = media / "Album"
+    album.mkdir()
+    # Embedded PNG in the MP3, but a user-uploaded JPEG cover.jpg sits next to it.
+    _make_mp3(album / "t01.mp3", cover=_TINY_PNG)
+    (album / "cover.jpg").write_bytes(_TINY_JPEG)
+
+    resp = await client.get("/api/library/cover", params={"path": "Album/t01.mp3", "kind": "track"})
+    assert resp.status_code == 200
+    # On-disk cover.jpg wins — the response must be the JPEG, not the embedded PNG.
+    assert resp.content == _TINY_JPEG
+    assert resp.headers["content-type"] == "image/jpeg"
 
 
 @pytest.mark.asyncio
@@ -457,7 +481,10 @@ async def test_cover_endpoint_sets_etag_and_no_immutable(cover_client) -> None:
     assert etag, "ETag must be set on cover responses"
     cc = resp.headers["cache-control"]
     assert "immutable" not in cc
-    assert "max-age=3600" in cc
+    # Short max-age keeps fresh cover uploads visible within a minute while
+    # the ETag carries the strong freshness guarantee via conditional GET.
+    assert "max-age=60" in cc
+    assert "must-revalidate" in cc
 
 
 @pytest.mark.asyncio

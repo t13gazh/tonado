@@ -170,6 +170,9 @@ async def test_fallback_triggers_portal_with_auto_owner(
     wifi = _wifi(connected=False)
     portal = _portal()
     mon = _make_monitor(wifi, portal, clock, config_service, mock=False)
+    # Pin the timeout explicitly so the test is independent of the DB seed
+    # default (which is 300s, not DEFAULT_TIMEOUT_SECONDS=180s).
+    await config_service.set(CONFIG_KEY_TIMEOUT, DEFAULT_TIMEOUT_SECONDS)
     # Skip boot grace
     mon._state = MonitorState.GRACE
     mon._state_since = clock()
@@ -198,6 +201,7 @@ async def test_double_check_rescues_transient_dropout(
     wifi = _wifi(connected=False)
     portal = _portal()
     mon = _make_monitor(wifi, portal, clock, config_service, mock=False)
+    await config_service.set(CONFIG_KEY_TIMEOUT, DEFAULT_TIMEOUT_SECONDS)
     mon._state = MonitorState.GRACE
     mon._state_since = clock()
     clock.advance(DEFAULT_TIMEOUT_SECONDS + 1)
@@ -240,6 +244,7 @@ async def test_circuit_breaker_opens_after_two_auto_starts(
     wifi = _wifi(connected=False)
     portal = _portal()
     mon = _make_monitor(wifi, portal, clock, config_service, mock=False)
+    await config_service.set(CONFIG_KEY_TIMEOUT, DEFAULT_TIMEOUT_SECONDS)
 
     async def no_sleep(_seconds: float) -> None:
         return None

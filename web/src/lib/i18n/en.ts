@@ -219,6 +219,8 @@ export default {
 	'system.setup_wizard_desc': 'Re-run hardware detection, audio selection, and button setup.',
 	'system.setup_wizard_restart': 'Restart setup',
 	'system.setup_wizard_error': 'Could not reset setup.',
+	'system.setup_wizard_needs_expert': 'Expert PIN required. Please sign in from the settings page.',
+	'system.setup_wizard_login_hint': 'Go to settings',
 	'system.auto_fallback_title': 'WiFi rescue',
 	'system.auto_fallback_desc': 'If the known WiFi is unreachable (e.g. at grandma\'s or in the car), Tonado spins up its own WiFi after a wait. Connect your phone to that WiFi to reconfigure. Music keeps playing regardless.',
 	'system.auto_fallback_timeout_advanced': 'Wait before fallback (advanced)',
@@ -436,6 +438,8 @@ export default {
 	'content_picker.show_episodes_aria': 'Show episodes',
 	'content_picker.manual_placeholder': 'Folder/file.mp3',
 	'content_picker.manual_stream_placeholder': 'https://...',
+	'content_picker.assigned_to': 'Figure: {name}',
+	'content_picker.assigned_aria': 'Already assigned to figure {name}',
 
 	// System (additional)
 	'system.connection_lost': 'Connection lost',

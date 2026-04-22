@@ -7,11 +7,17 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+
+- **Figuren-Wizard zeigt direkt, welcher Inhalt schon einer Figur gehört.** Bei jedem Ordner, Radio, Podcast oder Playlist im Auswahl-Dialog steht eine dezente Zeile „Figur: Name", sobald der Eintrag bereits mit einer Figur verknüpft ist. Ersetzt den zuvor sichtbaren Bibliothek-Filter, den wir wieder entfernt haben — die Frage „was ist frei?" gehört dorthin, wo eine neue Figur angelegt wird, nicht in die Browsing-Ansicht.
+
 ### Behoben
 
 - **Player-Seite scrollt nicht mehr auf kleinen Smartphones.** Das Doppel-Polster unten (Safe-Area + Nav-Höhe gleichzeitig) ist raus, die Controls rutschen nicht mehr hinter die untere Leiste und das Cover wird oben nicht mehr angeschnitten.
 - **Cover-Art füllt den Rahmen wirklich aus.** Der Cover-Kasten ist jetzt strikt quadratisch und schrumpft nicht mehr gegen die Höhe — keine schwarzen Balken mehr, auch wenn das Bild quadratisch ist.
-- **Hochgeladene Ordner-Cover gewinnen über eingebettete ID3-Cover.** Legst du ein Bild in einen Ordner (oder ziehst es beim Upload mit rein), wird es automatisch als `cover.jpg` abgelegt und im Player angezeigt — egal welches Cover die MP3 intern mitbringt.
+- **Hochgeladene Ordner-Cover gewinnen über eingebettete ID3-Cover.** Legst du ein Bild in einen Ordner (oder ziehst es beim Upload mit rein), wird es automatisch als `cover.jpg` abgelegt und im Player angezeigt — egal welches Cover die MP3 intern mitbringt. Der `kind=track`-Pfad der Cover-API prüft jetzt ebenfalls zuerst das `cover.*` im Ordner, bevor er auf das eingebettete Tag zurückfällt.
+- **„Einrichtung neu starten" meldet jetzt sauber, wenn die Experten-PIN fehlt.** Ohne Experten-Session war der Button sichtbar, lief aber in einen stummen 403-Fehler. Er erscheint nur noch als Aktion, wenn du auch berechtigt bist — sonst steht da ein kurzer Hinweis mit Rückweg zur Anmeldung.
+- **Bibliothek-Suche schluckt keine Buchstaben mehr.** Ein reaktiver Sync-Effekt hat den gerade getippten Entwurf zurück auf den alten Parent-Wert gezogen, solange das Debounce noch lief — Buchstaben erschienen erst verspätet wieder. Der Sync prüft den Entwurf jetzt ohne ihn selbst zu tracken.
 - **Setup-Hilfe erscheint auch im ersten (Hardware-) Schritt.** Das Fragezeichen wurde vorher vom Spinner-Overlay verdeckt.
 - **Unübersetzter „Error: Access denied" beim PIN-Setzen ist weg.** Fehlermeldungen kommen jetzt komplett auf Deutsch und konsistent mit dem Rest der App — auch wenn die Box schon eine PIN kennt.
 - **Suche in der Bibliothek zeigt nur noch ein Lösch-Kreuz.** Der zusätzliche Browser-X ist unterdrückt, das eigene X bleibt.
@@ -22,6 +28,8 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Verbessert
 
+- **PIN-Labels im Setup-Wizard sitzen jetzt mittig über ihren Ziffern-Boxen.** Vorher standen die Labels linksbündig, obwohl die vier Boxen zentriert waren — optisch gehörten sie nicht sichtbar zusammen. Jetzt zentriert, mit etwas mehr Abstand nach unten, damit klar ist: dieses Label gehört zu der Zeile direkt darunter.
+- **PIN-Eingabe springt automatisch in die nächste Zeile.** Nach der letzten Ziffer einer PIN-Zeile wandert der Cursor von allein ins erste Feld der nächsten Zeile (Eltern → Wiederholung → Experte → Wiederholung), mit einem ganz kurzen Ring-Puls als Bestätigung. Der Sprung passiert nur beim Erst-Befüllen — wer später eine einzelne Ziffer korrigiert, behält den Fokus dort. Paste einer 4-stelligen PIN und Backspace-Navigation funktionieren unverändert.
 - **Sleep-Timer-Pill bleibt über jedem Cover lesbar.** Solider dunkler Hintergrund statt halbtransparent mit blauer Schrift. Die letzte Minute wird warm (amber), der Fade selbst klar als Primary-Zustand mit einem einzelnen ruhigen Puls markiert — statt doppelt zu blinken.
 - **Sleep-Timer läuft genau bis 0.** Der Fade-Out beginnt jetzt vor Timer-Ende, sodass bei 0 tatsächlich Stille ist. Bisher lief der Countdown auf 0, _dann_ erst wurde es leiser — das wirkte kaputt.
 - **PIN-Eingabe im Setup-Wizard ist als Eingabe erkennbar.** Vier einzelne Ziffern-Boxen (OTP-Stil) statt eines schmalen Felds, das wie ein Button aussah. Automatisches Weiterspringen, Backspace zurück, ArrowLinks/Rechts zum Navigieren, Paste einer 4-stelligen PIN auf einmal. Erster Kasten bekommt beim Öffnen den Fokus.
@@ -29,6 +37,7 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 - **Schließen-X im Hilfe-Sheet sitzt klassisch rechts oben.** 44×44 Touch-Target, Drag-Handle bleibt als visueller Hinweis auf Mobile.
 - **Library-Suche tippt flüssig.** 300 ms Debounce + `requestIdleCallback` schieben die teure Filter-Arbeit aus dem Tipp-Pfad heraus, während ein dezenter Spinner im Suchfeld zeigt, dass im Hintergrund gefiltert wird.
 - **WLAN-Rettung: QR-Code neben den Zugangsdaten.** Auf Desktop 2-spaltig (Daten links, QR rechts), auf Mobile gestapelt. „QR-Code drucken" ist jetzt ein richtiger Primary-Button mit Drucker-Icon statt einem Text-Link. Der Scan-Hinweis ist raus — ein QR-Code erklärt sich selbst.
+- **Sleep-Timer verlängern fühlt sich wie eine Interaktion, nicht wie eine Benachrichtigung an.** „+5"/„+10" öffnen kein überlagerndes Toast mehr — stattdessen fliegt eine animierte „+N" in die Pill und die Restzeit macht einen kurzen Scale-Bump genau in dem Moment, in dem die Zahl ankommt. Das Menu bleibt außerdem sauber unter der Pill zentriert, auch wenn es breiter ist als die Pill selbst.
 
 ### Doku
 

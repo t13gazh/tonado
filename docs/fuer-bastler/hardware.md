@@ -30,7 +30,7 @@ Der HifiBerry MiniAmp ist ein kleiner Verstärker, der direkt auf die GPIO-Leist
 - Kein Klinkenanschluss nötig
 
 **Anschluss:**
-1. MiniAmp auf die GPIO-Leiste des Pi aufstecken (passt nur in eine Richtung)
+1. MiniAmp auf die GPIO-Leiste des Pi aufstecken. **Achtung:** Der 40-Pin-Header ist mechanisch symmetrisch — der HAT passt rein physisch in beide Richtungen, elektrisch ist aber nur eine Ausrichtung korrekt. Orientiere dich am **Pin-1-Marker** (meist ein kleines Dreieck oder ein weißer Punkt auf der Platine) und richte ihn am Pin-1-Ende des Pi-Headers aus (die Ecke neben der SD-Karten-Seite, am nächsten zu Pin 2 mit dem quadratischen Pad). Ein verkehrt aufgesteckter HAT kann den HifiBerry **und** den Pi beschädigen — im Zweifel lieber zweimal prüfen, bevor Strom drauf kommt.
 2. Lautsprecher (4–8 Ohm, 3W) an die Schraubklemmen anschließen
 3. Tonado erkennt den HifiBerry automatisch bei der Installation
 

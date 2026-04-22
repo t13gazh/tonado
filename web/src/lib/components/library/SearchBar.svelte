@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
+	import { untrack } from 'svelte';
 
 	interface Props {
 		/** Controlled value — parent owns state. */
@@ -22,9 +23,16 @@
 	// slot so the user sees that filtering is still catching up.
 	let pending = $state(false);
 
-	// Reset draft when parent resets the value (e.g. navigation).
+	// Sync draft to parent value ONLY when the parent reset it externally
+	// (e.g. navigation clearing `librarySearch`). Without `untrack` around the
+	// comparison, `draft` itself becomes a dependency of the effect, which means
+	// every keystroke (draft = 'h' → re-run → value is still '' from the 300 ms
+	// debounce → draft reset to '') erases the typed character until the
+	// debounce finally fires. The user sees characters disappear and reappear,
+	// which is exactly the "typing is blocked" symptom.
 	$effect(() => {
-		if (value !== draft) draft = value;
+		const next = value;
+		if (untrack(() => draft) !== next) draft = next;
 	});
 
 	// Cancel any pending debounce when the component unmounts — otherwise a

@@ -188,6 +188,14 @@ async def cover_by_path(
     # kind == "track"
     if not abs_path.is_file():
         raise HTTPException(404, "Track not found")
+    # Priority: on-disk cover file in the track's folder (user-uploaded cover.jpg
+    # must win over ID3 embedded art, so re-uploading updates the player hero).
+    parent_cover = svc._find_cover(abs_path.parent)
+    if parent_cover is not None:
+        headers = _cover_headers(parent_cover)
+        if _matches_inm(request, headers.get("ETag")):
+            return Response(status_code=304, headers=headers)
+        return FileResponse(parent_cover, headers=headers)
     data = extract_cover(abs_path)
     if not data:
         raise HTTPException(404, "No cover available")

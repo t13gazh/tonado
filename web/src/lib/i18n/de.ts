@@ -219,6 +219,8 @@ export default {
 	'system.setup_wizard_desc': 'Hardware-Erkennung, Audio-Auswahl und Tasten-Einrichtung erneut durchführen.',
 	'system.setup_wizard_restart': 'Einrichtung neu starten',
 	'system.setup_wizard_error': 'Einrichtung konnte nicht zurückgesetzt werden.',
+	'system.setup_wizard_needs_expert': 'Dafür brauchst du die Experten-PIN. Bitte in den Einstellungen anmelden.',
+	'system.setup_wizard_login_hint': 'Zu den Einstellungen',
 	'system.auto_fallback_title': 'WLAN-Rettung',
 	'system.auto_fallback_desc': 'Wenn das bekannte WLAN nicht erreichbar ist (z. B. bei Oma oder im Auto), spannt Tonado nach einer Wartezeit ein eigenes WLAN auf. Verbinde dein Handy mit diesem WLAN, um neu zu konfigurieren. Musik spielt währenddessen weiter.',
 	'system.auto_fallback_timeout_advanced': 'Wartezeit bis zum Fallback (erweitert)',
@@ -436,6 +438,8 @@ export default {
 	'content_picker.show_episodes_aria': 'Folgen anzeigen',
 	'content_picker.manual_placeholder': 'Ordner/Datei.mp3',
 	'content_picker.manual_stream_placeholder': 'https://...',
+	'content_picker.assigned_to': 'Figur: {name}',
+	'content_picker.assigned_aria': 'Bereits der Figur {name} zugewiesen',
 
 	// System (additional)
 	'system.connection_lost': 'Verbindung verloren',

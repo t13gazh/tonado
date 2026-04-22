@@ -4,10 +4,6 @@
 
 > Der Pre-Beta-Audit (April 2026) ist abgearbeitet. Findings-Historie: [`docs/archive/pre-beta-audit-findings.md`](docs/archive/pre-beta-audit-findings.md). Offene Punkte sind unten in die aktiven Listen überführt.
 
-## Bekannte Probleme
-
-- [ ] **Browser-Audio bricht bei Stream-Wechsel ab.** Wenn Browser-Audio aktiv ist und man den Radio-Stream oder die Musik wechselt, kommt kein Audio mehr im Browser. Erst nach manuellem Deaktivieren/Aktivieren wieder Ton. Bisherige Fix-Versuche (Retry-Chain, Reload-Delay 2.5s, alten Stream sofort stoppen, same-URI Detection) haben nicht geholfen. Root Cause ist tiefer — vermutlich muss der gesamte Ansatz (HTML Audio Element auf Streaming-Proxy) überdacht werden. Mögliche Alternative: WebAudio API oder Server-Sent Events für Stream-Status.
-
 ## Offene Beta-Blocker (aus Pre-Beta-Audit)
 
 - [ ] Captive-Portal-First-Boot E2E auf 3 SD-Images (Pi 3B+, Zero W, Pi 4) — braucht Hardware. Pi aus dem Karton → AP → WLAN einrichten → erster Karten-Play, nicht-technisch durchgespielt (K4).
@@ -23,12 +19,7 @@
 
 ## Doku-Pflege
 
-- [ ] **Hardware-Claims durch Experten prüfen.** Aussagen in `docs/fuer-bastler/hardware.md` zu Einbau, Pin-Belegung und Kompatibilität stichprobenartig gegen Datenblätter validieren. Konkreter Startpunkt: „HifiBerry MiniAmp passt nur in eine Richtung" (Zeile 33) — der 40-Pin-GPIO-Header ist mechanisch symmetrisch, also mechanisch drehbar (elektrisch dann aber falsch). Formulierung schärfen (z.B. „mechanisch in beide Richtungen aufsteckbar, elektrisch ist aber nur eine Ausrichtung korrekt — achte auf den Pin-1-Marker"). Generell: Bei Unsicherheit entweder Quelle zitieren oder im Review nachfragen.
-- [ ] **FAQ-Formulierung „Box vom Internet trennen" klären.** `docs/fuer-eltern/FAQ.md:19` und `docs/fuer-eltern/features.md:103` suggerieren, Offline-Betrieb sei heute schon als bewusste Einstellung da. Technisch kann man den Router abschalten — aber der saubere „Offline-Modus" mit UI-Schalter + deaktivierten Streaming-Features ist Prio 2 (siehe unten), noch nicht umgesetzt. Solange das Feature fehlt: Doku-Formulierung auf heutigen Stand zurücknehmen („funktioniert ohne Internet-Verbindung für lokale Dateien" statt „dauerhaft vom Internet trennen").
-
-## Prio 1 — Kernfunktionen
-
-- [ ] **Sleep-Timer verlängern aus dem Player-Pill:** Klick auf den Pill öffnet Mini-Sheet mit „+5 Min / +10 Min / Abbrechen". Typischer Eltern-Workflow wenn Kind noch wach ist. Aktuell nur Abbrechen möglich, Neustart nur über Einstellungen.
+- [ ] **Hardware-Claims breit prüfen.** Punktuelle Reviews wurden gemacht (HifiBerry-Ausrichtung, GPIO-25-Doppelnutzung, PN532-I2C-Adresse). Rest von `docs/fuer-bastler/hardware.md` noch durch einen Bastler mit echtem Pi/HAT gegenlesen lassen, bevor die Doku in Beta geht.
 
 ## Prio 2 — Differenzierung
 
@@ -68,19 +59,12 @@
 - [ ] **DRM-freier Import:** Klar kommunizieren welche Formate unterstützt werden (MP3, FLAC, OGG, WAV). Hinweis bei DRM-geschützten Dateien.
 - [ ] **Bibliothek sortieren:** Drag & Drop für eigene Sortierung + Umschalten zwischen Sortieroptionen (alphabetisch, zuletzt hinzugefügt, Spieldauer).
 - [ ] **Bibliothek verwalten:** Titel innerhalb von Ordnern/Playlists löschen, zwischen Ordnern verschieben, Reihenfolge per Drag & Drop ändern.
-- [ ] **Titel aus Ordner direkt einer Playlist hinzufügen** (Kontextmenü / "Zu Playlist hinzufügen").
-- [ ] **Suche:** Freitext über alle Titel, Ordner, Playlists. Schnell finden ohne langes Scrollen.
 - [ ] **Filter:** Nach Typ (Musik, Hörbuch, Podcast), nach Figur-Zuordnung (zugeordnet/frei).
 - [ ] **Playlist aus mehreren Ordnern zusammenstellen:** Quick-Add — durch Bibliothek browsen, Titel antippen = hinzugefügt. So einfach wie möglich.
 - [ ] **Warteschlange / "Als nächstes":** Spontan einen Titel einschieben ohne Playlist zu ändern.
-- [ ] **Cover-Art erweitert:** ID3-Tags auslesen und Cover anzeigen (vorhanden). Fallback: Auto-Generierung (Farbe + Initiale) oder eigenes Bild hochladen.
-- [ ] **Ordner umbenennen:** Alle Referenzen (cards.content_path, playlist_items) aktualisieren.
-- [ ] **Playlist umbenennen:** Backend existiert (rename_playlist()), Frontend-UI fehlt.
-- [ ] **Verknüpfungen über IDs statt Pfade:** Ordner-Rename darf keine Zuordnungen zerstören.
-- [ ] **Sleep Timer Countdown im Player:** Hinweis + verbleibende Zeit in der Player-Ansicht.
+- [ ] **Verknüpfungen über IDs statt Pfade:** Ordner-Rename (bereits UI-seitig möglich) zerstört Zuordnungen, wenn Backend weiter mit Pfaden arbeitet. Umstellung auf IDs als Aufräum-Arbeit.
 - [ ] **Metadaten bearbeiten:** Titel/Album/Interpret in der App korrigieren.
-- [ ] **Batch-Upload:** Mehrere Dateien gleichzeitig hochladen mit Fortschrittsanzeige.
-- [ ] **Ordner hochladen:** Ganzes Album auf einmal, Ordnerstruktur beibehalten.
+- [ ] **Ordner hochladen:** Ganzes Album auf einmal, Ordnerstruktur beibehalten (`webkitdirectory`).
 - [ ] **SD-Karten-Portabilität:** SD-Karte zwischen verschiedenen Pi-Modellen wechselbar (z.B. auf Pi Zero W vorbereiten, in Pi 3B+ stecken). Hardware-Wizard erkennt neue Hardware beim Boot und rekonfiguriert automatisch (Audio-Output, RFID-Interface etc.).
 
 ## Architektur-Refactorings (aus Senior-Review 2026-04-17, Post-Beta)

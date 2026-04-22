@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import {
-		library, streams, playlistsApi,
+		library, streams, playlistsApi, cards,
 		type MediaFolder, type MediaTrack, type RadioStation,
 		type PodcastInfo, type PlaylistSummary,
-		type ContentType,
+		type ContentType, type CardMapping,
 	} from '$lib/api';
 	import { formatDuration, capitalize } from '$lib/utils';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -25,7 +25,19 @@
 	let radioStations = $state<RadioStation[]>([]);
 	let podcastList = $state<PodcastInfo[]>([]);
 	let playlists = $state<PlaylistSummary[]>([]);
+	let cardsList = $state<CardMapping[]>([]);
 	let loaded = $state(false);
+
+	// Map every existing card to the same `content_type:content_path` key that
+	// `select()` below synthesises for a new pick. Lets each row surface the
+	// figure name it's already bound to — the workflow-native place to answer
+	// "is this already used?", which is why we dropped the library-wide filter.
+	const assignedNameByKey = $derived(
+		new Map(cardsList.map((c) => [`${c.content_type}:${c.content_path}`, c.name] as const)),
+	);
+	function assignedName(key: string): string | null {
+		return assignedNameByKey.get(key) ?? null;
+	}
 
 	// Expanded items for track/episode drill-down
 	let expandedFolder = $state<string | null>(null);
@@ -53,16 +65,21 @@
 
 	onMount(async () => {
 		try {
-			const [f, r, p, pl] = await Promise.all([
+			// cards.list() is loaded in parallel; a failure is silent because the
+			// picker must still work for users who cannot reach the cards endpoint
+			// (open tier or missing auth) — they just don't see assignment hints.
+			const [f, r, p, pl, cs] = await Promise.all([
 				library.folders(),
 				streams.listRadio(),
 				streams.listPodcasts(),
 				playlistsApi.list(),
+				cards.list().catch(() => [] as CardMapping[]),
 			]);
 			folders = f;
 			radioStations = r;
 			podcastList = p;
 			playlists = pl;
+			cardsList = cs;
 		} catch {}
 		loaded = true;
 	});
@@ -122,6 +139,7 @@
 	{:else if contentType === 'folder'}
 		<div class="flex flex-col gap-1">
 			{#each folders as f}
+				{@const folderAssignee = assignedName(`folder:${f.path}`)}
 				<div>
 					<div class="flex items-center gap-1">
 						<button
@@ -139,6 +157,11 @@
 							</button>
 						{/if}
 					</div>
+					{#if folderAssignee}
+						<p class="text-[10px] text-text-muted mt-0.5 ml-9 truncate" aria-label={t('content_picker.assigned_aria', { name: folderAssignee })}>
+							{t('content_picker.assigned_to', { name: folderAssignee })}
+						</p>
+					{/if}
 					{#if expandedFolder === f.path && folderTracks[f.path]}
 						<div class="ml-6 mt-1 flex flex-col gap-0.5">
 							{#each folderTracks[f.path] as track}
@@ -164,15 +187,23 @@
 	{:else if contentType === 'stream'}
 		<div class="flex flex-col gap-1">
 			{#each radioStations as s}
-				<button
-					onclick={() => select(s.url, s.name)}
-					class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
-						{contentPath === s.url ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
-				>
-					<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
-					<span class="truncate">{s.name}</span>
-					{#if s.category}<span class="text-xs opacity-50 ml-auto">{capitalize(s.category)}</span>{/if}
-				</button>
+				{@const streamAssignee = assignedName(`stream:${s.url}`)}
+				<div>
+					<button
+						onclick={() => select(s.url, s.name)}
+						class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
+							{contentPath === s.url ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+					>
+						<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8c0-.83-.47-1.57-1.24-1.85L12 2 3.24 6.15zM12 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>
+						<span class="truncate">{s.name}</span>
+						{#if s.category}<span class="text-xs opacity-50 ml-auto">{capitalize(s.category)}</span>{/if}
+					</button>
+					{#if streamAssignee}
+						<p class="text-[10px] text-text-muted mt-0.5 ml-9 truncate" aria-label={t('content_picker.assigned_aria', { name: streamAssignee })}>
+							{t('content_picker.assigned_to', { name: streamAssignee })}
+						</p>
+					{/if}
+				</div>
 			{/each}
 			{#if radioStations.length === 0}
 				<p class="text-sm text-text-muted py-4 text-center">{t('content_picker.no_stations')}</p>
@@ -182,6 +213,7 @@
 	{:else if contentType === 'podcast'}
 		<div class="flex flex-col gap-1">
 			{#each podcastList as p}
+				{@const podcastAssignee = assignedName(`podcast:podcast:${p.id}`)}
 				<div>
 					<div class="flex items-center gap-1">
 						<button
@@ -199,6 +231,11 @@
 							</button>
 						{/if}
 					</div>
+					{#if podcastAssignee}
+						<p class="text-[10px] text-text-muted mt-0.5 ml-9 truncate" aria-label={t('content_picker.assigned_aria', { name: podcastAssignee })}>
+							{t('content_picker.assigned_to', { name: podcastAssignee })}
+						</p>
+					{/if}
 					{#if expandedPodcast === p.id && podcastEpisodes[p.id]}
 						<div class="ml-6 mt-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto">
 							{#each podcastEpisodes[p.id] as ep}
@@ -223,15 +260,23 @@
 	{:else if contentType === 'playlist'}
 		<div class="flex flex-col gap-1">
 			{#each playlists as pl}
-				<button
-					onclick={() => select(`playlist:${pl.id}`, pl.name)}
-					class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
-						{contentPath === `playlist:${pl.id}` ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
-				>
-					<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
-					<span class="truncate">{pl.name}</span>
-					<span class="text-xs opacity-60 ml-auto flex-shrink-0">{t('content_picker.tracks', { count: pl.item_count })}</span>
-				</button>
+				{@const playlistAssignee = assignedName(`playlist:playlist:${pl.id}`)}
+				<div>
+					<button
+						onclick={() => select(`playlist:${pl.id}`, pl.name)}
+						class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-colors
+							{contentPath === `playlist:${pl.id}` ? 'bg-primary text-white' : 'bg-surface-light text-text hover:bg-surface-lighter'}"
+					>
+						<svg class="w-4 h-4 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>
+						<span class="truncate">{pl.name}</span>
+						<span class="text-xs opacity-60 ml-auto flex-shrink-0">{t('content_picker.tracks', { count: pl.item_count })}</span>
+					</button>
+					{#if playlistAssignee}
+						<p class="text-[10px] text-text-muted mt-0.5 ml-9 truncate" aria-label={t('content_picker.assigned_aria', { name: playlistAssignee })}>
+							{t('content_picker.assigned_to', { name: playlistAssignee })}
+						</p>
+					{/if}
+				</div>
 			{/each}
 			{#if playlists.length === 0}
 				<p class="text-sm text-text-muted py-4 text-center">{t('content.playlist_empty')}</p>

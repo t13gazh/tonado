@@ -71,10 +71,10 @@
 	// Recent: created_at DESC (newest first); falls back to id DESC when timestamp missing.
 	// Duration: longest first — empty playlists sink to the bottom.
 	const sortedPlaylists = $derived.by(() => {
-		const filtered = isSearching
+		const searched = isSearching
 			? allPlaylists.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery))
 			: allPlaylists;
-		const arr = [...filtered];
+		const arr = [...searched];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => {
 				const av = a.created_at ?? '';

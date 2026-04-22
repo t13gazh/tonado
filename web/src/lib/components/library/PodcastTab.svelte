@@ -67,10 +67,10 @@
 	// so including them would force an N×feed pre-fetch for every keystroke on
 	// a Pi Zero W (same cost constraint as FolderTab documents).
 	const sortedPodcasts = $derived.by(() => {
-		const filtered = isSearching
+		const searched = isSearching
 			? podcasts.filter((p) => normalizeForSearch(p.name).includes(normalizedQuery))
 			: podcasts;
-		const arr = [...filtered];
+		const arr = [...searched];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => b.id - a.id);
 		} else if (sortMode === 'episodes') {

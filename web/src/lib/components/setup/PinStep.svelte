@@ -38,21 +38,51 @@
 	const expertPinRepeat = $derived(expertRepeatDigits.join(''));
 	const expertPairComplete = $derived(expertPin.length > 0 || expertPinRepeat.length > 0);
 
+	// Row identifiers — used to remember which row already auto-advanced once.
+	type RowId = 'parent' | 'parentRepeat' | 'expert' | 'expertRepeat';
+	// Tracks rows that already triggered the one-shot jump to the next row,
+	// so editing a digit inside a fully-filled row does NOT pull focus away.
+	const advancedRows = new Set<RowId>();
+
+	/** Brief focus-pulse to confirm the cursor jumped to a new row. */
+	function pulseFocus(el: HTMLInputElement | undefined): void {
+		if (!el) return;
+		el.classList.remove('pin-focus-pulse');
+		// Force reflow so the animation restarts if it was already applied.
+		void el.offsetWidth;
+		el.classList.add('pin-focus-pulse');
+		window.setTimeout(() => el.classList.remove('pin-focus-pulse'), 260);
+	}
+
 	/** Accept digit-only, single char; auto-advance on input. */
 	function handleDigitInput(
 		digits: string[],
 		inputs: HTMLInputElement[],
 		index: number,
 		e: Event,
+		nextRow?: { id: RowId; inputs: HTMLInputElement[]; digits: string[] },
 	): void {
 		const el = e.target as HTMLInputElement;
 		const sanitized = el.value.replace(/\D/g, '').slice(-1);
 		digits[index] = sanitized;
 		// Write back the sanitized value (protects against paste / non-digits).
 		el.value = sanitized;
-		if (sanitized && index < PIN_LENGTH - 1) {
+		if (!sanitized) return;
+		if (index < PIN_LENGTH - 1) {
 			inputs[index + 1]?.focus();
 			inputs[index + 1]?.select();
+			return;
+		}
+		// Last digit of the row just got filled — try to jump into the next row.
+		if (nextRow && !advancedRows.has(nextRow.id)) {
+			const nextEmpty = nextRow.digits.every((d) => !d);
+			if (nextEmpty) {
+				advancedRows.add(nextRow.id);
+				const target = nextRow.inputs[0];
+				target?.focus();
+				target?.select();
+				pulseFocus(target);
+			}
 		}
 	}
 
@@ -166,8 +196,8 @@
 	<p class="text-sm text-text-muted text-center">{t('setup.pin_desc')}</p>
 
 	<!-- Parent PIN (required, fixed 4 digits) -->
-	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
-		<legend class="text-sm text-text">{t('setup.pin_parent_label')}</legend>
+	<fieldset class="flex flex-col border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text text-center w-full mb-3">{t('setup.pin_parent_label')}</legend>
 		<div
 			class="flex gap-2 justify-center"
 			role="group"
@@ -182,7 +212,12 @@
 					autocomplete="new-password"
 					maxlength="1"
 					value={digit}
-					oninput={(e) => handleDigitInput(parentDigits, parentInputs, i, e)}
+					oninput={(e) =>
+						handleDigitInput(parentDigits, parentInputs, i, e, {
+							id: 'parentRepeat',
+							inputs: parentRepeatInputs,
+							digits: parentRepeatDigits,
+						})}
 					onkeydown={(e) => handleDigitKeydown(parentDigits, parentInputs, i, e)}
 					onpaste={(e) => handleDigitPaste(parentDigits, parentInputs, e)}
 					onfocus={(e) => (e.target as HTMLInputElement).select()}
@@ -195,8 +230,8 @@
 	</fieldset>
 
 	<!-- Parent PIN repeat -->
-	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
-		<legend class="text-sm text-text">{t('setup.pin_confirm_label')}</legend>
+	<fieldset class="flex flex-col border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text text-center w-full mb-3">{t('setup.pin_confirm_label')}</legend>
 		<div
 			class="flex gap-2 justify-center"
 			role="group"
@@ -211,7 +246,12 @@
 					autocomplete="new-password"
 					maxlength="1"
 					value={digit}
-					oninput={(e) => handleDigitInput(parentRepeatDigits, parentRepeatInputs, i, e)}
+					oninput={(e) =>
+						handleDigitInput(parentRepeatDigits, parentRepeatInputs, i, e, {
+							id: 'expert',
+							inputs: expertInputs,
+							digits: expertDigits,
+						})}
 					onkeydown={(e) => handleDigitKeydown(parentRepeatDigits, parentRepeatInputs, i, e)}
 					onpaste={(e) => handleDigitPaste(parentRepeatDigits, parentRepeatInputs, e)}
 					onfocus={(e) => (e.target as HTMLInputElement).select()}
@@ -223,9 +263,9 @@
 	</fieldset>
 
 	<!-- Expert PIN (optional, also 4 digits) -->
-	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
-		<legend class="text-sm text-text">{t('setup.pin_expert_label')}</legend>
-		<p class="text-xs text-text-muted text-center">{t('setup.pin_expert_hint')}</p>
+	<fieldset class="flex flex-col border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text text-center w-full">{t('setup.pin_expert_label')}</legend>
+		<p class="text-xs text-text-muted text-center mb-3">{t('setup.pin_expert_hint')}</p>
 		<div
 			class="flex gap-2 justify-center"
 			role="group"
@@ -240,7 +280,12 @@
 					autocomplete="new-password"
 					maxlength="1"
 					value={digit}
-					oninput={(e) => handleDigitInput(expertDigits, expertInputs, i, e)}
+					oninput={(e) =>
+						handleDigitInput(expertDigits, expertInputs, i, e, {
+							id: 'expertRepeat',
+							inputs: expertRepeatInputs,
+							digits: expertRepeatDigits,
+						})}
 					onkeydown={(e) => handleDigitKeydown(expertDigits, expertInputs, i, e)}
 					onpaste={(e) => handleDigitPaste(expertDigits, expertInputs, e)}
 					onfocus={(e) => (e.target as HTMLInputElement).select()}
@@ -252,8 +297,8 @@
 	</fieldset>
 
 	<!-- Expert PIN repeat -->
-	<fieldset class="flex flex-col gap-2 border-0 p-0 m-0" disabled={saving || saved}>
-		<legend class="text-sm text-text">{t('setup.pin_confirm_label')}</legend>
+	<fieldset class="flex flex-col border-0 p-0 m-0" disabled={saving || saved}>
+		<legend class="text-sm text-text text-center w-full mb-3">{t('setup.pin_confirm_label')}</legend>
 		<div
 			class="flex gap-2 justify-center"
 			role="group"
@@ -285,3 +330,30 @@
 
 	<InlineError message={visibleError} id="pin-error" />
 </div>
+
+<style>
+	/* Brief ring-pulse confirming an auto-advance into the next PIN row.
+	   Kept subtle: ~240ms, ease-out, no layout shift — only ring + tiny scale. */
+	:global(.pin-focus-pulse) {
+		animation: pin-focus-pulse 240ms cubic-bezier(0.22, 1, 0.36, 1);
+	}
+	@keyframes pin-focus-pulse {
+		0% {
+			box-shadow: 0 0 0 0 rgb(var(--color-primary, 99 102 241) / 0.55);
+			transform: scale(1);
+		}
+		60% {
+			box-shadow: 0 0 0 6px rgb(var(--color-primary, 99 102 241) / 0);
+			transform: scale(1.04);
+		}
+		100% {
+			box-shadow: 0 0 0 0 rgb(var(--color-primary, 99 102 241) / 0);
+			transform: scale(1);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		:global(.pin-focus-pulse) {
+			animation: none;
+		}
+	}
+</style>

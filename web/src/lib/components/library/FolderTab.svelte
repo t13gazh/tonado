@@ -159,10 +159,10 @@
 
 	// Derived view: filter first (if searching), then sort. Does not mutate the prop.
 	const sortedFolders = $derived.by(() => {
-		const filtered = isSearching
+		const searched = isSearching
 			? folders.filter((f) => matchReason(f, normalizedQuery) !== null)
 			: folders;
-		const arr = [...filtered];
+		const arr = [...searched];
 		if (sortMode === 'recent') {
 			// Newest first: highest mtime at the top. Undefined/0 falls to the end.
 			arr.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0));

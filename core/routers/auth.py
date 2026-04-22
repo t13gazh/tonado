@@ -6,8 +6,15 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from core.dependencies import get_auth_service, get_timer_service, get_token, require_tier
+from core.dependencies import (
+    get_auth_service,
+    get_setup_wizard,
+    get_timer_service,
+    get_token,
+    require_tier,
+)
 from core.services.auth_service import AuthService, AuthTier
+from core.services.setup_wizard import SetupWizard
 from core.services.timer_service import TimerService
 from core.utils.client_ip import extract_client_ip
 
@@ -116,16 +123,25 @@ async def set_pin(
     req: SetPinRequest,
     request: Request,
     auth: AuthService = Depends(get_auth_service),
+    wizard: SetupWizard = Depends(get_setup_wizard),
 ) -> dict:
     target_tier = AuthTier(req.tier)
 
-    # Setting expert PIN requires expert access (or no expert PIN set yet)
+    # Bootstrap exception: while the setup wizard is still in progress, PINs
+    # may be (re-)set without prior auth. Users hit this when they restart
+    # the wizard after an earlier aborted run left PINs behind — otherwise
+    # they'd be locked out of their own fresh setup and forced to run the
+    # expert-guarded /setup/reset path they cannot reach yet.
+    setup_in_progress = not wizard.is_complete
+
+    # Setting expert PIN requires expert access (or no expert PIN set yet,
+    # or wizard still running)
     if target_tier == AuthTier.EXPERT:
-        if await auth.is_pin_set(AuthTier.EXPERT):
+        if await auth.is_pin_set(AuthTier.EXPERT) and not setup_in_progress:
             require_tier(request, AuthTier.EXPERT, auth)
-    # Setting parent PIN requires at least parent access
+    # Setting parent PIN requires at least parent access (same bootstrap rule)
     elif target_tier == AuthTier.PARENT:
-        if await auth.is_pin_set(AuthTier.PARENT):
+        if await auth.is_pin_set(AuthTier.PARENT) and not setup_in_progress:
             require_tier(request, AuthTier.PARENT, auth)
 
     await auth.set_pin(target_tier, req.pin)

@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
-	import { systemApi, setupApi, config, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
+	import { systemApi, setupApi, config, ApiError, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
 	import GyroCalibration from '$lib/components/GyroCalibration.svelte';
+	import { getAuthTier } from '$lib/stores/auth.svelte';
+
+	const isExpert = $derived(getAuthTier() === 'expert');
 
 	let info = $state<SystemInfoData | null>(null);
 	let hardware = $state<HardwareStatus | null>(null);
@@ -131,8 +134,14 @@
 		try {
 			await setupApi.reset();
 			goto('/setup');
-		} catch {
-			message = t('system.setup_wizard_error');
+		} catch (e) {
+			// 403 = kein Experten-Tier — User braucht eine explizite Anleitung,
+			// nicht die generische Fehlermeldung.
+			if (e instanceof ApiError && e.status === 403) {
+				message = t('system.setup_wizard_needs_expert');
+			} else {
+				message = t('system.setup_wizard_error');
+			}
 		}
 	}
 
@@ -361,9 +370,16 @@
 			<div class="bg-surface-light rounded-xl p-4">
 				<h2 class="text-sm font-semibold mb-3">{t('system.setup_wizard')}</h2>
 				<p class="text-xs text-text-muted mb-3">{t('system.setup_wizard_desc')}</p>
-				<button onclick={restartWizard} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
-					{t('system.setup_wizard_restart')}
-				</button>
+				{#if isExpert}
+					<button onclick={restartWizard} class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
+						{t('system.setup_wizard_restart')}
+					</button>
+				{:else}
+					<div class="text-xs text-amber-500 mb-2">{t('system.setup_wizard_needs_expert')}</div>
+					<a href="/settings" class="block w-full px-4 py-2.5 bg-surface hover:bg-surface-lighter text-text text-sm font-medium rounded-lg text-center transition-colors">
+						{t('system.setup_wizard_login_hint')}
+					</a>
+				{/if}
 			</div>
 
 

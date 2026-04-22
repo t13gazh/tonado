@@ -171,6 +171,14 @@
 	let sleepExtend5Ref: HTMLButtonElement | null = $state(null);
 	let sleepExtend10Ref: HTMLButtonElement | null = $state(null);
 	let sleepCancelRef: HTMLButtonElement | null = $state(null);
+	// Inline bump feedback — replaces the overlapping toast. `sleepBumpAmount`
+	// drives the flying "+N" bubble over the pill; `sleepBumping` briefly
+	// scales the remaining-time text to signal the moment of impact.
+	let sleepBumpAmount = $state(0);
+	let sleepBumping = $state(false);
+	// Not reactive — just a handle list for cleanup. Marked `$state` to silence
+	// the non_reactive_update lint; Svelte will still let us reassign freely.
+	let sleepBumpTimers = $state<ReturnType<typeof setTimeout>[]>([]);
 
 	// Compute remaining seconds from the last authoritative snapshot plus
 	// wall-clock drift since it arrived. `sleepTick` forces a recompute.
@@ -304,7 +312,19 @@
 				fading: false,
 			});
 			closeSleepMenu(true);
-			addToast(t('player.sleep_extended_toast', { minutes }), 'success');
+			// Cancel any in-flight bump so consecutive +5 / +10 don't stack.
+			for (const id of sleepBumpTimers) clearTimeout(id);
+			sleepBumpTimers = [];
+			sleepBumpAmount = minutes;
+			sleepBumping = false;
+			// Two timers: the `+N` bubble travels down over ~420 ms (see CSS
+			// keyframes), and right when it reaches the pill we flip
+			// `sleepBumping` on so the remaining-time text scales up briefly.
+			sleepBumpTimers.push(
+				setTimeout(() => { sleepBumping = true; }, 340),
+				setTimeout(() => { sleepBumping = false; }, 640),
+				setTimeout(() => { sleepBumpAmount = 0; sleepBumpTimers = []; }, 720),
+			);
 		} catch {
 			addToast(t('player.sleep_extend_failed'), 'error');
 		} finally {
@@ -400,9 +420,12 @@
 
 <div class="relative flex flex-col items-center justify-between min-h-full px-4 py-4 gap-3 sm:px-6 sm:py-6 sm:gap-5 max-[374px]:gap-2 max-[374px]:py-2 landscape:py-2 landscape:gap-2">
 
-	<!-- Sleep timer indicator: absolute so it does not push cover art down -->
+	<!-- Sleep timer indicator: absolute so it does not push cover art down.
+	     `flex flex-col items-center` keeps the pill visually centered inside
+	     the wrapper even when the (wider) menu expands below it — without
+	     this, the pill sits flush-left and drifts left as the menu grows. -->
 	{#if sleepVisible}
-		<div bind:this={sleepPillRef} class="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+		<div bind:this={sleepPillRef} class="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center">
 			<button
 				bind:this={sleepTriggerRef}
 				type="button"
@@ -411,14 +434,22 @@
 				aria-expanded={sleepFading ? undefined : sleepMenuOpen}
 				aria-disabled={sleepFading || undefined}
 				aria-label={sleepFading ? t('player.sleep_announce_fading') : t('player.sleep_menu_aria')}
-				class="flex items-center gap-1.5 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-lg backdrop-blur-sm transition-[transform,background-color,color,opacity] duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary text-white ring-1 ring-primary-light/40 animate-pulse cursor-default' : sleepFinalMinute ? 'bg-amber-500 text-neutral-900 ring-1 ring-amber-300/50' : 'bg-surface-light/95 text-text ring-1 ring-white/5'}"
+				class="relative flex items-center gap-1.5 pl-3 pr-3 py-1.5 rounded-full text-xs shadow-lg backdrop-blur-sm transition-[transform,background-color,color,opacity] duration-150 ease-out min-h-11 touch-manipulation hover:opacity-90 active:scale-[0.97] {sleepFading ? 'bg-primary text-white ring-1 ring-primary-light/40 animate-pulse cursor-default' : sleepFinalMinute ? 'bg-amber-500 text-neutral-900 ring-1 ring-amber-300/50' : 'bg-surface-light/95 text-text ring-1 ring-white/5'}"
 			>
 				<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
 				</svg>
-				<span class="font-medium" aria-hidden="true">
+				<span class="font-medium inline-block transition-transform duration-200 ease-out {sleepBumping ? 'scale-125' : 'scale-100'}" aria-hidden="true">
 					{#if sleepFading}{sleepLabel}{:else}{t('player.sleep_remaining', { time: sleepLabel })}{/if}
 				</span>
+				{#if sleepBumpAmount > 0 && !sleepFading}
+					<!-- Flying "+N" bubble: starts above the pill and drops into it,
+					     timed to arrive as the time text scales up. Uses a keyed
+					     element so repeated taps restart the animation. -->
+					{#key sleepBumpAmount + '-' + sleepBumpTimers.length}
+						<span class="sleep-bump pointer-events-none absolute left-1/2 -translate-x-1/2 font-semibold text-primary-light" aria-hidden="true">+{sleepBumpAmount}</span>
+					{/key}
+				{/if}
 				<span class="sr-only" aria-live="polite">{sleepAnnounce}</span>
 			</button>
 
@@ -427,7 +458,7 @@
 					bind:this={sleepMenuRef}
 					role="menu"
 					onkeydown={handleSleepMenuItemKeydown}
-					class="sleep-menu absolute top-full left-1/2 -translate-x-1/2 mt-2 flex items-center gap-1 p-1 rounded-full bg-surface-light shadow-lg border border-surface-lighter"
+					class="sleep-menu mt-2 flex items-center gap-1 p-1 rounded-full bg-surface-light shadow-lg border border-surface-lighter"
 				>
 					<button
 						bind:this={sleepExtend5Ref}
@@ -710,28 +741,59 @@
 
 <style>
 	/* Sleep-menu entry: origin-aware scale + fade via @starting-style.
-	   Transition beats a keyframe when the menu can be toggled rapidly. */
+	   Transition beats a keyframe when the menu can be toggled rapidly.
+	   Menu now lives in-flow inside a flex-col items-center wrapper, so
+	   horizontal centering is handled by the parent — no translateX here. */
 	.sleep-menu {
 		transform-origin: top center;
 		opacity: 1;
-		transform: translateX(-50%) scale(1);
+		transform: scale(1);
 		transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1), transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
 	}
 	@starting-style {
 		.sleep-menu {
 			opacity: 0;
-			transform: translateX(-50%) scale(0.95);
+			transform: scale(0.95);
 		}
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.sleep-menu {
 			transition: opacity 150ms ease-out;
-			transform: translateX(-50%);
+			transform: none;
 		}
 		@starting-style {
 			.sleep-menu {
-				transform: translateX(-50%);
+				transform: none;
 			}
+		}
+	}
+
+	/* Flying "+N" bubble shown when the user extends the sleep timer.
+	   Starts above the pill, drops down as it shrinks, and fades out right
+	   as it "hits" the remaining-time text — timed against the scale-up
+	   flash driven by `sleepBumping` in the component. */
+	.sleep-bump {
+		animation: sleep-bump-drop 700ms cubic-bezier(0.34, 1.1, 0.64, 1) forwards;
+		will-change: transform, opacity;
+		font-size: 0.95rem;
+		line-height: 1;
+		top: -0.75rem;
+	}
+	@keyframes sleep-bump-drop {
+		0%   { transform: translate(-50%, -0.6rem) scale(1.4); opacity: 0; }
+		18%  { transform: translate(-50%, -0.3rem) scale(1.4); opacity: 1; }
+		55%  { transform: translate(-50%,  0.3rem) scale(1.0); opacity: 0.95; }
+		80%  { transform: translate(-50%,  0.6rem) scale(0.7); opacity: 0.55; }
+		100% { transform: translate(-50%,  0.8rem) scale(0.4); opacity: 0; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.sleep-bump {
+			animation: sleep-bump-fade 450ms ease-out forwards;
+		}
+		@keyframes sleep-bump-fade {
+			0%   { opacity: 0; }
+			20%  { opacity: 1; }
+			100% { opacity: 0; }
 		}
 	}
 </style>

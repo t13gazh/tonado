@@ -62,14 +62,14 @@
 	const normalizedQuery = $derived(normalizeForSearch(searchQuery.trim()));
 	const isSearching = $derived(normalizedQuery.length > 0);
 
-	// Filter first (by station name — the only meaningful field for a radio row),
-	// then sort. Station URLs deliberately do not participate in search: they
-	// are technical identifiers the user never types / expects to match against.
+	// Filter by station name, then sort. Station URLs deliberately do not
+	// participate in search: they are technical identifiers the user never
+	// types / expects to match against.
 	const sortedStations = $derived.by(() => {
-		const filtered = isSearching
+		const searched = isSearching
 			? stations.filter((s) => normalizeForSearch(s.name).includes(normalizedQuery))
 			: stations;
-		const arr = [...filtered];
+		const arr = [...searched];
 		if (sortMode === 'recent') {
 			arr.sort((a, b) => b.id - a.id);
 		} else {

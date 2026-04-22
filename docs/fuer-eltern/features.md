@@ -100,7 +100,7 @@ Damit die Box einfach bleibt, verzichten wir auf einige Dinge:
 
 - **Kein Spotify-Player im Kinderzimmer.** Kein Streaming-Abo, kein Tracking.
 - **Kein Smart-Home-Hub.** Tonado steuert keine Lampen, Rollläden oder Heizungen.
-- **Keine Cloud-Pflicht.** Du kannst die Box komplett offline betreiben.
+- **Keine Cloud-Pflicht.** Deine Musik und Einstellungen liegen auf der Box, nicht in fremden Rechenzentren. Lokale Dateien und Figuren-Funktion laufen auch ohne aktive Internet-Verbindung (Radio und Podcasts brauchen Netz). Einen expliziten Offline-Modus mit App-Schalter ergänzen wir später — siehe [Was bald dazu kommt](#was-bald-dazu-kommt).
 - **Keine laufenden Kosten** nach dem einmaligen Kauf der Hardware.
 
 Diese Prinzipien stehen in der [Vision](../VISION.md).

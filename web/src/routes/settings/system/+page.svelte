@@ -23,6 +23,16 @@
 	let showGyroCalibration = $state(false);
 	let gyroCalibrated = $state(false);
 
+	function stripMarkdown(s: string): string {
+		// Release notes come through as a plain-text render, but older release
+		// sections may still contain Markdown emphasis and link syntax. Strip
+		// the common tokens so parents see clean prose, not stray asterisks.
+		return s
+			.replace(/\*\*([^*]+)\*\*/g, '$1')
+			.replace(/\*([^*]+)\*/g, '$1')
+			.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+			.replace(/`([^`]+)`/g, '$1');
+	}
 
 	async function waitForServer(timeout = 90_000): Promise<boolean> {
 		const start = Date.now();
@@ -310,14 +320,16 @@
 								</p>
 							{/if}
 							{#if updateStatus.changelog}
-								<div class="text-xs text-text bg-surface rounded-lg p-3 max-h-48 overflow-y-auto space-y-1">
+								<div class="text-xs text-text bg-surface rounded-lg p-3 max-h-64 overflow-y-auto space-y-1">
 									{#each updateStatus.changelog.split('\n') as line}
 										{#if line.startsWith('### ')}
-											<div class="font-semibold text-text mt-2 first:mt-0">{line.replace('### ', '')}</div>
+											<div class="font-semibold text-text mt-2 first:mt-0">{stripMarkdown(line.slice(4))}</div>
+										{:else if line.startsWith('## ')}
+											<div class="font-semibold text-text mt-2 first:mt-0">{stripMarkdown(line.slice(3))}</div>
 										{:else if line.startsWith('- ')}
-											<div class="text-text-muted pl-2">{line}</div>
+											<div class="text-text-muted pl-3 flex gap-2"><span aria-hidden="true">•</span><span>{stripMarkdown(line.slice(2))}</span></div>
 										{:else if line.trim()}
-											<div class="text-text-muted">{line}</div>
+											<div class="text-text-muted">{stripMarkdown(line)}</div>
 										{/if}
 									{/each}
 								</div>

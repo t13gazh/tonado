@@ -11,6 +11,20 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 Erste Beta — aus der Alpha-Linie promoviert, nachdem Pi 3B+ und Pi Zero W auf frischer Hardware live verifiziert sind, 398 Backend-Tests grün sind und die wichtigsten UX-Polishs + Konsistenz-Fixes drin sind.
 
+### Was du merkst
+
+- Sleep-Timer zeigt die Restzeit direkt im Player, plus Verlängern um 5 oder 10 Minuten.
+- Cover-Bilder in Player und Bibliothek — aus den Musik-Dateien oder aus einer cover.jpg im Ordner.
+- Suche in der Bibliothek: ein Feld findet über Ordner, Radio, Podcasts und Playlisten gleichzeitig.
+- Browser-Audio bleibt beim Figuren-Wechsel stabil, kein Abbrechen mehr bei jedem Stream.
+- PIN-Eingabe im Setup mit vier einzelnen Ziffern-Boxen, springt automatisch zur nächsten Zeile.
+- Hilfe-Taste in jedem Setup-Schritt mit Tipps fürs Troubleshooting.
+- WLAN-Rettung: fällt dein Heim-WLAN länger aus, öffnet die Box automatisch ihren Einrichtungs-Modus mit QR-Code.
+- Figuren-Löschen nur noch im aufgeklappten Detail — kein versehentliches Tippen mehr auf der Kachel.
+- Einheitliches Aussehen bei Fehlermeldungen, Auswahl-Leisten und Schaltern in allen Einstellungen.
+
+Deine Figuren, Einstellungen und Musik bleiben beim Update erhalten.
+
 ### Verbessert
 
 - **Figuren-Wizard zeigt direkt, welcher Inhalt schon einer Figur gehört.** Bei jedem Ordner, Radio, Podcast oder Playlist im Auswahl-Dialog steht eine dezente Zeile „Figur: Name", sobald der Eintrag bereits mit einer Figur verknüpft ist. Ersetzt den zuvor sichtbaren Bibliothek-Filter, den wir wieder entfernt haben — die Frage „was ist frei?" gehört dorthin, wo eine neue Figur angelegt wird, nicht in die Browsing-Ansicht.

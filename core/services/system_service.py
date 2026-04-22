@@ -171,12 +171,21 @@ class SystemService(BaseService):
             )
             commits = commit_log.splitlines() if commit_log else []
 
-            # Get user-friendly changelog from remote
+            # Get user-friendly release notes from remote. Primary source is
+            # WAS-IST-NEU.md (parent-friendly, plain prose). CHANGELOG.md is
+            # kept as dev-facing history and used as a fallback only.
             changelog = ""
             if commits:
-                changelog = await self._extract_remote_changelog(remote_version)
+                changelog = await self._extract_remote_section(
+                    "WAS-IST-NEU.md", remote_version
+                )
                 if not changelog:
-                    # No changelog section for this version — show commit subjects
+                    changelog = await self._extract_remote_section(
+                        "CHANGELOG.md", remote_version
+                    )
+                if not changelog:
+                    # No notes for this version in either file — show commit
+                    # subjects as a last-resort hint.
                     changelog = "### Änderungen\n" + "\n".join(
                         f"- {c.split(' ', 1)[1]}" if ' ' in c else f"- {c}"
                         for c in commits
@@ -192,11 +201,18 @@ class SystemService(BaseService):
         except Exception as e:
             return {"available": False, "error": str(e)}
 
-    async def _extract_remote_changelog(self, remote_version: str) -> str:
-        """Extract the changelog section for a specific version from remote."""
+    async def _extract_remote_section(
+        self, filename: str, remote_version: str
+    ) -> str:
+        """Extract the section for a specific version from a remote Markdown file.
+
+        Used to pull either parent-friendly release notes (WAS-IST-NEU.md) or
+        the developer changelog (CHANGELOG.md) depending on which source the
+        caller prefers.
+        """
         try:
             rc, content, _ = await self._git(
-                "show", "origin/main:CHANGELOG.md",
+                "show", f"origin/main:{filename}",
             )
             if rc != 0 or not content:
                 return ""

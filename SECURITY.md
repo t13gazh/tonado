@@ -14,11 +14,11 @@ Sobald die erste Beta (`v0.2.0-beta`) stabil ist, wird diese Tabelle entsprechen
 
 ## Einen Security-Bug melden
 
-**Nicht im öffentlichen Issue-Tracker.** Bitte per Mail an:
+**Nicht im öffentlichen Issue-Tracker.** Bitte über das GitHub-Security-Advisory-Formular melden:
 
-- `https://github.com/t13gazh/tonado/security/advisories/new`
+- <https://github.com/t13gazh/tonado/security/advisories/new>
 
-Bitte in die Betreffzeile `[Tonado Security]` aufnehmen.
+Das Formular ist privat — nur Maintainer sehen den Bericht. GitHub sendet eine Bestätigung, sobald der Bericht eingegangen ist.
 
 Enthalten sein sollte:
 - Betroffene Komponente (Backend / Frontend / Install-Script / Hardware-Layer)

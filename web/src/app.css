@@ -93,6 +93,16 @@ body {
 	border-radius: 4px;
 }
 
+/* Form controls supply their own focus feedback (typically focus:border-primary
+ * or an inset ring) — the global outline above is 2 px offset and gets clipped
+ * by any overflow-hidden / overflow-y-auto wrapper around the field. */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+	outline: none;
+	outline-offset: 0;
+}
+
 /* Touch feedback for interactive elements */
 .touch-active {
 	-webkit-tap-highlight-color: transparent;

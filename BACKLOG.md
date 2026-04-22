@@ -6,7 +6,7 @@
 
 ## Offene Beta-Blocker (aus Pre-Beta-Audit)
 
-Scope für v0.2.0-beta: die physisch vorhandene Hardware — Pi 3B+ und Pi Zero W. Pi 4 / Pi 5 werden in Post-Beta nachgezogen, sobald ein Gerät verfügbar ist.
+Scope für `v0.3.0-beta` (ausgeliefert 2026-04-22): die physisch vorhandene Hardware — Pi 3B+ und Pi Zero W. Pi 4 / Pi 5 werden in einer kommenden Beta-Iteration nachgezogen, sobald ein Gerät verfügbar ist.
 
 - [x] Install-Script End-to-End auf echter SD-Karte (2026-04-22 auf Zero W mit 4 GB Bookworm-Lite durchgespielt, Service startet sauber).
 - [x] Pi-Kompatibilitätsmatrix Live-Tests auf Pi 3B+ und Zero W (H8) — Zero W 0.2.1-alpha: Install sauber, CPU 40 °C idle, RAM 160/427 MB, keine Errors in 10 min. 3B+ ebenfalls live.
@@ -97,7 +97,7 @@ Beim ersten Live-Test des `/api/system/update/apply`-Endpoints am 2026-04-22 (Up
 - [ ] Phoniebox v2/v3 Daten und Karten-Zuordnungen zu Tonado migrieren.
 - [ ] Audio-Dateien (Symlinks), Karten-Mapping, Hardware-Config, Playlisten.
 - [ ] Erkennung: /home/pi/RPi-Jukebox-RFID/ vorhanden? Version?
-- [ ] Zeitpunkt: Nach v0.2.0-beta.
+- [ ] Zeitpunkt: Nach `v0.3.0-beta` (frühestens in einer 0.3.x-Iteration).
 
 ## Prio 4 — Zukunft / Hardware-abhängig
 

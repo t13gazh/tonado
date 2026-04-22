@@ -29,6 +29,6 @@ Starte die Box einmal neu (Stecker ziehen, kurz warten, wieder einstecken — od
 
 ## Für Technik-Profis
 
-Heute zieht jede Update-Suche den aktuellen Stand vom `main`-Branch (Alpha-Phase). Ab der Beta-Version gibt es getaggte Releases mit Changelog und optional manueller Freigabe pro Update.
+Tonado ist ab `v0.3.0-beta` in der Beta-Phase. Eine Update-Suche zieht aktuell den letzten Stand vom `main`-Branch. Eine Umstellung auf getaggte GitHub-Releases mit Freigabe pro Update ist für eine kommende Beta-Iteration geplant.
 
 Für das manuelle Update via SSH, Rollback auf einen bestimmten Commit und Fehlersuche im Log: siehe **[Update-Details für Bastler](../fuer-bastler/update-details.md)**.

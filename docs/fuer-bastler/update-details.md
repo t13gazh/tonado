@@ -17,7 +17,7 @@ Technische Details zum Update-Mechanismus. Die Eltern-Sicht dazu steht in **[doc
 
 ## Release-Kanäle
 
-Tonado ist aktuell in der Alpha-Phase: Das Update-Verfahren zieht jeden neuen Commit auf dem `main`-Branch. Ab der Beta-Version gibt es getaggte Releases mit Changelog und optional manueller Freigabe pro Update.
+Tonado ist ab `v0.3.0-beta` in der Beta-Phase. Der Update-Mechanismus zieht aktuell jeden neuen Commit auf dem `main`-Branch; eine Umstellung auf getaggte GitHub-Releases mit expliziter Freigabe pro Update ist für eine kommende Beta-Iteration geplant (siehe Backlog).
 
 ## Manuelles Update via SSH
 

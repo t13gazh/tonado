@@ -7,10 +7,8 @@ Tonado läuft auf Geräten, die Kinder bedienen. Security-Bugs sind uns deshalb 
 | Version | Status |
 |---------|--------|
 | `main` (Entwicklungsstand) | ✅ aktive Security-Fixes |
-| `v0.2.x` (Alpha → Beta) | ✅ aktive Security-Fixes |
-| ältere Alpha-Tags | ⚠️ bitte updaten |
-
-Sobald die erste Beta (`v0.2.0-beta`) stabil ist, wird diese Tabelle entsprechend gepflegt.
+| `v0.3.x` (Beta) | ✅ aktive Security-Fixes |
+| ältere Alpha-Tags (`v0.2.x` und früher) | ⚠️ bitte auf Beta updaten |
 
 ## Einen Security-Bug melden
 

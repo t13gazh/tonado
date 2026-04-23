@@ -62,6 +62,18 @@ _SLEEP_TIMER_PATHS = frozenset({
     "/api/auth/sleep-timer/extend",   # POST extend
 })
 
+# F1 (security audit): WiFi probe endpoints during setup. Each call
+# spawns nmcli, joins a WPA handshake and may write a connection
+# profile — expensive and, on the open setup AP, an obvious brute-force
+# vector against neighbouring WPA PSKs. The in-memory fail-counter in
+# wifi_service.probe_home_wifi already hard-locks after 10 consecutive
+# failures; this middleware bucket on top prevents hammering from
+# multiple client IPs against the same box.
+_WIFI_PROBE_PATHS = frozenset({
+    "/api/setup/test-wifi",
+    "/api/setup/wifi/connect",
+})
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
@@ -80,6 +92,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         sleep_timer_window: int = 60,
         update_check_limit: int = 6,
         update_check_window: int = 60,
+        wifi_probe_limit: int = 6,
+        wifi_probe_window: int = 60,
     ) -> None:
         super().__init__(app)
         self._default = (default_limit, default_window)
@@ -88,6 +102,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._restore = (restore_limit, restore_window)
         self._sleep_timer = (sleep_timer_limit, sleep_timer_window)
         self._update_check = (update_check_limit, update_check_window)
+        self._wifi_probe = (wifi_probe_limit, wifi_probe_window)
         self._buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -121,6 +136,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         elif path in _SLEEP_TIMER_PATHS:
             bucket_name = "sleep_timer"
             limit, window = self._sleep_timer
+        elif path in _WIFI_PROBE_PATHS:
+            bucket_name = "wifi_probe"
+            limit, window = self._wifi_probe
         else:
             bucket_name = "default"
             limit, window = self._default

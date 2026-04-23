@@ -1,0 +1,23 @@
+[Unit]
+Description=Tonado First-Boot Init
+# Skip on every subsequent boot once firstrun.sh has written the marker.
+ConditionPathExists=!/var/lib/tonado/firstrun.done
+# Must run before ssh.service so a connecting client on first boot can't
+# hit the stale pi-gen host keys. Also before the WLAN probe, AP service
+# and the main app so all three see freshly generated SSH keys and a
+# device-specific JWT secret on the very first start.
+Before=ssh.service sshd.service tonado-ap.service tonado.service imager-wifi-probe.service
+After=systemd-remount-fs.service
+# NOTE: DefaultDependencies stays at its default (yes). With
+# DefaultDependencies=no, systemd would drop the implicit ordering
+# against sysinit.target, and our Before=ssh.service could miss —
+# ssh.service gains a strong implicit After=sysinit.target that would
+# otherwise race us.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/tonado/system/firstrun.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -7,6 +7,25 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefügt
+
+- **pi-gen Stage `scripts/pi-gen-stage/stage-tonado/`.** Infrastruktur, um ein Tonado-Image lokal mit pi-gen zu bauen — 10 Stage-Dateien inkl. Package-Liste, systemd-Unit-Symlinks aus dem Repo, Boot-Overlays (SPI, I2C, OnOff SHIM), First-Boot-Service und Install-Marker. Vorbereitung auf flashbare Images für nicht-technische Eltern (Backlog Prio 3).
+- **First-Boot-Service `firstrun.service` + `firstrun.sh`.** Läuft beim allerersten Start, rotiert SSH-Host-Keys vor `sshd`-Start, erzeugt gerätespezifisches JWT-Secret, richtet Git-Trust für den pi-User ein. Idempotent, markiert sich nach Erfolg als erledigt.
+- **Imager-WLAN-Probe `imager-wifi-probe.service`.** Beim Boot prüft die Box 20 Sekunden lang, ob die im Raspberry Pi Imager hinterlegten WLAN-Daten tragen. Klappt’s: kein Setup-WLAN. Klappt’s nicht: Setup-WLAN geht auf, Eltern korrigieren per Browser ohne neu zu flashen.
+- **Setup-Wizard-Abschluss mit Dual-WLAN und QR-Code.** Beim letzten Schritt probiert die Box das Heim-WLAN, ohne das Setup-WLAN abzureißen. Der Browser bleibt erreichbar, während das Handy aufs Heim-WLAN wechselt — die Seite findet die Box automatisch wieder, QR-Code als Handy-Fallback, iOS-Hinweise für Safari, gestufte Rückmeldungen nach 30 s / 60 s / 90 s, harter Stop nach 5 min.
+- **API-Endpoints `POST /api/setup/test-wifi`, `POST /api/setup/confirm-complete`, `POST /api/setup/cancel-probe`.** Einmal-Token-Guard auf `confirm-complete`, 10-Versuch-Lockout gegen Brute-Force, Rate-Limit-Bucket `wifi_probe` (6/min).
+- **Reset ohne Auth solange kein Experten-PIN existiert.** Wenn die Box mitten im Setup steckt und der User nicht weiterkommt, ist `/api/setup/reset` offen — verhindert, dass Eltern die Box durch einen Abbruch verloren sind.
+
+### Verbessert
+
+- **sudoers.d/tonado erweitert** um AP-Teardown-Rechte (systemctl stop/disable tonado-ap, nmcli general reload, Löschen der NetworkManager-Unmanaged-Config). Nach dem Setup kann die Box den Setup-Modus sauber abschalten.
+- **CSP und CORS im Setup-Modus aufgelockert.** Nur solange die Ersteinrichtung offen ist, darf der Browser quer über die Setup-WLAN- und mDNS-Adressen gehen; sobald `.setup-complete` existiert, greift wieder die strenge Policy.
+- **Pre-Commit-Hook fängt 0-Byte-Müll-Dateien im Repo-Root.** Shell-Fragment-Artefakte (Klammern, Python-Literals) landen nicht mehr versehentlich im Commit. Bypass via `SKIP_JUNK_CHECK=1`.
+
+### Behoben
+
+- **Gesundheits-Endpoint-Test auf aktuelle Version synchronisiert** (stand noch auf `0.2.1-alpha`).
+
 ## [0.3.1-beta] — 2026-04-23
 
 Update-Härtungs-Welle: Auto-Update-Pfad wird zuverlässig, vier Sicherheits-Findings geschlossen, inline Progress-UI im Update-Dialog.

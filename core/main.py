@@ -337,6 +337,42 @@ async def head_method_support(request: Request, call_next) -> Response:
 
 # --- Security header middleware ---
 
+# CSP connect-src has two flavours: during the setup wizard the frontend
+# probes the box across origins (e.g. `fetch('http://tonado.local/api/health')`
+# from the AP-seeded wizard UI), so it needs a broader policy. Once
+# `.setup-complete` exists we tighten the policy to same-origin+WS only.
+_CSP_SETUP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    # Setup wizard probes http://<box>/api/* across origins — allow any http/https/ws target.
+    "connect-src 'self' ws: wss: http: https:; "
+    "media-src 'self' blob: http: https:; "
+    "font-src 'self'"
+)
+_CSP_POST_SETUP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: blob:; "
+    "connect-src 'self' ws: wss:; "
+    "media-src 'self' blob: http: https:; "
+    "font-src 'self'"
+)
+
+
+def _is_setup_complete() -> bool:
+    """Truthy iff the setup marker exists. Cheap stat — called per request."""
+    from core.services.wifi_service import WifiService
+    try:
+        return WifiService.SETUP_COMPLETE_MARKER.exists()
+    except Exception:
+        # Marker dir could be on a read-only FS during early boot; treat as
+        # "still in setup" so we don't accidentally lock down too early.
+        return False
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
     """Add security headers to every HTTP response."""
@@ -346,7 +382,65 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-XSS-Protection"] = "0"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; media-src 'self' blob: http: https:; font-src 'self'"
+    # relaxed during setup, tight post-setup
+    response.headers["Content-Security-Policy"] = (
+        _CSP_POST_SETUP if _is_setup_complete() else _CSP_SETUP
+    )
+    return response
+
+
+# --- Path-scoped CORS for setup bootstrap ---
+# FastAPI's CORSMiddleware applies globally, which would expose the whole
+# API to cross-origin callers. During setup the wizard frontend (served
+# from the captive-portal host) needs to probe `/api/health` and the
+# `/api/setup/*` family across origins to verify the box is reachable
+# via the home WiFi. Everything else stays same-origin, as before.
+#
+# Once `.setup-complete` exists the setup endpoints are 409'd anyway and
+# /api/health alone is too thin to be worth a blanket CORS grant — so we
+# drop the permissive headers entirely.
+_CORS_SETUP_PREFIXES = ("/api/setup/",)
+_CORS_SETUP_EXACT = frozenset({"/api/health"})
+_CORS_ALLOW_METHODS = "GET, POST, OPTIONS, HEAD"
+_CORS_ALLOW_HEADERS = "Content-Type, Authorization"
+
+
+def _path_allows_setup_cors(path: str) -> bool:
+    if path in _CORS_SETUP_EXACT:
+        return True
+    return any(path.startswith(prefix) for prefix in _CORS_SETUP_PREFIXES)
+
+
+@app.middleware("http")
+async def setup_cors(request: Request, call_next) -> Response:
+    """Relaxed CORS for setup/health probes only, and only during setup."""
+    path = request.url.path
+    origin = request.headers.get("origin")
+    in_setup = not _is_setup_complete()
+    setup_scope = _path_allows_setup_cors(path)
+
+    # Preflight short-circuit so the wizard can OPTIONS-probe without
+    # hitting the rate-limit middleware or actual handler.
+    if (
+        in_setup
+        and setup_scope
+        and request.method == "OPTIONS"
+        and origin is not None
+    ):
+        resp = Response(status_code=204)
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = _CORS_ALLOW_METHODS
+        resp.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
+        resp.headers["Access-Control-Max-Age"] = "600"
+        resp.headers["Vary"] = "Origin"
+        return resp
+
+    response: Response = await call_next(request)
+    if in_setup and setup_scope and origin is not None:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = _CORS_ALLOW_METHODS
+        response.headers["Access-Control-Allow-Headers"] = _CORS_ALLOW_HEADERS
+        response.headers["Vary"] = "Origin"
     return response
 
 

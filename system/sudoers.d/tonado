@@ -15,6 +15,15 @@
 %TONADO_USER% ALL=(root) NOPASSWD: /usr/sbin/shutdown -h now
 %TONADO_USER% ALL=(root) NOPASSWD: /usr/sbin/reboot
 
+# Setup-AP teardown (called once from /api/setup/confirm-complete).
+# Exact argv strings, no wildcards — sudoers does not expand them anyway.
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/systemctl stop tonado-ap.service
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/systemctl disable tonado-ap.service
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/nmcli general reload
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/rm /etc/NetworkManager/conf.d/99-tonado-wlan0-unmanaged.conf
+
 Defaults!/usr/bin/systemctl !setenv
 Defaults!/usr/sbin/shutdown !setenv
 Defaults!/usr/sbin/reboot !setenv
+Defaults!/usr/bin/nmcli !setenv
+Defaults!/usr/bin/rm !setenv

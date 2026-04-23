@@ -1,7 +1,11 @@
 [Unit]
 Description=Tonado Setup Access Point
 Before=tonado.service
+After=imager-wifi-probe.service
 ConditionPathExists=!/opt/tonado/config/.setup-complete
+# Set by imager-wifi-probe.sh when the Pi is already on a home WiFi.
+# Lets us skip the AP cleanly without rebooting.
+ConditionPathExists=!/run/tonado/home-wifi-active
 
 [Service]
 Type=oneshot

@@ -1258,3 +1258,163 @@ async def test_system_health_has_no_store_header(client):
     resp = await c.get("/api/system/health")
     assert resp.status_code == 200
     _assert_no_store(resp)
+
+
+# --- F2: confirm-complete token guard ---
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_without_token_rejected(client, tmp_path, monkeypatch):
+    """/confirm-complete must reject requests that don't carry a token."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    # Point the module-level marker at a tmp path that does NOT yet exist,
+    # so the 409 guard doesn't trip before the token guard runs.
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    resp = await c.post("/api/setup/confirm-complete", json={})
+    assert resp.status_code == 403
+    assert "Token" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_with_fresh_token_accepted(
+    client, tmp_path, monkeypatch
+):
+    """A fresh token from /test-wifi must let /confirm-complete finalize."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    marker = tmp_path / "marker" / ".setup-complete"
+    unmanaged = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    monkeypatch.setattr(ws_mod.WifiService, "NM_UNMANAGED_CONF", unmanaged)
+    ws_mod.clear_confirm_tokens()
+
+    # Probe in mock mode issues a real token.
+    resp = await c.post(
+        "/api/setup/test-wifi",
+        json={"ssid": "HomeWiFi", "password": "pw"},
+    )
+    assert resp.status_code == 200
+    token = resp.json()["token"]
+    assert isinstance(token, str) and token
+
+    # Echo the token back — /confirm-complete accepts + finalizes.
+    resp = await c.post(
+        "/api/setup/confirm-complete",
+        json={"token": token},
+    )
+    assert resp.status_code == 200
+    assert marker.exists()
+
+    # Token is single-use: replay is rejected with 409 (marker exists now).
+    resp = await c.post(
+        "/api/setup/confirm-complete",
+        json={"token": token},
+    )
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_token_in_query_param(client, tmp_path, monkeypatch):
+    """Token passed via ?token= query string is equally accepted."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    marker = tmp_path / "marker" / ".setup-complete"
+    unmanaged = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    monkeypatch.setattr(ws_mod.WifiService, "NM_UNMANAGED_CONF", unmanaged)
+    ws_mod.clear_confirm_tokens()
+
+    resp = await c.post(
+        "/api/setup/test-wifi",
+        json={"ssid": "x", "password": "y"},
+    )
+    token = resp.json()["token"]
+
+    resp = await c.post(f"/api/setup/confirm-complete?token={token}")
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_bad_token_rejected(client, tmp_path, monkeypatch):
+    """Unknown/expired tokens produce 403, not 500."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    resp = await c.post(
+        "/api/setup/confirm-complete",
+        json={"token": "not-a-real-token"},
+    )
+    assert resp.status_code == 403
+
+
+# --- F4: /wifi/connect no longer tears down the AP ---
+
+
+@pytest.mark.asyncio
+async def test_wifi_connect_routes_to_probe(client, tmp_path, monkeypatch):
+    """Legacy /wifi/connect must go through probe_home_wifi, not a real
+    nmcli-connect. Verified by observing the returned `token` key — the
+    old `setup_wifi` path never exposed one."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    resp = await c.post(
+        "/api/setup/wifi/connect",
+        json={"ssid": "HomeWiFi", "password": "pw"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert isinstance(body.get("token"), str)
+
+
+# --- F12: reset accessible without auth during onboarding ---
+
+
+@pytest.mark.asyncio
+async def test_reset_without_auth_allowed_before_expert_pin(client):
+    """Before EXPERT has a PIN, /reset is an escape hatch with no auth."""
+    c, _ = client
+    resp = await c.post("/api/setup/reset")
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_reset_requires_expert_once_pin_set(client):
+    """Once EXPERT has a PIN, /reset is expert-locked again."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    resp = await c.post("/api/setup/reset")
+    assert resp.status_code == 403
+
+
+# --- Cancel-probe endpoint ---
+
+
+@pytest.mark.asyncio
+async def test_cancel_probe_returns_ok(client, tmp_path, monkeypatch):
+    """/cancel-probe is idempotent and doesn't require auth or a token."""
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+
+    resp = await c.post("/api/setup/cancel-probe")
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}

@@ -62,6 +62,17 @@ def _build_app(**middleware_kwargs) -> FastAPI:
     async def player_status() -> dict:
         return {"ok": True}
 
+    # F1: /api/setup/test-wifi spawns nmcli + joins a WPA handshake on every
+    # call — brute-force-adjacent on the open setup AP. Register both probe
+    # endpoints so the new `wifi_probe` bucket can be exercised.
+    @app.post("/api/setup/test-wifi")
+    async def setup_test_wifi() -> dict:
+        return {"ok": True}
+
+    @app.post("/api/setup/wifi/connect")
+    async def setup_wifi_connect() -> dict:
+        return {"ok": True}
+
     return app
 
 
@@ -345,3 +356,56 @@ async def test_update_check_429_body_is_german():
         assert resp.status_code == 429
         detail = resp.json()["detail"]
         assert "Zu viele Anfragen" in detail
+
+
+# --- F1: wifi_probe bucket limits brute-force against neighbouring PSKs ---
+
+
+@pytest.mark.asyncio
+async def test_wifi_probe_bucket_limits_brute_force():
+    """6 calls to /api/setup/test-wifi pass, 7th is 429.
+
+    Each call spawns nmcli + attempts a WPA handshake. On the open setup
+    AP a neighbour could otherwise brute-force the user's home PSK in a
+    tight loop. The in-process fail-counter catches wrong passwords; this
+    middleware bucket additionally caps call rate across concurrent
+    clients.
+    """
+    app = _build_app(wifi_probe_limit=6, wifi_probe_window=60)
+    transport = ASGITransport(app=app, client=("30.30.30.30", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(6):
+            resp = await c.post("/api/setup/test-wifi", json={"ssid": "x", "password": "y"})
+            assert resp.status_code == 200
+        resp = await c.post("/api/setup/test-wifi", json={"ssid": "x", "password": "y"})
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_wifi_probe_bucket_covers_wifi_connect():
+    """wifi/connect is an alias path — same bucket, not the default 100/min."""
+    app = _build_app(default_limit=100, wifi_probe_limit=2, wifi_probe_window=60)
+    transport = ASGITransport(app=app, client=("31.31.31.31", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post("/api/setup/wifi/connect", json={"ssid": "x"})
+        assert resp.status_code == 200
+        resp = await c.post("/api/setup/test-wifi", json={"ssid": "x"})
+        assert resp.status_code == 200
+        # 3rd request across both probe endpoints → 429 (shared bucket)
+        resp = await c.post("/api/setup/wifi/connect", json={"ssid": "x"})
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_wifi_probe_bucket_isolated_from_default():
+    """Exhausting wifi_probe must not spill into the default write bucket."""
+    app = _build_app(default_limit=10, wifi_probe_limit=1, wifi_probe_window=60)
+    transport = ASGITransport(app=app, client=("32.32.32.32", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.post("/api/setup/test-wifi", json={"ssid": "x"})
+        assert resp.status_code == 200
+        resp = await c.post("/api/setup/test-wifi", json={"ssid": "x"})
+        assert resp.status_code == 429
+        # Unrelated write endpoint keeps working
+        resp = await c.post("/echo")
+        assert resp.status_code == 200

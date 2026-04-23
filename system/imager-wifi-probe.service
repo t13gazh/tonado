@@ -1,0 +1,15 @@
+[Unit]
+Description=Tonado Imager WiFi Probe
+# Probe after NetworkManager/wpa_supplicant have had a chance to come up.
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+# Must complete before tonado-ap.service decides whether to fire up the AP.
+Before=tonado-ap.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/tonado/system/imager-wifi-probe.sh
+
+[Install]
+WantedBy=multi-user.target

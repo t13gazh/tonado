@@ -7,6 +7,27 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+
+- **Auto-Update auf dem Pi bleibt nicht mehr stecken.** Bei großen Installationen lief der Update-Versuch vorher still in einen Rollback, der Status blieb unklar. Der Update-Dialog zeigt jetzt live: „Wird installiert → Neustart → Prüfung → Auf vX.Y.Z aktualisiert". Bei „Box antwortet noch nicht" gibt es zwei klare Optionen: Seite neu laden oder erneut versuchen. „Box ist bereits aktuell" meldet sich explizit statt stummer Bestätigung.
+- **Update-Check schont die SD-Karte.** „Nach Updates suchen" ist auf 6 Versuche pro Minute begrenzt — reicht für normales Nutzen, blockiert automatische Schleifen.
+- **Browser-Cache hält Update-Status nicht mehr fest.** Nach einer Update-Installation sieht man den neuen Stand sofort, kein manuelles „Cache leeren" mehr nötig.
+
+### Sicherheit
+
+- **Box läuft mit minimalen Root-Rechten.** Das Install-Script legt jetzt eine exakte sudo-Regel für nur drei Kommandos an (Neustart, Herunterfahren, Reboot) und entfernt die Raspberry-Pi-Standard-Pauschalregel. Der interne API-Port ist nur noch lokal auf der Box erreichbar, der Zugang läuft ausschließlich über den Web-Server.
+
+### Für Entwickler
+
+- `core/services/system_service.py::_apply_update_unlocked`: pip `async_run(timeout=600)`, HEAD-Bewegung per `rev-parse` verifiziert (`no_changes`-Shortcut), rc-Checks auf reset/clean/pull, strukturiertes Logging an jedem Hauptschritt, `new_commit_hash` in der Apply-Response damit der Client pollen kann.
+- `core/utils/subprocess.py`: `await proc.wait()` nach `proc.kill()` bei Timeout — vermeidet Zombie-PIDs auf Pi Zero W.
+- `core/utils/rate_limit.py`: Dedizierter 6/min-Bucket für `/api/system/update/check` vor dem `_SAFE_METHODS`-Exempt, Trailing-Slash-Normalisierung (`path.rstrip("/")`), 429-Body lokalisiert.
+- `core/routers/system.py`: Custom `APIRoute`-Klasse stempelt `Cache-Control: no-store, no-cache, must-revalidate` auch auf `HTTPException`-Pfaden. Angewendet auf `/info`, `/health`, `/update/check`, `/update/apply`.
+- `system/install.sh` + `system/sudoers.d/tonado`: Visudo-validierter Drop-in mit exakten `/usr/bin/systemctl`, `/usr/sbin/shutdown`, `/usr/sbin/reboot`-Pfaden (Bookworm-usrmerge), Platzhalter `%TONADO_USER%` via `sed` gefüllt. `/etc/sudoers.d/010_pi-nopasswd` wird nach erfolgreicher Validierung entfernt.
+- `system/tonado.service` + `system/install.sh`: Uvicorn bindet auf `127.0.0.1:8080`; Nginx-Upstream unverändert.
+- Frontend: Phase-basierter Update-State, Poll auf `/api/system/info`, `AbortSignal.timeout(3000)` pro Request, `onDestroy`-Cleanup mit Timer-Refs und `componentAlive`-Flag, ARIA-Live-Region, 429-Handler in `api.ts`, 7 neue i18n-Keys DE/EN.
+- Tests: 9 neue Backend-Cases (pip-Timeout-Rollback, Already-up-to-date, Pre-Pull-Reset-Abort, Rollback-Reset-Log, Rate-Limit-Bucket, Per-IP-Isolation, Polling-GET-Exempt, no-store auf 403, Trailing-Slash-Bucket). Gesamt: 411 grün.
+
 ## [0.3.0-beta] — 2026-04-22
 
 Erste Beta — aus der Alpha-Linie promoviert, nachdem Pi 3B+ und Pi Zero W auf frischer Hardware live verifiziert sind, 398 Backend-Tests grün sind und die wichtigsten UX-Polishs + Konsistenz-Fixes drin sind.

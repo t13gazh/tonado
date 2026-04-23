@@ -260,33 +260,108 @@ class SystemService(BaseService):
             return {"success": False, "error": "Git-Status unbekannt"}
         current_hash = current_hash.strip()
 
+        logger.info(
+            "Update: starting apply, install_dir=%s, current=%s",
+            self._install_dir,
+            current_hash,
+        )
+
         try:
             # Discard local changes so pull succeeds even with hotfixes.
             # All local modifications are assumed to be included in the
             # incoming update (committed upstream before release).
-            await self._git("reset", "--hard", "HEAD")
-            await self._git("clean", "-fd", "web/build/")
+            rc_reset, _, stderr_reset = await self._git("reset", "--hard", "HEAD")
+            if rc_reset != 0:
+                logger.error(
+                    "Update: git reset --hard HEAD failed (rc=%d): %s",
+                    rc_reset,
+                    stderr_reset,
+                )
+                return {
+                    "success": False,
+                    "error": "Reset fehlgeschlagen: Arbeitsverzeichnis konnte nicht bereinigt werden.",
+                }
+
+            rc_clean, _, stderr_clean = await self._git(
+                "clean", "-fd", "web/build/"
+            )
+            if rc_clean != 0:
+                # Non-fatal: clean failing just means stale build artefacts
+                # may linger. The update itself can still proceed.
+                logger.warning(
+                    "Update: git clean web/build/ returned rc=%d: %s",
+                    rc_clean,
+                    stderr_clean,
+                )
 
             # Pull latest (fast-forward only, safe)
             rc, stdout, stderr = await self._git("pull", "--ff-only")
             if rc != 0:
+                logger.error("Update: git pull failed (rc=%d): %s", rc, stderr)
                 return {"success": False, "error": stderr or "git pull fehlgeschlagen"}
+
+            # Verify the pull actually moved HEAD. When the remote has no
+            # new commits, pyproject.toml may look "newer" on disk (e.g.
+            # after a manual edit that reset() reverted) but HEAD is
+            # unchanged — no restart, no pip, no changelog lies.
+            rc_new, new_hash, _ = await self._git("rev-parse", "HEAD")
+            if rc_new != 0:
+                logger.error("Update: post-pull rev-parse failed (rc=%d)", rc_new)
+                return {"success": False, "error": "Git-Status nach Pull unbekannt"}
+            new_hash = new_hash.strip()
+
+            if new_hash == current_hash:
+                logger.info(
+                    "Update: already up to date (HEAD unchanged at %s)",
+                    current_hash,
+                )
+                return {
+                    "success": True,
+                    "no_changes": True,
+                    "output": stdout,
+                    "old_version": VERSION,
+                    "new_version": VERSION,
+                    "files_changed": 0,
+                    "new_commit_hash": new_hash,
+                }
 
             # Reinstall Python dependencies if pyproject.toml changed
             rc_diff, diff_out, _ = await self._git(
                 "diff", f"{current_hash}..HEAD", "--name-only",
             )
             changed_files = diff_out.splitlines() if diff_out else []
+            logger.info(
+                "Update: pulled to %s (%d files changed)",
+                new_hash,
+                len(changed_files),
+            )
 
             if "pyproject.toml" in changed_files:
-                logger.info("pyproject.toml changed — reinstalling dependencies")
+                logger.info(
+                    "Update: pip install starting (pyproject changed)"
+                )
                 venv_pip = self._install_dir / ".venv" / "bin" / "pip"
                 if venv_pip.exists():
-                    pip_rc = await self._run(
-                        str(venv_pip), "install", "-e", ".[pi]", "--quiet",
+                    # pip install -e .[pi] on a Pi Zero W/3B+ can take
+                    # 60-120s. Use an explicit generous timeout so the
+                    # default 30s doesn't trigger a bogus rollback.
+                    pip_rc, pip_out, pip_err = await async_run(
+                        [
+                            str(venv_pip),
+                            "install",
+                            "-e",
+                            ".[pi]",
+                            "--quiet",
+                        ],
+                        timeout=600,
                     )
                     if pip_rc != 0:
-                        logger.error("pip install failed — rolling back")
+                        logger.error(
+                            "Update: pip install failed (rc=%d): stdout=%s stderr=%s — rolling back",
+                            pip_rc,
+                            pip_out.strip(),
+                            pip_err.strip(),
+                        )
                         await self._rollback(current_hash, reinstall=True)
                         return {
                             "success": False,
@@ -295,9 +370,16 @@ class SystemService(BaseService):
 
             # Get new version
             new_version = _read_version()
-            logger.info("Update applied: %s → %s", VERSION, new_version)
+            logger.info(
+                "Update applied: %s → %s (hash=%s)",
+                VERSION,
+                new_version,
+                new_hash,
+            )
 
-            # Restart service
+            # Restart service (fire-and-forget). The new commit hash lets
+            # the client poll /api/system/info and confirm the restart
+            # actually picked up the new code.
             await self.restart()
 
             return {
@@ -306,6 +388,7 @@ class SystemService(BaseService):
                 "old_version": VERSION,
                 "new_version": new_version,
                 "files_changed": len(changed_files),
+                "new_commit_hash": new_hash,
             }
         except Exception as e:
             # Rollback on any unexpected error. Don't reinstall deps — the
@@ -325,7 +408,20 @@ class SystemService(BaseService):
         nothing to repair.
         """
         try:
-            await self._git("reset", "--hard", commit_hash)
+            rc_reset, _, stderr_reset = await self._git(
+                "reset", "--hard", commit_hash
+            )
+            if rc_reset != 0:
+                # Rollback reset failed — the working tree is now officially
+                # inconsistent (neither old nor new). Surface loudly so an
+                # operator has a chance to intervene.
+                logger.error(
+                    "Rollback: git reset --hard %s failed (rc=%d): %s — working tree inconsistent",
+                    commit_hash,
+                    rc_reset,
+                    stderr_reset,
+                )
+                return
         except Exception:
             logger.exception("git reset during rollback failed")
             return
@@ -334,13 +430,18 @@ class SystemService(BaseService):
         venv_pip = self._install_dir / ".venv" / "bin" / "pip"
         if not venv_pip.exists():
             return
-        pip_rc = await self._run(
-            str(venv_pip), "install", "-e", ".[pi]", "--quiet",
+        # Same rationale as the forward install: pip on a Pi Zero W can
+        # take a minute or two, so override the 30s default.
+        pip_rc, pip_out, pip_err = await async_run(
+            [str(venv_pip), "install", "-e", ".[pi]", "--quiet"],
+            timeout=600,
         )
         if pip_rc != 0:
             logger.error(
-                "Rollback pip reinstall returned %d — deps may be inconsistent",
+                "Rollback pip reinstall returned rc=%d: stdout=%s stderr=%s — deps may be inconsistent",
                 pip_rc,
+                pip_out.strip(),
+                pip_err.strip(),
             )
 
     async def enable_overlay(self) -> bool:
@@ -429,6 +530,14 @@ class SystemService(BaseService):
         return ""
 
     @staticmethod
-    async def _run(*cmd: str) -> int:
-        rc, _, _ = await async_run(list(cmd))
+    async def _run(*cmd: str, timeout: float = 60) -> int:
+        """Run a command and return its exit code.
+
+        The default is bumped to 60s (async_run defaults to 30s) so short
+        system helpers like raspi-config have a bit more headroom. Callers
+        with unclear durations (pip install, apt) MUST pass an explicit
+        ``timeout`` — in practice those call sites use ``async_run``
+        directly to also capture stderr.
+        """
+        rc, _, _ = await async_run(list(cmd), timeout=timeout)
         return rc

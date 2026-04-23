@@ -30,5 +30,14 @@ async def async_run(
     except FileNotFoundError:
         return 1, "", f"Command not found: {cmd[0]}"
     except asyncio.TimeoutError:
+        # wait_for cancels the communicate() coroutine but NOT the subprocess
+        # itself — without an explicit kill+wait the child becomes a zombie
+        # (PID leak). Real pain on a Pi Zero W where pip install regularly
+        # bumps the 600s timeout.
         proc.kill()  # type: ignore[union-attr]
+        try:
+            await proc.wait()  # type: ignore[union-attr]
+        except Exception:
+            # Best-effort reap — don't mask the original timeout failure.
+            pass
         return 1, "", f"Command timed out after {timeout}s"

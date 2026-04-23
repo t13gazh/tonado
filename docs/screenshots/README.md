@@ -4,9 +4,11 @@ In diesem Ordner liegen die Screenshots für die README und Doku.
 
 ## Konventionen
 
-- **Format:** PNG bevorzugt (lossless), JPG nur für Hero-Fotos mit Hardware
-- **Breite:** 1080px (Mobile-Shots) / 1920px (Desktop-Shots), unkomprimiert
-- **Namensschema:** `NN-kurzname.png` — numerische Reihenfolge, kebab-case
+- **Format:** WebP (Quality 85 via [squoosh.app](https://squoosh.app)) — ~30 % kleiner als JPG, schärfer an UI-Kanten, in Markdown + GitHub voll unterstützt
+- **Breite:** 1080px (Mobile-Shots) / 1920px (Desktop-Shots)
+- **Namensschema:** `NN-kurzname.webp` — numerische Reihenfolge, kebab-case
+- **Keine Credentials:** Vor dem Committen prüfen, dass Passwörter, IPs, Netzwerk-Namen, SSH-Keys o.ä. nicht im Shot sichtbar sind. WLAN-Rettung beim Schießen auf „Aus" stellen
+- **Originale:** Roh-PNGs/JPGs außerhalb des Repos aufbewahren (z.B. `tonado-private/assets/screenshots-raw/`)
 
 ## Aktuelle Screenshots
 

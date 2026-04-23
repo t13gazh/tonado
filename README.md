@@ -31,13 +31,13 @@ Die App läuft im Browser auf deinem Smartphone, Tablet oder Laptop — kein App
 
 | Bibliothek | Figur einrichten | Eltern-Einstellungen |
 |:---:|:---:|:---:|
-| ![Bibliothek mit Ordnern, Radio, Podcasts, Playlisten](docs/screenshots/02-library.png) | ![Figur einrichten: Inhalt zuweisen](docs/screenshots/03-figure-setup.png) | ![Eltern-Einstellungen: Sleep-Timer, Lautstärke, WLAN-Rettung](docs/screenshots/04-parents.png) |
+| ![Bibliothek mit Ordnern, Radio, Podcasts, Playlisten](docs/screenshots/02-library.webp) | ![Figur einrichten: Inhalt zuweisen](docs/screenshots/03-figure-setup.webp) | ![Eltern-Einstellungen: Sleep-Timer, Lautstärke, WLAN-Rettung](docs/screenshots/04-parents.webp) |
 
 **Setup-Wizard — kein Terminal, keine Config-Datei:**
 
 | Hardware erkennen | Audio-Ausgang | Tasten einlernen |
 |:---:|:---:|:---:|
-| ![Wizard: Hardware-Erkennung mit Pi-Modell, DAC, RFID-Reader, Gyro](docs/screenshots/05-wizard-hardware.png) | ![Wizard: Audio-Ausgang auswählen mit Testton](docs/screenshots/06-wizard-audio.png) | ![Wizard: Tasten durch Drücken einlernen](docs/screenshots/07-wizard-buttons.png) |
+| ![Wizard: Hardware-Erkennung mit Pi-Modell, DAC, RFID-Reader, Gyro](docs/screenshots/05-wizard-hardware.webp) | ![Wizard: Audio-Ausgang auswählen mit Testton](docs/screenshots/06-wizard-audio.webp) | ![Wizard: Tasten durch Drücken einlernen](docs/screenshots/07-wizard-buttons.webp) |
 
 ## Was du brauchst
 

@@ -113,7 +113,7 @@ def main() -> None:
     draw.text((text_x, 302), "Die Musikbox, die dir gehört.", font=subtitle_font, fill=TEXT_SECONDARY)
     draw.text((text_x, 560), "github.com/t13gazh/tonado", font=url_font, fill=TEXT_MUTED)
 
-    player = Image.open(SCREENSHOTS / "01-player.png").convert("RGBA")
+    player = Image.open(SCREENSHOTS / "01-player.webp").convert("RGBA")
     target_h = 520
     scale = target_h / player.height
     target_w = int(player.width * scale)

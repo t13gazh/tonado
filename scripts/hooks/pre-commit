@@ -19,6 +19,50 @@
 
 set -euo pipefail
 
+# --- Junk-file guard -------------------------------------------------------
+# Blocks staged 0-byte files at the repo root. These almost always come from
+# shell-fragment accidents (brace-expansion of diff rename notation, agent
+# output interpreted as redirect target, mis-quoted heredocs). Typical names:
+# `None`, `dict`, `0.9`, `Using`, `{,+`. Legit 0-byte files live in subdirs
+# (e.g. `__init__.py` markers) and are not affected.
+#
+# Bypass (rare, document why):
+#   SKIP_JUNK_CHECK=1 git commit ...
+if [[ "${SKIP_JUNK_CHECK:-0}" != "1" ]]; then
+  junk=()
+  while IFS= read -r -d '' f; do
+    # Only top-level files (no slash). Must exist and be empty.
+    [[ "$f" == */* ]] && continue
+    [[ -f "$f" ]] || continue
+    [[ -s "$f" ]] && continue
+    junk+=("$f")
+  done < <(git diff --cached --name-only --diff-filter=ACMR -z)
+
+  if [[ ${#junk[@]} -gt 0 ]]; then
+    {
+      echo
+      echo "  Tonado junk-file guard"
+      echo "  ----------------------"
+      echo "  Staged 0-Byte-Files im Repo-Root erkannt:"
+      for f in "${junk[@]}"; do
+        echo "    - $f"
+      done
+      echo
+      echo "  Das sind typischerweise Muell-Files aus Shell-Fragmenten"
+      echo "  (Brace-Expansion, Redirect-Fehler). Bitte loeschen:"
+      echo
+      echo "    git rm --cached -- ${junk[*]}"
+      echo "    rm -- ${junk[*]}"
+      echo
+      echo "  Oder, falls das File absichtlich leer ist:"
+      echo "    SKIP_JUNK_CHECK=1 git commit ..."
+      echo
+    } >&2
+    exit 1
+  fi
+fi
+# --- /Junk-file guard ------------------------------------------------------
+
 if [[ "${SKIP_DOC_CHECK:-0}" == "1" ]]; then
   exit 0
 fi

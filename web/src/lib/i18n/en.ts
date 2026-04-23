@@ -290,6 +290,7 @@ export default {
 	'error.forbidden': 'No permission for this action.',
 	'error.not_found': 'The requested resource was not found.',
 	'error.server': 'A server error occurred. Please try again later.',
+	'error.rate_limited': 'Too many requests. Please wait a moment.',
 	'error.generic': 'An error occurred.',
 
 	// Settings (additional)
@@ -310,6 +311,14 @@ export default {
 	'system.update_installing': 'Installing update...',
 	'system.update_success': 'Updated from {old} to {new} ({files} files). Restarting...',
 	'system.update_error': 'Error: {error}',
+	'system.update_phase_applying': 'Installing …',
+	'system.update_phase_restarting': 'Restarting …',
+	'system.update_phase_verifying': 'Verifying …',
+	'system.update_no_changes': 'Already up to date (v{version})',
+	'system.update_timeout_hint': 'The box hasn\'t responded yet. Reload the page — or briefly disconnect power.',
+	'system.update_success_short': 'Updated to v{version}',
+	'system.update_retry': 'Try again',
+	'system.update_reload_page': 'Reload page',
 
 	// Health / degraded state
 	'health.backend_offline': 'Tonado server not reachable. Is the box still starting?',

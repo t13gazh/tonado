@@ -38,6 +38,7 @@ function toApiError(err: unknown, status?: number): ApiError {
 	if (status === 401) return new ApiError(String(err), 401, t('error.unauthorized'));
 	if (status === 403) return new ApiError(String(err), 403, t('error.forbidden'));
 	if (status === 404) return new ApiError(String(err), 404, t('error.not_found'));
+	if (status === 429) return new ApiError(String(err), 429, t('error.rate_limited'));
 	if (status !== undefined && status >= 500) return new ApiError(String(err), status, t('error.server'));
 	// Generic
 	return new ApiError(String(err), status ?? 0, t('error.generic'));
@@ -457,7 +458,7 @@ export const systemApi = {
 	shutdown: () => request<void>('/system/shutdown', { method: 'POST' }),
 	reboot: () => request<void>('/system/reboot', { method: 'POST' }),
 	checkUpdate: () => request<{ available: boolean; commits: number; changelog?: string; current_version?: string; remote_version?: string }>('/system/update/check'),
-	applyUpdate: () => request<{ success: boolean; output?: string; error?: string; old_version?: string; new_version?: string; files_changed?: number }>('/system/update/apply', { method: 'POST' }),
+	applyUpdate: () => request<{ success: boolean; output?: string; error?: string; old_version?: string; new_version?: string; files_changed?: number; new_commit_hash?: string; no_changes?: boolean }>('/system/update/apply', { method: 'POST' }),
 	// Gyro calibration
 	gyroRaw: () => request<{ raw: { x: number; y: number; z: number }; mapped: { x: number; y: number; z: number }; calibrated: boolean; axis_map: Record<string, unknown>; gesture: string | null }>('/system/gyro/raw'),
 	gyroCalibrateStart: () => request<{ status: string }>('/system/gyro/calibrate/start', { method: 'POST' }),

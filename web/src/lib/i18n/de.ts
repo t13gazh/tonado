@@ -290,6 +290,7 @@ export default {
 	'error.forbidden': 'Keine Berechtigung für diese Aktion.',
 	'error.not_found': 'Die angeforderte Ressource wurde nicht gefunden.',
 	'error.server': 'Ein Serverfehler ist aufgetreten. Bitte versuche es später erneut.',
+	'error.rate_limited': 'Zu viele Anfragen. Bitte einen Moment warten.',
 	'error.generic': 'Ein Fehler ist aufgetreten.',
 
 	// Settings (additional)
@@ -310,6 +311,14 @@ export default {
 	'system.update_installing': 'Update wird installiert...',
 	'system.update_success': 'Update von {old} auf {new} installiert ({files} Dateien). Neustart...',
 	'system.update_error': 'Fehler: {error}',
+	'system.update_phase_applying': 'Wird installiert …',
+	'system.update_phase_restarting': 'Neustart läuft …',
+	'system.update_phase_verifying': 'Wird geprüft …',
+	'system.update_no_changes': 'Box ist bereits aktuell (v{version})',
+	'system.update_timeout_hint': 'Die Box antwortet noch nicht. Lade die Seite neu — oder trenne kurz die Stromzufuhr.',
+	'system.update_success_short': 'Auf v{version} aktualisiert',
+	'system.update_retry': 'Erneut versuchen',
+	'system.update_reload_page': 'Seite neu laden',
 
 	// Health / degraded state
 	'health.backend_offline': 'Tonado-Server nicht erreichbar. Wird die Box gerade gestartet?',

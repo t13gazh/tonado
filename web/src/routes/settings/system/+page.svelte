@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { systemApi, setupApi, config, ApiError, type SystemInfoData, type HardwareStatus, type SystemHealth } from '$lib/api';
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import HealthBanner from '$lib/components/HealthBanner.svelte';
@@ -14,6 +14,17 @@
 	let hardware = $state<HardwareStatus | null>(null);
 	let healthData = $state<SystemHealth | null>(null);
 	let updateStatus = $state<{ available: boolean; commits: number; changelog?: string; current_version?: string; remote_version?: string; error?: string } | null>(null);
+	type UpdatePhase =
+		| 'idle'
+		| 'applying'
+		| 'restarting'
+		| 'verifying'
+		| 'success'
+		| 'no_changes'
+		| 'error';
+	let updatePhase = $state<UpdatePhase>('idle');
+	let updatePhaseError = $state<string>('');
+	let updatedToVersion = $state<string>('');
 	let updating = $state(false);
 	let checking = $state(false);
 	let loading = $state(true);
@@ -22,6 +33,19 @@
 	let powerAction = $state<'restart' | 'reboot' | 'shutdown' | null>(null);
 	let showGyroCalibration = $state(false);
 	let gyroCalibrated = $state(false);
+
+	// Guard against state updates after the component has unmounted. The update
+	// flow polls asynchronously for several minutes — navigating away should
+	// cancel both the poll loop and the success-dismiss setTimeout so we don't
+	// mutate detached state.
+	let componentAlive = true;
+	let successDismissTimer: ReturnType<typeof setTimeout> | null = null;
+	let noChangesDismissTimer: ReturnType<typeof setTimeout> | null = null;
+	onDestroy(() => {
+		componentAlive = false;
+		if (successDismissTimer) clearTimeout(successDismissTimer);
+		if (noChangesDismissTimer) clearTimeout(noChangesDismissTimer);
+	});
 
 	function stripMarkdown(s: string): string {
 		// Release notes come through as a plain-text render, but older release
@@ -110,6 +134,9 @@
 	}
 
 	async function checkUpdate() {
+		// Skip while an apply-flow is active — otherwise a background poll could
+		// race with the check and stomp on updateStatus mid-flight.
+		if (updatePhase !== 'idle') return;
 		checking = true;
 		try {
 			updateStatus = await systemApi.checkUpdate();
@@ -119,25 +146,133 @@
 		checking = false;
 	}
 
+	async function pollForRestart(expectedVersion: string, timeoutMs = 120_000): Promise<void> {
+		// After the apply response we expect the service to restart. While it is
+		// away the info endpoint will time out or return 5xx — treat that as the
+		// "restarting" phase. Once we get a clean response we check the version
+		// string and transition to verifying → success.
+		const start = Date.now();
+		let sawOutage = false;
+		while (componentAlive && Date.now() - start < timeoutMs) {
+			try {
+				const res = await fetch('/api/system/info', {
+					signal: AbortSignal.timeout(3000),
+				});
+				if (!componentAlive) return;
+				if (res.ok) {
+					if (sawOutage) {
+						updatePhase = 'verifying';
+					}
+					const data = (await res.json()) as SystemInfoData;
+					// Version match = success. If the backend did not restart at all
+					// (edge case) we still wait for a potential delayed restart
+					// until we see at least one outage.
+					if (data.tonado_version === expectedVersion && sawOutage) {
+						info = data;
+						updatedToVersion = expectedVersion;
+						updatePhase = 'success';
+						// Auto-hide success banner after 3 seconds, back to idle.
+						// Track the timer so onDestroy can cancel it cleanly.
+						successDismissTimer = setTimeout(() => {
+							successDismissTimer = null;
+							if (!componentAlive) return;
+							if (updatePhase === 'success') {
+								updatePhase = 'idle';
+								updateStatus = null;
+								updatedToVersion = '';
+							}
+						}, 3000);
+						return;
+					}
+					// Same version as before — keep polling, maybe restart pending.
+					updatePhase = 'restarting';
+				} else {
+					sawOutage = true;
+					updatePhase = 'restarting';
+				}
+			} catch {
+				if (!componentAlive) return;
+				sawOutage = true;
+				updatePhase = 'restarting';
+			}
+			await new Promise((r) => setTimeout(r, 2000));
+		}
+		if (!componentAlive) return;
+		// Timeout — inform the user but don't claim failure, the update itself
+		// may have succeeded, just the verification timed out.
+		updatePhase = 'error';
+		updatePhaseError = t('system.update_timeout_hint');
+	}
+
 	async function applyUpdate() {
 		updating = true;
-		message = t('system.update_installing');
+		updatePhase = 'applying';
+		updatePhaseError = '';
+		message = '';
+		const expectedVersion = updateStatus?.remote_version ?? '';
 		try {
 			const result = await systemApi.applyUpdate();
-			if (result.success) {
-				message = t('system.update_success', {
-					old: result.old_version ?? '?',
-					new: result.new_version ?? '?',
-					files: result.files_changed ?? 0,
-				});
-				updateStatus = null;
-			} else {
-				message = t('system.update_error', { error: result.error ?? '' });
+			if (!result.success) {
+				updatePhase = 'error';
+				updatePhaseError = result.error ?? t('system.connection_lost');
+				updating = false;
+				return;
 			}
+			if (result.no_changes) {
+				updatedToVersion = result.new_version ?? expectedVersion;
+				updatePhase = 'no_changes';
+				noChangesDismissTimer = setTimeout(() => {
+					noChangesDismissTimer = null;
+					if (!componentAlive) return;
+					if (updatePhase === 'no_changes') {
+						updatePhase = 'idle';
+						updateStatus = null;
+						updatedToVersion = '';
+					}
+				}, 3000);
+				updating = false;
+				return;
+			}
+			// Real update went through — backend is about to restart. Poll until
+			// the service is back with the expected version.
+			updatePhase = 'restarting';
+			const targetVersion = result.new_version ?? expectedVersion;
+			updating = false;
+			await pollForRestart(targetVersion);
 		} catch {
-			message = t('system.update_error', { error: t('system.connection_lost') });
+			updatePhase = 'error';
+			updatePhaseError = t('system.connection_lost');
+			updating = false;
 		}
-		updating = false;
+	}
+
+	async function retryUpdate() {
+		updatePhaseError = '';
+		// If the previous apply actually succeeded and only the poll timed out,
+		// checkUpdate will now report no pending commits. Treat that as success
+		// instead of kicking off a fresh pip install on a half-applied state.
+		const check = await systemApi.checkUpdate().catch(() => null);
+		if (!componentAlive) return;
+		if (check && check.available === false) {
+			updatedToVersion = check.current_version ?? updatedToVersion;
+			updatePhase = 'success';
+			successDismissTimer = setTimeout(() => {
+				successDismissTimer = null;
+				if (!componentAlive) return;
+				if (updatePhase === 'success') {
+					updatePhase = 'idle';
+					updateStatus = null;
+					updatedToVersion = '';
+				}
+			}, 3000);
+			return;
+		}
+		updatePhase = 'idle';
+		await applyUpdate();
+	}
+
+	function reloadPage() {
+		window.location.reload();
 	}
 
 	async function restartWizard() {
@@ -305,7 +440,66 @@
 			<!-- Update -->
 			<div class="bg-surface-light rounded-xl p-4">
 				<h2 class="text-sm font-semibold mb-3">{t('system.update')}</h2>
-				{#if updateStatus}
+				{#if updatePhase !== 'idle'}
+					<!-- Single ARIA-live wrapper for every phase view so screen-reader
+					     parents hear each transition (applying → restarting → verifying
+					     → success / no_changes / error). Without this the minutes-long
+					     install would be silent and feel broken. -->
+					<div role="status" aria-live="polite" aria-atomic="true">
+						{#if updatePhase === 'applying' || updatePhase === 'restarting' || updatePhase === 'verifying'}
+							<!-- Active progress view, reserves a fixed min-height so the panel doesn't jump -->
+							<div class="min-h-[7rem] flex flex-col items-center justify-center gap-3 py-3">
+								<Spinner size="md" />
+								<p class="text-sm text-text animate-pulse">
+									{#if updatePhase === 'applying'}
+										{t('system.update_phase_applying')}
+									{:else if updatePhase === 'restarting'}
+										{t('system.update_phase_restarting')}
+									{:else}
+										{t('system.update_phase_verifying')}
+									{/if}
+								</p>
+								{#if updateStatus?.current_version && updateStatus?.remote_version}
+									<p class="text-xs text-text-muted">{updateStatus.current_version} → {updateStatus.remote_version}</p>
+								{/if}
+							</div>
+						{:else if updatePhase === 'success'}
+							<div class="min-h-[7rem] flex flex-col items-center justify-center gap-2 py-3">
+								<svg class="w-10 h-10 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/>
+								</svg>
+								<p class="text-sm text-green-500 font-medium">{t('system.update_success_short', { version: updatedToVersion })}</p>
+							</div>
+						{:else if updatePhase === 'no_changes'}
+							<div class="min-h-[7rem] flex flex-col items-center justify-center gap-2 py-3">
+								<svg class="w-10 h-10 text-text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+									<circle cx="12" cy="12" r="10"/>
+								</svg>
+								<p class="text-sm text-text-muted">{t('system.update_no_changes', { version: updatedToVersion || (info?.tonado_version ?? '?') })}</p>
+							</div>
+						{:else if updatePhase === 'error'}
+							<div class="space-y-3">
+								<p class="text-sm text-red-400">{t('system.update_error', { error: updatePhaseError })}</p>
+								<!-- Two buttons: reload always gets the user back to a known state
+								     (covers the poll-timeout-despite-successful-apply case), while
+								     retry kicks off a fresh apply for real failures. -->
+								<button
+									onclick={reloadPage}
+									class="w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors"
+								>
+									{t('system.update_reload_page')}
+								</button>
+								<button
+									onclick={retryUpdate}
+									class="w-full px-4 py-2.5 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-medium transition-colors"
+								>
+									{t('system.update_retry')}
+								</button>
+							</div>
+						{/if}
+					</div>
+				{:else if updateStatus}
 					{#if updateStatus.error}
 						<p class="text-sm text-text-muted">{updateStatus.error}</p>
 						<button onclick={() => { updateStatus = null; }} class="mt-2 w-full px-4 py-2.5 bg-primary hover:bg-primary-light text-white rounded-lg text-sm font-medium transition-colors">
@@ -339,11 +533,7 @@
 								disabled={updating}
 								class="w-full px-4 py-2.5 bg-accent hover:bg-accent/80 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 							>
-								{#if updating}
-									<span class="animate-pulse">{t('system.update_installing')}</span>
-								{:else}
-									{t('system.update_apply')}
-								{/if}
+								{t('system.update_apply')}
 							</button>
 						</div>
 					{:else}

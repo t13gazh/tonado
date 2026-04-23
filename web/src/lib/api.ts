@@ -554,8 +554,11 @@ export interface WifiStatus {
 export const setupApi = {
 	status: () => request<SetupStatus>('/setup/status'),
 	detectHardware: () => request<HardwareDetection>('/setup/detect-hardware', { method: 'POST' }),
+	// Lane B now routes /setup/wifi/connect through probe_home_wifi, so the
+	// response shape matches /setup/test-wifi: the AP stays up, credentials
+	// get stashed, and a single-use token is returned for /confirm-complete.
 	wifiConnect: (ssid: string, password: string = '') =>
-		request<{ success: boolean; status?: WifiStatus; error?: string }>('/setup/wifi/connect', {
+		request<{ ok: boolean; error: string | null; ip: string | null; token?: string | null; locked?: boolean }>('/setup/wifi/connect', {
 			method: 'POST',
 			body: JSON.stringify({ ssid, password }),
 		}),
@@ -573,4 +576,29 @@ export const setupApi = {
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 	portalCredentials: () =>
 		request<{ ssid: string; password: string }>('/setup/portal/credentials'),
+	// Lane B returns ok/error/ip plus an optional `token` that must be passed
+	// back to /setup/confirm-complete. Client timeout 25s = backend 20s + buffer.
+	// TODO: align with Lane B if final token transport differs (query vs body).
+	testWifi: (ssid: string, password: string = '', timeoutMs = 25_000) =>
+		request<{ ok: boolean; error: string | null; ip: string | null; token?: string | null }>('/setup/test-wifi', {
+			method: 'POST',
+			body: JSON.stringify({ ssid, password }),
+			timeoutMs,
+		}),
+	/**
+	 * Final marker endpoint called AFTER the phone has reconnected to the home
+	 * network and reached the box again. Returns 409 if `.setup-complete` was
+	 * already written — treat that as success.
+	 *
+	 * Lane B adds a one-shot token from /setup/test-wifi. We send it both as a
+	 * query param and in the body so we tolerate either transport choice.
+	 * TODO: drop whichever variant Lane B does not honour once finalised.
+	 */
+	confirmComplete: (token?: string | null) => {
+		const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+		return request<{ success: boolean }>(`/setup/confirm-complete${qs}`, {
+			method: 'POST',
+			body: token ? JSON.stringify({ token }) : undefined,
+		});
+	},
 };

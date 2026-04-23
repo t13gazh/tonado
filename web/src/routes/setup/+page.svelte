@@ -44,6 +44,15 @@
 	// WiFi
 	let wifiStatus = $state<WifiStatus | null>(null);
 	let wifiLoading = $state(false);
+	// Credentials captured from WifiStep for the final test-wifi call in CompleteStep.
+	// Kept in memory only — never persisted on the client.
+	let capturedWifiSsid = $state('');
+	let capturedWifiPassword = $state('');
+	// Lane C fix: If WifiStep already probed the home WiFi via Lane B's updated
+	// /setup/wifi/connect (which no longer tears down the AP), CompleteStep
+	// skips the redundant /setup/test-wifi call and jumps straight to polling.
+	// TODO: adjust schema once Lane B finalises — especially the optional token.
+	let capturedWifiProbe = $state<{ ok: boolean; error: string | null; ip: string | null; token?: string | null } | null>(null);
 
 	// Audio (hardware-detected outputs, not MPD outputs)
 	let hardwareAudio = $state<import('$lib/api').HardwareAudioOutput[]>([]);
@@ -291,6 +300,8 @@
 				{wifiStatus} {wifiLoading} {error}
 				{onError}
 				onWifiStatusChange={(status) => { wifiStatus = status; }}
+				onCredentialsCaptured={(ssid, password) => { capturedWifiSsid = ssid; capturedWifiPassword = password; }}
+				onWifiProbeCaptured={(probe) => { capturedWifiProbe = probe; }}
 			/>
 		{:else if currentStep === 'audio'}
 			<AudioStep
@@ -321,7 +332,18 @@
 				onSaved={async () => { await nextStep(); }}
 			/>
 		{:else if currentStep === 'complete'}
-			<CompleteStep {hardware} {sysInfo} {wifiStatus} buttonCount={savedButtonLabels.length} buttonLabels={savedButtonLabels} {error} />
+			<CompleteStep
+				{hardware}
+				{sysInfo}
+				{wifiStatus}
+				buttonCount={savedButtonLabels.length}
+				buttonLabels={savedButtonLabels}
+				{error}
+				wifiSsid={capturedWifiSsid}
+				wifiPassword={capturedWifiPassword}
+				wifiProbeResult={capturedWifiProbe}
+				onBackToWifi={() => goToStep('wifi')}
+			/>
 		{/if}
 
 		</div>
@@ -486,15 +508,13 @@
 			</div>
 
 		{:else if currentStep === 'complete'}
+			<!-- CompleteStep drives its own finalisation flow (test-wifi →
+			     poll → confirm-complete → redirect). Page-level nav only
+			     offers a way back; the primary action lives inside the step. -->
 			<div class="flex gap-3">
 				<button onclick={prevStep}
 					class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
 					{t('general.back')}
-				</button>
-				<button onclick={completeSetup} disabled={loading || backendDown}
-					class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-50 text-white rounded-lg font-medium transition-colors">
-					{#if loading}<span class="animate-pulse">{t('general.loading')}</span>
-					{:else}{t('setup.complete_button')}{/if}
 				</button>
 			</div>
 		{/if}

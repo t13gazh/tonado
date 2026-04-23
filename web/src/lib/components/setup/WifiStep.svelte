@@ -11,9 +11,25 @@
 		error: string;
 		onError: (msg: string) => void;
 		onWifiStatusChange: (status: WifiStatus | null) => void;
+		/** Lifted to the page so CompleteStep can re-verify the credentials
+		 *  against Lane B's /setup/test-wifi before switching the phone. */
+		onCredentialsCaptured?: (ssid: string, password: string) => void;
+		/** Lane B's fix #5: /setup/wifi/connect now uses probe_home_wifi
+		 *  internally (AP stays up). We stash the successful connect result so
+		 *  CompleteStep can skip the redundant /setup/test-wifi round-trip.
+		 *  TODO: align with Lane B if the response grows a `token` field here. */
+		onWifiProbeCaptured?: (probe: { ok: boolean; error: string | null; ip: string | null; token?: string | null }) => void;
 	}
 
-	let { wifiStatus, wifiLoading, error, onError, onWifiStatusChange }: Props = $props();
+	let {
+		wifiStatus,
+		wifiLoading,
+		error,
+		onError,
+		onWifiStatusChange,
+		onCredentialsCaptured,
+		onWifiProbeCaptured,
+	}: Props = $props();
 
 	let wifiNetworks = $state<WifiNetwork[]>([]);
 	let wifiScanning = $state(false);
@@ -35,10 +51,27 @@
 		wifiConnecting = true;
 		try {
 			const result = await setupApi.wifiConnect(selectedSsid, wifiPassword);
-			if (result.success) {
-				onWifiStatusChange(result.status ?? null);
+			if (result.ok) {
+				// Lane B now uses probe_home_wifi — AP stays up, so we keep the
+				// existing wifiStatus snapshot and capture credentials/token for
+				// the final confirm-complete handshake after the phone switches
+				// networks.
+				onCredentialsCaptured?.(selectedSsid, wifiPassword);
+				onWifiProbeCaptured?.({
+					ok: true,
+					error: null,
+					ip: result.ip,
+					token: result.token ?? null,
+				});
 				showWifiList = false; selectedSsid = ''; wifiPassword = '';
-			} else { onError(result.error ?? t('setup.wifi_error')); }
+			} else {
+				onError(result.error ?? t('setup.wifi_error'));
+				onWifiProbeCaptured?.({
+					ok: false,
+					error: result.error,
+					ip: null,
+				});
+			}
 		} catch (e) { onError(e instanceof Error ? e.message : t('setup.wifi_error')); }
 		finally { wifiConnecting = false; }
 	}

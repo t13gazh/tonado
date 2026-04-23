@@ -13,7 +13,7 @@ Open-Source Kinder-Musikbox mit Figuren und Karten, gesteuert vom Smartphone. Ra
 
 Jede Figur oder Karte enthält einen kleinen RFID-Chip (13.56 MHz), den die Box beim Auflegen erkennt. Ab hier im Text nur noch „Figur".
 
-![Tonado Player-Ansicht](docs/screenshots/01-player.png)
+![Tonado — Die Musikbox, die dir gehört](docs/screenshots/social-preview.png)
 
 ## Features
 

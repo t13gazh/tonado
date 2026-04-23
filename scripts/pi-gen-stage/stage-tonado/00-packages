@@ -1,0 +1,15 @@
+python3
+python3-venv
+python3-pip
+python3-dev
+build-essential
+libffi-dev
+mpd
+mpc
+nginx
+hostapd
+dnsmasq
+network-manager
+avahi-daemon
+i2c-tools
+git

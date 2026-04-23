@@ -1,0 +1,7 @@
+# Tonado: Hardware-Interfaces
+dtparam=spi=on
+dtparam=i2c_arm=on
+
+# Tonado: OnOff SHIM (only active if hardware is present -- harmless otherwise)
+dtoverlay=gpio-shutdown,gpio_pin=17,active_low=1
+dtoverlay=gpio-poweroff,gpiopin=4,active_low=1

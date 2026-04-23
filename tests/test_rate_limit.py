@@ -52,6 +52,16 @@ def _build_app(**middleware_kwargs) -> FastAPI:
     async def sleep_history() -> dict:
         return {"ok": True}
 
+    # F1: /api/system/update/check does a `git fetch` on every call —
+    # it must be rate-limited despite being a GET.
+    @app.get("/api/system/update/check")
+    async def update_check() -> dict:
+        return {"ok": True}
+
+    @app.get("/api/player/status")
+    async def player_status() -> dict:
+        return {"ok": True}
+
     return app
 
 
@@ -219,3 +229,119 @@ async def test_sleep_timer_prefix_does_not_capture_siblings():
         # so it stays open even though the sleep-timer bucket is saturated.
         resp = await c.post("/api/auth/sleep-timer-history")
         assert resp.status_code == 200
+
+
+# --- F1: /api/system/update/check must be rate-limited despite being a GET ---
+
+
+@pytest.mark.asyncio
+async def test_update_check_rate_limited():
+    """F1: 6 GETs on /api/system/update/check pass, 7th is rejected.
+
+    Each call does a git fetch (network + disk) — a loop would wear out
+    the SD card. Parent-tier auth is enforced at the router level, but
+    we still need a per-IP bucket to stop a compromised LAN device with
+    a valid token."""
+    app = _build_app(update_check_limit=6, update_check_window=60)
+    transport = ASGITransport(app=app, client=("12.12.12.12", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(6):
+            resp = await c.get("/api/system/update/check")
+            assert resp.status_code == 200
+        resp = await c.get("/api/system/update/check")
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_update_check_rate_limited_with_trailing_slash():
+    """Trailing-slash bypass guard: `/api/system/update/check/` must fall
+    into the same 6/min bucket as `/api/system/update/check`. Without
+    path normalisation the exact string compare would miss, the request
+    would be re-classified as a plain GET, and the GET exempt would
+    serve it for free — defeating the whole F1 bucket."""
+    app = _build_app(update_check_limit=6, update_check_window=60)
+
+    # Register the trailing-slash variant as its own route so Starlette
+    # doesn't 307-redirect before the middleware bucket has a chance to
+    # run. The middleware itself must catch both forms.
+    @app.get("/api/system/update/check/")
+    async def update_check_slash() -> dict:
+        return {"ok": True}
+
+    transport = ASGITransport(app=app, client=("18.18.18.18", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(6):
+            resp = await c.get("/api/system/update/check/")
+            assert resp.status_code == 200
+        resp = await c.get("/api/system/update/check/")
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_update_check_per_ip_bucket():
+    """Two distinct clients must have separate update-check buckets."""
+    app = _build_app(update_check_limit=6, update_check_window=60)
+    transport = ASGITransport(app=app, client=("127.0.0.1", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(6):
+            resp = await c.get(
+                "/api/system/update/check",
+                headers={"X-Forwarded-For": "13.13.13.13"},
+            )
+            assert resp.status_code == 200
+        for _ in range(6):
+            resp = await c.get(
+                "/api/system/update/check",
+                headers={"X-Forwarded-For": "14.14.14.14"},
+            )
+            assert resp.status_code == 200
+        # First IP is now locked out
+        resp = await c.get(
+            "/api/system/update/check",
+            headers={"X-Forwarded-For": "13.13.13.13"},
+        )
+        assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_other_get_endpoints_not_rate_limited():
+    """Polling GETs (e.g. /api/player/status) must stay exempt — the
+    frontend hits them multiple times per second. Putting them into the
+    100/min default would break the live UI."""
+    app = _build_app(default_limit=2, default_window=60, update_check_limit=6)
+    transport = ASGITransport(app=app, client=("15.15.15.15", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        for _ in range(200):
+            resp = await c.get("/api/player/status")
+            assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_check_does_not_share_default_bucket():
+    """Exhausting the update-check bucket must not leak into the default
+    write bucket — POST /echo should still work after 7 update-check
+    calls on the same IP."""
+    app = _build_app(default_limit=100, update_check_limit=1, update_check_window=60)
+    transport = ASGITransport(app=app, client=("16.16.16.16", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/system/update/check")
+        assert resp.status_code == 200
+        resp = await c.get("/api/system/update/check")
+        assert resp.status_code == 429
+        # Default write bucket is untouched
+        resp = await c.post("/echo")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_check_429_body_is_german():
+    """Error bodies are user-facing — German with real umlauts."""
+    app = _build_app(update_check_limit=1, update_check_window=60)
+    transport = ASGITransport(app=app, client=("17.17.17.17", 0))
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        resp = await c.get("/api/system/update/check")
+        assert resp.status_code == 200
+        resp = await c.get("/api/system/update/check")
+        assert resp.status_code == 429
+        detail = resp.json()["detail"]
+        assert "Zu viele Anfragen" in detail

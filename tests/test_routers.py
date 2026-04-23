@@ -1194,3 +1194,67 @@ def test_sanitize_filename_strips_backslashes_and_nulls() -> None:
     assert _sanitize_filename("../../etc/passwd") == "passwd"
     # Harmless name passes through
     assert _sanitize_filename("Track 01.mp3") == "Track 01.mp3"
+
+
+# --- F7: no-store Cache-Control on update + status endpoints ---
+
+
+def _assert_no_store(resp) -> None:
+    cc = resp.headers.get("cache-control", "").lower()
+    assert "no-store" in cc, f"Cache-Control missing no-store: {cc!r}"
+    assert "no-cache" in cc, f"Cache-Control missing no-cache: {cc!r}"
+    assert "must-revalidate" in cc, f"Cache-Control missing must-revalidate: {cc!r}"
+
+
+@pytest.mark.asyncio
+async def test_update_check_has_no_store_header(client):
+    """F7: /api/system/update/check must forbid proxy/PWA caching — a stale
+    'no update available' response is a downgrade-attack vector."""
+    c, auth_svc = client
+    token = await _get_token(auth_svc, AuthTier.PARENT)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    resp = await c.get("/api/system/update/check", headers=headers)
+    # Handler might 500 if git isn't available in the test environment, but
+    # the dependency has already set the header by then — that's the point.
+    _assert_no_store(resp)
+
+
+@pytest.mark.asyncio
+async def test_update_apply_has_no_store_header(client):
+    """F7: POST /api/system/update/apply — header set even on 403 (no expert
+    auth in this path). The `_NoStoreRoute(APIRoute)` wrapper stamps the
+    Cache-Control header on the outgoing response even in the
+    HTTPException path, because FastAPI's ExceptionMiddleware would
+    otherwise build a generic JSONResponse without our headers."""
+    c, auth_svc = client
+    # Set both PINs so tier check actually rejects; we get 403, but the
+    # _NoStoreRoute wrapper still stamps Cache-Control on the 403 response.
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    await auth_svc.set_pin(AuthTier.EXPERT, "9999")
+    result = await auth_svc.login("1234")  # PARENT token — not enough
+    headers = {"Authorization": f"Bearer {result['token']}"}
+
+    resp = await c.post("/api/system/update/apply", headers=headers)
+    assert resp.status_code == 403
+    _assert_no_store(resp)
+
+
+@pytest.mark.asyncio
+async def test_system_info_has_no_store_header(client):
+    """F7 follow-up: hardware/status endpoints return LAN-sensitive and
+    transient data (IP, hostname, storage free) — never cache."""
+    c, _ = client
+    resp = await c.get("/api/system/info")
+    assert resp.status_code == 200
+    _assert_no_store(resp)
+
+
+@pytest.mark.asyncio
+async def test_system_health_has_no_store_header(client):
+    """F7 follow-up: stale health data could hide a failing audio output
+    or a depleted SD card — must not be served from caches."""
+    c, _ = client
+    resp = await c.get("/api/system/health")
+    assert resp.status_code == 200
+    _assert_no_store(resp)

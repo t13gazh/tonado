@@ -4,9 +4,11 @@ import json
 import logging
 import shutil
 from pathlib import Path
+from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile, File
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from core.dependencies import (
     get_auth_service,
@@ -39,6 +41,62 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/system", tags=["system"])
 
 
+_NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+class _NoStoreRoute(APIRoute):
+    """Custom APIRoute that stamps no-store headers onto every response.
+
+    F7 (security audit): /api/system/update/* and the hardware/status
+    endpoints must not be cached. A PWA service worker or an HTTP proxy
+    serving a stale "no update available" response is a downgrade-attack
+    vector for security updates. Stale hardware-status responses let the
+    UI show a false "ok" banner after a component has failed.
+
+    A plain ``Depends()`` would only stamp the response on the happy
+    path — FastAPI's ExceptionMiddleware builds a *new* JSONResponse for
+    HTTPException (403/404/…) and would drop the header. Wrapping the
+    route handler at the APIRoute level catches both success and error
+    paths without altering each handler.
+    """
+
+    def get_route_handler(self) -> Callable:
+        original = super().get_route_handler()
+
+        async def handler(request: Request) -> Response:
+            try:
+                response: Response = await original(request)
+            except HTTPException as exc:
+                # Rebuild the canonical error response but stamp headers
+                # (starlette's ExceptionMiddleware would strip ours).
+                payload = {"detail": exc.detail}
+                response = JSONResponse(
+                    status_code=exc.status_code,
+                    content=payload,
+                    headers=exc.headers or {},
+                )
+                for k, v in _NO_STORE_HEADERS.items():
+                    response.headers[k] = v
+                return response
+            for k, v in _NO_STORE_HEADERS.items():
+                response.headers[k] = v
+            return response
+
+        return handler
+
+
+# Sub-router whose routes stamp Cache-Control: no-store onto every
+# response (happy path + HTTPException paths). Registered on `router`
+# at the bottom of this module so main.py's `include_router(system.router)`
+# picks it up transparently. Endpoints added here inherit the
+# ``/api/system`` prefix via `router.include_router(_no_store_router)`.
+_no_store_router = APIRouter(route_class=_NoStoreRoute)
+
+
 def _caller_has_parent(request: Request, auth: AuthService | None) -> bool:
     """Return True when the caller would pass a PARENT require_tier check.
 
@@ -65,7 +123,7 @@ async def _wifi_status_dict(wifi: WifiService) -> dict:
 
 # --- System info ---
 
-@router.get("/info")
+@_no_store_router.get("/info")
 async def system_info(
     request: Request,
     svc: SystemService = Depends(get_system_service),
@@ -84,7 +142,7 @@ async def system_info(
 
 # --- Health status (hardware resilience) ---
 
-@router.get("/health")
+@_no_store_router.get("/health")
 async def system_health(
     request: Request,
     player: PlayerService = Depends(get_player),
@@ -357,18 +415,21 @@ async def gyro_calibrate_cancel(
 
 # --- Updates ---
 
-@router.get("/update/check")
+@_no_store_router.get("/update/check")
 async def check_update(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
     svc: SystemService = Depends(get_system_service),
 ) -> dict:
     # Gated: each call does a git fetch. Public access = DoS vector.
+    # F1: rate-limited via middleware bucket "update_check" (6/min/IP).
+    # F7: no-store stamped by _NoStoreRoute so PWA/Proxies can't serve a
+    # stale "no update available" response (downgrade-attack vector).
     require_tier(request, AuthTier.PARENT, auth)
     return await svc.check_update()
 
 
-@router.post("/update/apply")
+@_no_store_router.post("/update/apply")
 async def apply_update(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
@@ -479,3 +540,8 @@ async def import_backup(
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"status": "ok", "imported": counts}
+
+
+# Mount the no-store sub-router last so its routes live under the same
+# /api/system prefix as every other route in this file.
+router.include_router(_no_store_router)

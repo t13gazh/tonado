@@ -22,6 +22,12 @@ from core.utils.client_ip import extract_client_ip
 logger = logging.getLogger(__name__)
 
 
+# Generic GET/HEAD/OPTIONS are exempt: the frontend polls /api/player/state
+# and /api/system/health multiple times per second, and the SPA/static
+# routes also flow through here. Putting polling GETs into the 100/min
+# default would break the UI. Individual GETs that are expensive
+# (currently only /api/system/update/check, which does a git fetch) are
+# pulled out of the exempt set explicitly below.
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _EXEMPT_PREFIXES = ("/api/player/stream",)
 _UPLOAD_PREFIX = "/api/library/upload"
@@ -33,6 +39,14 @@ _UPLOAD_PREFIX = "/api/library/upload"
 # hammering that would still burn CPU on a Pi Zero W.
 _LOGIN_PATH = "/api/auth/login"
 _RESTORE_PATH = "/api/system/restore"
+
+# F1 (security audit): /api/system/update/check is a GET but does a
+# `git fetch` on every call (network + SD-card writes). Pulling it out
+# of the generic GET exempt so a `while true; curl .../update/check`
+# loop can't wear out the SD card and spike CPU. Parent-tier auth
+# alone isn't enough — a compromised LAN device with a valid token
+# would hit the same problem.
+_UPDATE_CHECK_PATH = "/api/system/update/check"
 
 # Sleep-timer writes are not security-critical but the pill button is
 # right next to a child's thumb — without its own bucket a single IP
@@ -64,6 +78,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         restore_window: int = 60,
         sleep_timer_limit: int = 20,
         sleep_timer_window: int = 60,
+        update_check_limit: int = 6,
+        update_check_window: int = 60,
     ) -> None:
         super().__init__(app)
         self._default = (default_limit, default_window)
@@ -71,12 +87,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._login = (login_limit, login_window)
         self._restore = (restore_limit, restore_window)
         self._sleep_timer = (sleep_timer_limit, sleep_timer_window)
+        self._update_check = (update_check_limit, update_check_window)
         self._buckets: dict[tuple[str, str], list[float]] = defaultdict(list)
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.url.path
+
+        # F1: /api/system/update/check is a GET but triggers `git fetch`.
+        # Check BEFORE the generic GET exempt so it can't slip through.
+        # Normalise trailing slash so `/api/system/update/check/` can't
+        # bypass the bucket by falling through into the GET exempt.
+        if path.rstrip("/") == _UPDATE_CHECK_PATH and request.method in ("GET", "HEAD"):
+            bucket_name = "update_check"
+            limit, window = self._update_check
+            return await self._enforce(request, bucket_name, limit, window, call_next)
+
         if request.method in _SAFE_METHODS:
             return await call_next(request)
-        path = request.url.path
         if any(path.startswith(prefix) for prefix in _EXEMPT_PREFIXES):
             return await call_next(request)
 
@@ -98,6 +125,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             bucket_name = "default"
             limit, window = self._default
 
+        return await self._enforce(request, bucket_name, limit, window, call_next)
+
+    async def _enforce(
+        self,
+        request: Request,
+        bucket_name: str,
+        limit: int,
+        window: int,
+        call_next,
+    ) -> Response:
+        """Apply the sliding-window check for a single bucket."""
         bucket_key = (extract_client_ip(request), bucket_name)
 
         now = time.monotonic()
@@ -110,13 +148,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             logger.warning(
                 "Rate limit hit: ip=%s bucket=%s limit=%d window=%ds",
                 bucket_key[0],
-                bucket_key[1],
+                bucket_name,
                 limit,
                 window,
             )
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Too many requests"},
+                content={"detail": "Zu viele Anfragen"},
             )
 
         bucket.append(now)

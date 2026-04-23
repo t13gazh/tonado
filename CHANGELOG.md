@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.3.1-beta] — 2026-04-23
+
+Update-Härtungs-Welle: Auto-Update-Pfad wird zuverlässig, vier Sicherheits-Findings geschlossen, inline Progress-UI im Update-Dialog.
+
 ### Wichtig beim Upgrade von 0.3.0-beta
 
 Diese Version behebt einen Bug im Auto-Update-Pfad, der genau in 0.3.0-beta steckt. Das heißt: der Weg „in der App auf Nach Updates suchen klicken und installieren" kann auf einem Pi Zero W oder frisch aufgesetzten Pi 3B+ noch stolpern, weil er die alte (fehlerhafte) Update-Pipeline durchläuft.
@@ -111,6 +115,7 @@ Erster funktionsfähiger Release. Alle 8 Meilenstein-1-Phasen implementiert.
 - Auto-Updates, Backup/Restore, OverlayFS-Vorbereitung
 - 113 Backend-Tests, 1.3 MB Frontend (gzipped)
 
+[0.3.1-beta]: https://github.com/t13gazh/tonado/compare/v0.3.0-beta...v0.3.1-beta
 [0.3.0-beta]: https://github.com/t13gazh/tonado/compare/v0.2.1-alpha...v0.3.0-beta
 [0.2.1-alpha]: https://github.com/t13gazh/tonado/compare/v0.2.0-alpha...v0.2.1-alpha
 [0.2.0-alpha]: https://github.com/t13gazh/tonado/compare/v0.1.0-alpha...v0.2.0-alpha

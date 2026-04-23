@@ -1,6 +1,6 @@
 [project]
 name = "tonado"
-version = "0.3.0-beta"
+version = "0.3.1-beta"
 description = "Open-source kids music box with RFID cards, controlled from your smartphone"
 readme = "README.md"
 license = { text = "MIT" }

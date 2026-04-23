@@ -7,6 +7,20 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Wichtig beim Upgrade von 0.3.0-beta
+
+Diese Version behebt einen Bug im Auto-Update-Pfad, der genau in 0.3.0-beta steckt. Das heißt: der Weg „in der App auf Nach Updates suchen klicken und installieren" kann auf einem Pi Zero W oder frisch aufgesetzten Pi 3B+ noch stolpern, weil er die alte (fehlerhafte) Update-Pipeline durchläuft.
+
+**Einmaliger Umweg:** Per SSH auf die Box, dann
+
+```bash
+curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
+```
+
+Danach läuft „Nach Updates suchen" zuverlässig aus der App — für alle weiteren Updates reicht der App-Weg.
+
+Wer bereits auf Pi 4 / Pi 5 oder einem Pi 3B+ mit gecachten Python-Wheels ist, kann das Update über die App versuchen; klappt es dort nicht sauber, deckt der SSH-Weg oben dasselbe ab.
+
 ### Behoben
 
 - **Auto-Update auf dem Pi bleibt nicht mehr stecken.** Bei großen Installationen lief der Update-Versuch vorher still in einen Rollback, der Status blieb unklar. Der Update-Dialog zeigt jetzt live: „Wird installiert → Neustart → Prüfung → Auf vX.Y.Z aktualisiert". Bei „Box antwortet noch nicht" gibt es zwei klare Optionen: Seite neu laden oder erneut versuchen. „Box ist bereits aktuell" meldet sich explizit statt stummer Bestätigung.

@@ -2,9 +2,18 @@
 
 > Die Musikbox, die dir gehört.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.3.0--beta-blue.svg)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a.svg)](docs/fuer-bastler/hardware.md)
+[![Made with Svelte](https://img.shields.io/badge/made%20with-Svelte%205-ff3e00.svg)](https://svelte.dev)
+[![Made with Python](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 Open-Source Kinder-Musikbox mit Figuren und Karten, gesteuert vom Smartphone. Raspberry Pi basiert, kein Abo, keine Cloud, keine Limits.
 
 Jede Figur oder Karte enthält einen kleinen RFID-Chip (13.56 MHz), den die Box beim Auflegen erkennt. Ab hier im Text nur noch „Figur".
+
+![Tonado Player-Ansicht](docs/screenshots/01-player.png)
 
 ## Features
 
@@ -15,6 +24,20 @@ Jede Figur oder Karte enthält einen kleinen RFID-Chip (13.56 MHz), den die Box 
 - **Gesten-Steuerung** — Box kippen zum Skippen, schütteln für Shuffle (optional, mit Gyro-Sensor)
 - **Physische Tasten** — Lautstärke, Play/Pause, Skip per Knopfdruck — automatisch erkannt, kein Pin-Wissen nötig
 - **Open Source** — MIT-Lizenz, vollständig anpassbar, keine versteckten Kosten
+
+## So sieht es aus
+
+Die App läuft im Browser auf deinem Smartphone, Tablet oder Laptop — kein App-Store, keine Installation.
+
+| Bibliothek | Figur einrichten | Eltern-Einstellungen |
+|:---:|:---:|:---:|
+| ![Bibliothek mit Ordnern, Radio, Podcasts, Playlisten](docs/screenshots/02-library.png) | ![Figur einrichten: Inhalt zuweisen](docs/screenshots/03-figure-setup.png) | ![Eltern-Einstellungen: Sleep-Timer, Lautstärke, WLAN-Rettung](docs/screenshots/04-parents.png) |
+
+**Setup-Wizard — kein Terminal, keine Config-Datei:**
+
+| Hardware erkennen | Audio-Ausgang | Tasten einlernen |
+|:---:|:---:|:---:|
+| ![Wizard: Hardware-Erkennung mit Pi-Modell, DAC, RFID-Reader, Gyro](docs/screenshots/05-wizard-hardware.png) | ![Wizard: Audio-Ausgang auswählen mit Testton](docs/screenshots/06-wizard-audio.png) | ![Wizard: Tasten durch Drücken einlernen](docs/screenshots/07-wizard-buttons.png) |
 
 ## Was du brauchst
 
@@ -96,7 +119,6 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 **Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, 1.3 MB Frontend.
 
 **Known Issues:**
-- **Browser-Audio bricht bei Stream-Wechsel ab.** Bei aktivem Browser-Audio-Ausgang und Wechsel von Radio/Musik kommt erst nach manuellem Deaktivieren/Aktivieren wieder Ton. [Details im Backlog](BACKLOG.md#offene-bugs).
 - **Captive-Portal-Setup noch nicht mit nicht-technischer Zielgruppe getestet.** Pi aus dem Karton → AP → WLAN einrichten läuft lokal, wurde aber nicht mit einem „frischen" Anwender validiert.
 
 **Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).

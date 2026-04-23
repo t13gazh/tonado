@@ -1,0 +1,20 @@
+# Tonado — minimal sudo grants for system management.
+# Deployed to /etc/sudoers.d/tonado by install.sh.
+# EDIT WITH CAUTION. Always `visudo -cf` before committing changes.
+#
+# Only the exact commands below are allowed without password.
+# No wildcards, no shell expansion — we prefer false-negative over
+# false-positive grants.
+#
+# %TONADO_USER% is replaced by install.sh with the actual install user
+# (from $SUDO_USER, default "pi"). On Raspberry Pi OS Bookworm, the real
+# binaries live under /usr/bin and /usr/sbin — /bin and /sbin are symlinks.
+# sudoers does not resolve symlinks, so we use the canonical /usr/... paths.
+
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/systemctl restart tonado.service
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/sbin/shutdown -h now
+%TONADO_USER% ALL=(root) NOPASSWD: /usr/sbin/reboot
+
+Defaults!/usr/bin/systemctl !setenv
+Defaults!/usr/sbin/shutdown !setenv
+Defaults!/usr/sbin/reboot !setenv

@@ -274,7 +274,7 @@ Type=simple
 User=$TONADO_USER
 Group=$TONADO_USER
 WorkingDirectory=$TONADO_DIR
-ExecStart=$TONADO_DIR/.venv/bin/uvicorn core.main:app --host 0.0.0.0 --port 8080
+ExecStart=$TONADO_DIR/.venv/bin/uvicorn core.main:app --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=5
 Environment=TONADO_DB_PATH=$CONFIG_DIR/tonado.db
@@ -284,6 +284,32 @@ Environment=TONADO_HARDWARE_MODE=auto
 [Install]
 WantedBy=multi-user.target
 SERVICE
+
+# Install sudoers drop-in (minimal NOPASSWD for systemctl/shutdown/reboot).
+# Validated via `visudo -cf` on a temp copy first — a malformed grant
+# would otherwise brick sudo entirely.
+SUDOERS_SRC="$TONADO_DIR/system/sudoers.d/tonado"
+SUDOERS_TMP="$(mktemp)"
+sed "s/%TONADO_USER%/$TONADO_USER/g" "$SUDOERS_SRC" > "$SUDOERS_TMP"
+if visudo -cf "$SUDOERS_TMP" >/dev/null; then
+    install -o root -g root -m 0440 "$SUDOERS_TMP" /etc/sudoers.d/tonado
+    echo "  -> sudoers-Regel installiert (/etc/sudoers.d/tonado)"
+else
+    rm -f "$SUDOERS_TMP"
+    echo "FEHLER: sudoers-Datei ungültig, Installation abgebrochen." >&2
+    exit 1
+fi
+rm -f "$SUDOERS_TMP"
+
+# The Raspberry Pi Imager provisions /etc/sudoers.d/010_pi-nopasswd which
+# grants the configured user unrestricted NOPASSWD:ALL. With our minimal
+# drop-in above, that pauschal rule bypasses every hardening we just did.
+# Only remove it AFTER our drop-in installed successfully, so the user is
+# never left without sudo access.
+if [ -f /etc/sudoers.d/010_pi-nopasswd ]; then
+    echo "  Entferne /etc/sudoers.d/010_pi-nopasswd (Imager-Pauschalrechte, durch minimalen Drop-in ersetzt)."
+    rm -f /etc/sudoers.d/010_pi-nopasswd
+fi
 
 systemctl daemon-reload
 systemctl enable tonado.service

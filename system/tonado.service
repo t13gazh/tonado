@@ -9,7 +9,7 @@ Type=simple
 User=pi
 Group=pi
 WorkingDirectory=/opt/tonado
-ExecStart=/opt/tonado/.venv/bin/uvicorn core.main:app --host 0.0.0.0 --port 8080
+ExecStart=/opt/tonado/.venv/bin/uvicorn core.main:app --host 127.0.0.1 --port 8080
 Restart=always
 RestartSec=5
 Environment=TONADO_DB_PATH=/opt/tonado/config/tonado.db

@@ -313,7 +313,10 @@ fi
 
 systemctl daemon-reload
 systemctl enable tonado.service
-systemctl start tonado.service || true
+# restart, not start: when the script runs against an already-installed
+# box (upgrade path), `start` is a no-op and the old Python process
+# keeps running with the stale code and stale systemd-unit options.
+systemctl restart tonado.service
 
 echo "[8/11] Frontend prüfen..."
 # Frontend is pre-built and committed to the repository.

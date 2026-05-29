@@ -1,0 +1,242 @@
+name: Build Pi Image
+
+# Builds a flashable Tonado image with pi-gen, signs it, and attaches it to
+# the GitHub release for the triggering tag. Mechanics match the REAL stage in
+# scripts/pi-gen-stage/stage-tonado/: the Tonado code enters the image via
+# `git clone --branch <tag>` inside the chroot (02-tonado-code), driven by the
+# TONADO_VERSION / TONADO_EXPECTED_SHA pi-gen config vars. No tarball, no npm
+# here — web/build/ is committed in the repo and the stage installs `.[pi]`.
+#
+# Reference: docs/fuer-entwickler/pi-image-ci.md, pi-image-architecture.md.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v0.4.0-beta). Must already exist on the remote — the stage clones it.'
+        type: string
+        required: true
+      upload:
+        description: 'Upload the built images to that tag''s release?'
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - 'scripts/pi-gen-stage/**'
+      - '.github/workflows/pi-image.yml'
+      - 'scripts/ci/qemu-smoke.sh'
+      - 'scripts/ci/release-notes.sh'
+
+permissions:
+  contents: write      # gh release upload / edit
+  id-token: write      # cosign keyless + attest-build-provenance
+  attestations: write  # attest-build-provenance
+
+# pi-gen upstream is pinned to a commit, NOT a branch head, for reproducible
+# images (supply-chain F7). Refresh before a release and update here:
+#   git ls-remote https://github.com/RPi-Distro/pi-gen arm64
+# arm64 SHA mirrors scripts/pi-gen-stage/stage-tonado/README.md (2026-04-23).
+# armhf has no pinned SHA yet — it tracks `master` as a transitional value.
+# TODO(before first armhf release): pin PI_GEN_REF_ARMHF to a master commit.
+env:
+  PI_GEN_REF_ARM64: '4ad56cc850fa60adcc7f07dc15879bc95cc1d281'
+  PI_GEN_REF_ARMHF: 'master'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false   # a broken armhf build must not abort the arm64 build
+      matrix:
+        include:
+          - arch: arm64
+            target: pi-3plus-4-5
+          - arch: armhf
+            target: pi-zero-w
+    runs-on: ubuntu-24.04
+    name: Build ${{ matrix.target }}
+    steps:
+      - name: Checkout Tonado
+        uses: actions/checkout@v4
+        with:
+          # PR: the PR head, so the dry-run exercises the *changed* stage.
+          # push/dispatch: the release tag being built.
+          ref: ${{ github.event_name == 'pull_request' && github.ref || (github.event.inputs.tag || github.ref_name) }}
+          fetch-depth: 0      # full history + tags: needed for describe + tag rev-parse
+          fetch-tags: true
+          path: tonado
+
+      - name: Resolve build tag + expected SHA
+        id: meta
+        working-directory: tonado
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            push)              TAG="$REF_NAME" ;;
+            workflow_dispatch) TAG="$INPUT_TAG" ;;
+            pull_request)
+              # No tag exists for a PR. Build the latest existing release tag to
+              # exercise the stage mechanics. The cloned CODE is that release;
+              # the STAGE under test comes from the PR checkout above.
+              TAG="$(git describe --tags --abbrev=0 --match 'v*')"
+              ;;
+            *) echo "Unsupported event $EVENT" >&2; exit 1 ;;
+          esac
+          [ -n "${TAG:-}" ] || { echo "Could not resolve a build tag." >&2; exit 1; }
+          # The stage runs `git clone --branch <TAG>` and checks the clone's HEAD
+          # against EXPECTED_SHA, so resolve the TAG's commit (not the PR head).
+          SHA="$(git rev-parse "${TAG}^{commit}")"
+          # The committed frontend must exist AT THAT TAG, else the in-chroot
+          # stage fails late (02-tonado-code checks the same thing).
+          git cat-file -e "${TAG}:web/build/index.html" 2>/dev/null \
+            || { echo "web/build/index.html missing in $TAG" >&2; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"
+
+      - name: Set up QEMU (binfmt for ARM chroot)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Checkout pi-gen (pinned)
+        uses: actions/checkout@v4
+        with:
+          repository: RPi-Distro/pi-gen
+          ref: ${{ matrix.arch == 'arm64' && env.PI_GEN_REF_ARM64 || env.PI_GEN_REF_ARMHF }}
+          path: pi-gen
+
+      - name: Wire in Tonado stage
+        run: |
+          set -euo pipefail
+          cp -r tonado/scripts/pi-gen-stage/stage-tonado pi-gen/stage-tonado
+          # Let our stage own the exported image instead of the Lite stage.
+          rm -f pi-gen/stage2/EXPORT_IMAGE pi-gen/stage2/EXPORT_NOOBS
+
+      - name: Write pi-gen config
+        run: |
+          set -euo pipefail
+          {
+            echo "IMG_NAME='tonado'"
+            echo "RELEASE='bookworm'"
+            echo "TARGET_HOSTNAME='tonado'"
+            echo "ENABLE_SSH=1"
+            echo "STAGE_LIST='stage0 stage1 stage2 stage-tonado'"
+            echo "DEPLOY_COMPRESSION='xz'"
+            echo "DEPLOY_ZIP=0"
+            # No default password — the Imager forces the user to set one.
+            echo "DISABLE_FIRST_BOOT_USER_RENAME=0"
+            # Consumed by stage-tonado/02-tonado-code + 03-tonado-finalize.
+            echo "TONADO_VERSION='${{ steps.meta.outputs.tag }}'"
+            echo "TONADO_EXPECTED_SHA='${{ steps.meta.outputs.sha }}'"
+            if [ "${{ matrix.arch }}" = "armhf" ]; then
+              echo "ARCH='armhf'"
+            fi
+          } > pi-gen/config
+          echo "--- pi-gen/config ---"
+          cat pi-gen/config
+
+      - name: Build image
+        working-directory: pi-gen
+        run: sudo --preserve-env=DEBIAN_FRONTEND ./build-docker.sh
+        env:
+          DEBIAN_FRONTEND: noninteractive
+
+      - name: Locate + rename image
+        id: img
+        run: |
+          set -euo pipefail
+          SRC="$(ls pi-gen/deploy/*.img.xz | head -n1)"
+          if [ -z "${SRC:-}" ]; then
+            echo "No .img.xz produced in pi-gen/deploy/" >&2
+            ls -la pi-gen/deploy/ || true
+            exit 1
+          fi
+          DEST="pi-gen/deploy/tonado-${{ steps.meta.outputs.tag }}-${{ matrix.target }}.img.xz"
+          [ "$SRC" = "$DEST" ] || mv "$SRC" "$DEST"
+          echo "path=$DEST" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$DEST")" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA256
+        id: sum
+        working-directory: pi-gen/deploy
+        run: |
+          set -euo pipefail
+          sha256sum "${{ steps.img.outputs.name }}" \
+            > "SHA256SUMS-${{ matrix.target }}.txt"
+          cat "SHA256SUMS-${{ matrix.target }}.txt"
+
+      - name: Cosign sign (keyless)
+        uses: sigstore/cosign-installer@v3
+      - name: Sign image blob
+        working-directory: pi-gen/deploy
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes \
+            --output-signature "${{ steps.img.outputs.name }}.sig" \
+            --output-certificate "${{ steps.img.outputs.name }}.pem" \
+            "${{ steps.img.outputs.name }}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.img.outputs.path }}
+
+      - name: Upload artifact (PR dry-run + always-available debug copy)
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.target }}
+          path: pi-gen/deploy/tonado-*
+          retention-days: 7
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.upload == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: pi-gen/deploy
+        run: |
+          set -euo pipefail
+          gh release upload "${{ steps.meta.outputs.tag }}" \
+            "${{ steps.img.outputs.name }}" \
+            "${{ steps.img.outputs.name }}.sig" \
+            "${{ steps.img.outputs.name }}.pem" \
+            "SHA256SUMS-${{ matrix.target }}.txt" \
+            --clobber
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-24.04
+    # Booting a pi-gen image in QEMU is the most fragile part of the pipeline.
+    # Keep it non-blocking until verified green in CI, so it never holds back a
+    # release. arm64 only — armhf in QEMU is historically flakier.
+    continue-on-error: true
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout Tonado
+        uses: actions/checkout@v4
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm qemu-utils xz-utils
+      - name: Download arm64 image
+        uses: actions/download-artifact@v4
+        with:
+          name: image-pi-3plus-4-5
+          path: img
+      - name: Boot + health smoke test
+        run: bash scripts/ci/qemu-smoke.sh img/tonado-*.img.xz
+
+  update-release-notes:
+    needs: build
+    runs-on: ubuntu-24.04
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.upload == 'true'
+    steps:
+      - name: Checkout Tonado
+        uses: actions/checkout@v4
+      - name: Assemble + publish release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/release-notes.sh "${{ github.event.inputs.tag || github.ref_name }}"

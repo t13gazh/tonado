@@ -25,6 +25,12 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 ### Behoben
 
 - **Gesundheits-Endpoint-Test auf aktuelle Version synchronisiert** (stand noch auf `0.2.1-alpha`).
+- **README-Versionsangabe korrigiert.** Badge und Status-Zeile standen noch auf `0.3.0-beta`, obwohl `0.3.1-beta` ausgeliefert ist.
+
+### Für Entwickler
+
+- **Versions-Konsistenz-Test (`tests/test_version_consistency.py`).** `pyproject.toml` ist die einzige Quelle; der Test prüft `web/package.json`, README-Badge und README-Status-Zeile dagegen. Schlägt fehl, wenn ein Release-Bump eine Referenz vergisst.
+- **Health-Endpoint-Test entkoppelt.** `tests/test_api.py` vergleicht jetzt gegen die zur Laufzeit gelesene `VERSION` statt gegen einen hartkodierten String — kein manuelles Nachziehen pro Bump mehr.
 
 ## [0.3.1-beta] — 2026-04-23
 

@@ -3,7 +3,7 @@
 > Die Musikbox, die dir gehört.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.0--beta-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.1--beta-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a.svg)](docs/fuer-bastler/hardware.md)
 [![Made with Svelte](https://img.shields.io/badge/made%20with-Svelte%205-ff3e00.svg)](https://svelte.dev)
 [![Made with Python](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
@@ -102,7 +102,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 ## Status
 
-> **Beta (v0.3.0)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist das nächste Ziel nach Beta. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
+> **Beta (v0.3.1)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist das nächste Ziel nach Beta. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 

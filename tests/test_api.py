@@ -48,4 +48,6 @@ async def test_health_endpoint(tmp_path: Path) -> None:
                 assert resp.status_code == 200
                 data = resp.json()
                 assert data["status"] == "ok"
-                assert data["version"] == "0.3.1-beta"
+                from core.services.system_service import VERSION
+
+                assert data["version"] == VERSION

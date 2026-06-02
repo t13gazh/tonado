@@ -99,29 +99,33 @@ jobs:
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"
 
-      - name: Install QEMU userland for ARM chroot
-        # pi-gen's build-docker.sh checks `which qemu-aarch64` (or qemu-arm)
-        # on the host AND relies on binfmt_misc handlers being active for
-        # the ARM target. Two separate concerns:
-        #   1. Binaries on host PATH: ubuntu-24.04 ships qemu-user-static
-        #      (binaries suffixed -static), which conflicts on registration
-        #      paths with qemu-user-binfmt. Replace it so we get un-suffixed
-        #      qemu-aarch64 / qemu-arm from qemu-user.
-        #   2. binfmt_misc activation: qemu-user-binfmt installs handler
-        #      definitions but does NOT enable them on the runner. Use
-        #      update-binfmts --enable, then ensure the docker daemon sees
-        #      the host binfmt_misc mount via setup-qemu-action.
+      - name: Install qemu-user binaries (pi-gen host check)
+        # pi-gen's build-docker.sh runs `which qemu-aarch64` (or qemu-arm)
+        # on the host before launching its Docker build. ubuntu-24.04 ships
+        # qemu-user-static with -static-suffixed binaries; remove it and
+        # install qemu-user for the un-suffixed names pi-gen expects.
+        # Do NOT install qemu-user-binfmt: its Debian-style binfmt handlers
+        # register without the F-flag, which the next step's Docker-aware
+        # handlers need to override.
         run: |
           sudo apt-get update
-          sudo apt-get remove -y qemu-user-static || true
-          sudo apt-get install -y --no-install-recommends \
-            qemu-user-binfmt binfmt-support
+          sudo apt-get remove -y qemu-user-static qemu-user-binfmt || true
+          sudo apt-get install -y --no-install-recommends qemu-user
           which qemu-aarch64 qemu-arm
-          sudo update-binfmts --enable
-          ls /proc/sys/fs/binfmt_misc/ | head -20
 
-      - name: Register binfmt handlers for docker
+      - name: Register binfmt handlers (F-flag for Docker chroot)
         uses: docker/setup-qemu-action@v3
+        with:
+          # Force re-registration so any stale handlers from preinstalled
+          # qemu-user-static cannot win the binfmt slot.
+          image: tonistiigi/binfmt:latest
+          platforms: arm64,arm
+
+      - name: Verify binfmt is active for ARM
+        run: |
+          ls /proc/sys/fs/binfmt_misc/
+          cat /proc/sys/fs/binfmt_misc/qemu-aarch64 | head -5
+          cat /proc/sys/fs/binfmt_misc/qemu-arm | head -5
 
       - name: Checkout pi-gen (pinned)
         uses: actions/checkout@v4

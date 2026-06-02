@@ -36,13 +36,14 @@ permissions:
 
 # pi-gen upstream is pinned to a commit, NOT a branch head, for reproducible
 # images (supply-chain F7). Refresh before a release and update here:
-#   git ls-remote https://github.com/RPi-Distro/pi-gen arm64
-# arm64 SHA mirrors scripts/pi-gen-stage/stage-tonado/README.md (2026-04-23).
-# armhf has no pinned SHA yet — it tracks `master` as a transitional value.
-# TODO(before first armhf release): pin PI_GEN_REF_ARMHF to a master commit.
+#   git ls-remote https://github.com/RPi-Distro/pi-gen master
+# Both arches build from master today; the historical `arm64` branch is
+# unmaintained (last commit 2026-04-23) and has stale Debian archive keys
+# that break debootstrap (NO_PUBKEY 6ED0E7B82643E131 etc).
+# Refreshed 2026-06-02 → master HEAD d2f70c5...
 env:
-  PI_GEN_REF_ARM64: '4ad56cc850fa60adcc7f07dc15879bc95cc1d281'
-  PI_GEN_REF_ARMHF: 'master'
+  PI_GEN_REF_ARM64: 'd2f70c5af1f007626c52f773f8e22209c4a34d38'
+  PI_GEN_REF_ARMHF: 'd2f70c5af1f007626c52f773f8e22209c4a34d38'
 
 jobs:
   build:

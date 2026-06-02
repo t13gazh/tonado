@@ -102,15 +102,17 @@ jobs:
       - name: Install QEMU userland for ARM chroot
         # pi-gen's build-docker.sh explicitly checks `which qemu-aarch64`
         # (or qemu-arm for armhf) on the host before launching the Docker
-        # build. docker/setup-qemu-action registers binfmt handlers but does
-        # NOT place those binaries on the host PATH, so we install them via
-        # apt. qemu-user-binfmt also installs binfmt-misc registrations as a
-        # belt-and-suspenders alternative to the multiarch/qemu-user-static
-        # image. binfmt-support is the systemd unit that activates them.
+        # build. The GitHub ubuntu-24.04 runner ships qemu-user-static, whose
+        # binaries are named qemu-aarch64-static — pi-gen's check fails on
+        # the un-suffixed name. qemu-user-binfmt pulls qemu-user, which
+        # provides qemu-aarch64 / qemu-arm directly. The two packages
+        # conflict on binfmt registration paths, so replace one with the
+        # other. binfmt-support activates the registrations.
         run: |
           sudo apt-get update
+          sudo apt-get remove -y qemu-user-static || true
           sudo apt-get install -y --no-install-recommends \
-            qemu-user-static qemu-user-binfmt binfmt-support
+            qemu-user-binfmt binfmt-support
           which qemu-aarch64 qemu-arm
 
       - name: Checkout pi-gen (pinned)

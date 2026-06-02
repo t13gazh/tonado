@@ -100,20 +100,28 @@ jobs:
           echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"
 
       - name: Install QEMU userland for ARM chroot
-        # pi-gen's build-docker.sh explicitly checks `which qemu-aarch64`
-        # (or qemu-arm for armhf) on the host before launching the Docker
-        # build. The GitHub ubuntu-24.04 runner ships qemu-user-static, whose
-        # binaries are named qemu-aarch64-static — pi-gen's check fails on
-        # the un-suffixed name. qemu-user-binfmt pulls qemu-user, which
-        # provides qemu-aarch64 / qemu-arm directly. The two packages
-        # conflict on binfmt registration paths, so replace one with the
-        # other. binfmt-support activates the registrations.
+        # pi-gen's build-docker.sh checks `which qemu-aarch64` (or qemu-arm)
+        # on the host AND relies on binfmt_misc handlers being active for
+        # the ARM target. Two separate concerns:
+        #   1. Binaries on host PATH: ubuntu-24.04 ships qemu-user-static
+        #      (binaries suffixed -static), which conflicts on registration
+        #      paths with qemu-user-binfmt. Replace it so we get un-suffixed
+        #      qemu-aarch64 / qemu-arm from qemu-user.
+        #   2. binfmt_misc activation: qemu-user-binfmt installs handler
+        #      definitions but does NOT enable them on the runner. Use
+        #      update-binfmts --enable, then ensure the docker daemon sees
+        #      the host binfmt_misc mount via setup-qemu-action.
         run: |
           sudo apt-get update
           sudo apt-get remove -y qemu-user-static || true
           sudo apt-get install -y --no-install-recommends \
             qemu-user-binfmt binfmt-support
           which qemu-aarch64 qemu-arm
+          sudo update-binfmts --enable
+          ls /proc/sys/fs/binfmt_misc/ | head -20
+
+      - name: Register binfmt handlers for docker
+        uses: docker/setup-qemu-action@v3
 
       - name: Checkout pi-gen (pinned)
         uses: actions/checkout@v4

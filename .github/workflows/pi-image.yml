@@ -35,14 +35,17 @@ permissions:
   attestations: write  # attest-build-provenance
 
 # pi-gen upstream is pinned to a commit, NOT a branch head, for reproducible
-# images (supply-chain F7). Refresh before a release and update here:
-#   git ls-remote https://github.com/RPi-Distro/pi-gen arm64
-# arm64 SHA mirrors scripts/pi-gen-stage/stage-tonado/README.md (2026-04-23).
-# armhf has no pinned SHA yet — it tracks `master` as a transitional value.
-# TODO(before first armhf release): pin PI_GEN_REF_ARMHF to a master commit.
+# images (supply-chain F7). pi-gen has per-release branches:
+#   master           → trixie (Debian 13, current testing)
+#   bookworm         → armhf  for Debian 12 / Pi OS 12 stable
+#   bookworm-arm64   → arm64  for Debian 12 / Pi OS 12 stable
+# Tonado targets Pi OS Bookworm (matches Pi 3B+ live test, HifiBerry,
+# MFRC522 fix). Refresh before a release and update here:
+#   git ls-remote --heads https://github.com/RPi-Distro/pi-gen
+# Refreshed 2026-06-02 → bookworm branch HEADs:
 env:
-  PI_GEN_REF_ARM64: '4ad56cc850fa60adcc7f07dc15879bc95cc1d281'
-  PI_GEN_REF_ARMHF: 'master'
+  PI_GEN_REF_ARM64: '67262a4ad0959aab2a9d84a6392b1967999e8f50'
+  PI_GEN_REF_ARMHF: 'de9df5623109331cebf990578f342583d9138376'
 
 jobs:
   build:
@@ -77,30 +80,64 @@ jobs:
         run: |
           set -euo pipefail
           case "$EVENT" in
-            push)              TAG="$REF_NAME" ;;
-            workflow_dispatch) TAG="$INPUT_TAG" ;;
+            push)              TAG="$REF_NAME";  GIT_REF="$REF_NAME" ;;
+            workflow_dispatch) TAG="$INPUT_TAG"; GIT_REF="$INPUT_TAG" ;;
             pull_request)
-              # No tag exists for a PR. Build the latest existing release tag to
-              # exercise the stage mechanics. The cloned CODE is that release;
-              # the STAGE under test comes from the PR checkout above.
-              TAG="$(git describe --tags --abbrev=0 --match 'v*')"
+              # No release tag exists for a PR. Build 'main' so the stage
+              # under test exercises the actual current code (units, scripts,
+              # frontend build). Using the last release tag would fail any
+              # stage that references files added after that tag — exactly
+              # the post-release wave we are about to ship.
+              # GitHub's PR checkout does not create a local 'main' branch,
+              # only the remote tracking ref — resolve via origin/main, but
+              # the in-chroot 'git clone --branch main' still works fine
+              # because that hits github.com directly.
+              TAG="main"
+              GIT_REF="origin/main"
               ;;
             *) echo "Unsupported event $EVENT" >&2; exit 1 ;;
           esac
           [ -n "${TAG:-}" ] || { echo "Could not resolve a build tag." >&2; exit 1; }
           # The stage runs `git clone --branch <TAG>` and checks the clone's HEAD
-          # against EXPECTED_SHA, so resolve the TAG's commit (not the PR head).
-          SHA="$(git rev-parse "${TAG}^{commit}")"
-          # The committed frontend must exist AT THAT TAG, else the in-chroot
+          # against EXPECTED_SHA, so resolve the ref's commit (not the PR head).
+          SHA="$(git rev-parse "${GIT_REF}^{commit}")"
+          # The committed frontend must exist AT THAT REF, else the in-chroot
           # stage fails late (02-tonado-code checks the same thing).
-          git cat-file -e "${TAG}:web/build/index.html" 2>/dev/null \
-            || { echo "web/build/index.html missing in $TAG" >&2; exit 1; }
+          git cat-file -e "${GIT_REF}:web/build/index.html" 2>/dev/null \
+            || { echo "web/build/index.html missing in $GIT_REF" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"
 
-      - name: Set up QEMU (binfmt for ARM chroot)
+      - name: Install qemu-user binaries (pi-gen host check)
+        # pi-gen's build-docker.sh runs `which qemu-aarch64-static` (older
+        # bookworm branches) OR `which qemu-aarch64` (newer master) on the
+        # host before launching its Docker build. Install BOTH variants:
+        #   qemu-user         → /usr/bin/qemu-aarch64 (dynamic)
+        #   qemu-user-static  → /usr/bin/qemu-aarch64-static (static)
+        # They do NOT conflict with each other. We exclude qemu-user-binfmt
+        # because its Debian-style binfmt handlers register without the
+        # F-flag, and the next step needs Docker-aware handlers (F-flag).
+        run: |
+          sudo apt-get update
+          sudo apt-get remove -y qemu-user-binfmt || true
+          sudo apt-get install -y --no-install-recommends \
+            qemu-user qemu-user-static
+          which qemu-aarch64 qemu-arm qemu-aarch64-static qemu-arm-static
+
+      - name: Register binfmt handlers (F-flag for Docker chroot)
         uses: docker/setup-qemu-action@v3
+        with:
+          # Force re-registration so any stale handlers from preinstalled
+          # qemu-user-static cannot win the binfmt slot.
+          image: tonistiigi/binfmt:latest
+          platforms: arm64,arm
+
+      - name: Verify binfmt is active for ARM
+        run: |
+          ls /proc/sys/fs/binfmt_misc/
+          cat /proc/sys/fs/binfmt_misc/qemu-aarch64 | head -5
+          cat /proc/sys/fs/binfmt_misc/qemu-arm | head -5
 
       - name: Checkout pi-gen (pinned)
         uses: actions/checkout@v4
@@ -129,9 +166,13 @@ jobs:
             echo "DEPLOY_ZIP=0"
             # No default password — the Imager forces the user to set one.
             echo "DISABLE_FIRST_BOOT_USER_RENAME=0"
-            # Consumed by stage-tonado/02-tonado-code + 03-tonado-finalize.
-            echo "TONADO_VERSION='${{ steps.meta.outputs.tag }}'"
-            echo "TONADO_EXPECTED_SHA='${{ steps.meta.outputs.sha }}'"
+            # Tonado-specific. MUST be exported so sub-shells (our
+            # 00-run-chroot.sh, 03-tonado-finalize/00-run.sh) inherit
+            # them. pi-gen's standard vars above happen to work without
+            # export because pi-gen exports them itself; custom vars
+            # need the explicit `export`.
+            echo "export TONADO_VERSION='${{ steps.meta.outputs.tag }}'"
+            echo "export TONADO_EXPECTED_SHA='${{ steps.meta.outputs.sha }}'"
             if [ "${{ matrix.arch }}" = "armhf" ]; then
               echo "ARCH='armhf'"
             fi
@@ -144,6 +185,13 @@ jobs:
         run: sudo --preserve-env=DEBIAN_FRONTEND ./build-docker.sh
         env:
           DEBIAN_FRONTEND: noninteractive
+
+      - name: Hand deploy/ to runner user
+        # pi-gen runs the build under sudo, so everything in deploy/ is owned
+        # by root. Downstream steps (mv, sha256sum, cosign sign-blob, gh
+        # release upload) run as the runner user and would hit EPERM. Reclaim
+        # ownership in one place rather than sprinkling sudo through each step.
+        run: sudo chown -R "$USER:$USER" pi-gen/deploy
 
       - name: Locate + rename image
         id: img

@@ -186,6 +186,13 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
 
+      - name: Hand deploy/ to runner user
+        # pi-gen runs the build under sudo, so everything in deploy/ is owned
+        # by root. Downstream steps (mv, sha256sum, cosign sign-blob, gh
+        # release upload) run as the runner user and would hit EPERM. Reclaim
+        # ownership in one place rather than sprinkling sudo through each step.
+        run: sudo chown -R "$USER:$USER" pi-gen/deploy
+
       - name: Locate + rename image
         id: img
         run: |

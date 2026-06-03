@@ -35,15 +35,17 @@ permissions:
   attestations: write  # attest-build-provenance
 
 # pi-gen upstream is pinned to a commit, NOT a branch head, for reproducible
-# images (supply-chain F7). Refresh before a release and update here:
-#   git ls-remote https://github.com/RPi-Distro/pi-gen master
-# Both arches build from master today; the historical `arm64` branch is
-# unmaintained (last commit 2026-04-23) and has stale Debian archive keys
-# that break debootstrap (NO_PUBKEY 6ED0E7B82643E131 etc).
-# Refreshed 2026-06-02 → master HEAD d2f70c5...
+# images (supply-chain F7). pi-gen has per-release branches:
+#   master           → trixie (Debian 13, current testing)
+#   bookworm         → armhf  for Debian 12 / Pi OS 12 stable
+#   bookworm-arm64   → arm64  for Debian 12 / Pi OS 12 stable
+# Tonado targets Pi OS Bookworm (matches Pi 3B+ live test, HifiBerry,
+# MFRC522 fix). Refresh before a release and update here:
+#   git ls-remote --heads https://github.com/RPi-Distro/pi-gen
+# Refreshed 2026-06-02 → bookworm branch HEADs:
 env:
-  PI_GEN_REF_ARM64: 'd2f70c5af1f007626c52f773f8e22209c4a34d38'
-  PI_GEN_REF_ARMHF: 'd2f70c5af1f007626c52f773f8e22209c4a34d38'
+  PI_GEN_REF_ARM64: '67262a4ad0959aab2a9d84a6392b1967999e8f50'
+  PI_GEN_REF_ARMHF: 'de9df5623109331cebf990578f342583d9138376'
 
 jobs:
   build:

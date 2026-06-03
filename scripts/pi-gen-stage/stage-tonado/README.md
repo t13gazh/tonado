@@ -7,6 +7,11 @@ Architektur-Referenz: [`docs/fuer-entwickler/pi-image-architecture.md`](../../..
 > Zielgruppe dieser README: Maintainer, die lokal ein Image bauen wollen. Eltern
 > sehen nur das fertige `.img.xz` auf der GitHub-Releases-Seite.
 
+> Im Normalfall **muss niemand mehr lokal bauen**: GitHub Actions
+> (`.github/workflows/pi-image.yml`) baut beide Architekturen aus jedem
+> `v*`-Tag, signiert sie via Cosign keyless und haengt sie an das Release.
+> Die lokalen Schritte unten sind Backup fuer Debugging und Bring-up.
+
 ## Voraussetzungen
 
 - Ubuntu 24.04 LTS **oder** WSL2 mit Ubuntu 24.04

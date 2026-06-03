@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-: "${TONADO_VERSION:=unknown}"
+: "${TONADO_VERSION:?TONADO_VERSION must be set (exported in pi-gen config)}"
 
 on_chroot << EOF
 set -euo pipefail

@@ -159,9 +159,13 @@ jobs:
             echo "DEPLOY_ZIP=0"
             # No default password — the Imager forces the user to set one.
             echo "DISABLE_FIRST_BOOT_USER_RENAME=0"
-            # Consumed by stage-tonado/02-tonado-code + 03-tonado-finalize.
-            echo "TONADO_VERSION='${{ steps.meta.outputs.tag }}'"
-            echo "TONADO_EXPECTED_SHA='${{ steps.meta.outputs.sha }}'"
+            # Tonado-specific. MUST be exported so sub-shells (our
+            # 00-run-chroot.sh, 03-tonado-finalize/00-run.sh) inherit
+            # them. pi-gen's standard vars above happen to work without
+            # export because pi-gen exports them itself; custom vars
+            # need the explicit `export`.
+            echo "export TONADO_VERSION='${{ steps.meta.outputs.tag }}'"
+            echo "export TONADO_EXPECTED_SHA='${{ steps.meta.outputs.sha }}'"
             if [ "${{ matrix.arch }}" = "armhf" ]; then
               echo "ARCH='armhf'"
             fi

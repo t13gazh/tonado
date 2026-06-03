@@ -83,10 +83,12 @@ jobs:
             push)              TAG="$REF_NAME" ;;
             workflow_dispatch) TAG="$INPUT_TAG" ;;
             pull_request)
-              # No tag exists for a PR. Build the latest existing release tag to
-              # exercise the stage mechanics. The cloned CODE is that release;
-              # the STAGE under test comes from the PR checkout above.
-              TAG="$(git describe --tags --abbrev=0 --match 'v*')"
+              # No release tag exists for a PR. Build 'main' so the stage
+              # under test exercises the actual current code (units, scripts,
+              # frontend build). Using the last release tag would fail any
+              # stage that references files added after that tag — exactly
+              # the post-release wave we are about to ship.
+              TAG="main"
               ;;
             *) echo "Unsupported event $EVENT" >&2; exit 1 ;;
           esac

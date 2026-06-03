@@ -80,26 +80,31 @@ jobs:
         run: |
           set -euo pipefail
           case "$EVENT" in
-            push)              TAG="$REF_NAME" ;;
-            workflow_dispatch) TAG="$INPUT_TAG" ;;
+            push)              TAG="$REF_NAME";  GIT_REF="$REF_NAME" ;;
+            workflow_dispatch) TAG="$INPUT_TAG"; GIT_REF="$INPUT_TAG" ;;
             pull_request)
               # No release tag exists for a PR. Build 'main' so the stage
               # under test exercises the actual current code (units, scripts,
               # frontend build). Using the last release tag would fail any
               # stage that references files added after that tag — exactly
               # the post-release wave we are about to ship.
+              # GitHub's PR checkout does not create a local 'main' branch,
+              # only the remote tracking ref — resolve via origin/main, but
+              # the in-chroot 'git clone --branch main' still works fine
+              # because that hits github.com directly.
               TAG="main"
+              GIT_REF="origin/main"
               ;;
             *) echo "Unsupported event $EVENT" >&2; exit 1 ;;
           esac
           [ -n "${TAG:-}" ] || { echo "Could not resolve a build tag." >&2; exit 1; }
           # The stage runs `git clone --branch <TAG>` and checks the clone's HEAD
-          # against EXPECTED_SHA, so resolve the TAG's commit (not the PR head).
-          SHA="$(git rev-parse "${TAG}^{commit}")"
-          # The committed frontend must exist AT THAT TAG, else the in-chroot
+          # against EXPECTED_SHA, so resolve the ref's commit (not the PR head).
+          SHA="$(git rev-parse "${GIT_REF}^{commit}")"
+          # The committed frontend must exist AT THAT REF, else the in-chroot
           # stage fails late (02-tonado-code checks the same thing).
-          git cat-file -e "${TAG}:web/build/index.html" 2>/dev/null \
-            || { echo "web/build/index.html missing in $TAG" >&2; exit 1; }
+          git cat-file -e "${GIT_REF}:web/build/index.html" 2>/dev/null \
+            || { echo "web/build/index.html missing in $GIT_REF" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"

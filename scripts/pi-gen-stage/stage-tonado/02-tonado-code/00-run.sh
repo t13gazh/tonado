@@ -20,10 +20,15 @@ set -euo pipefail
 : "${TONADO_REPO:=https://github.com/t13gazh/tonado.git}"
 : "${TONADO_EXPECTED_SHA:=}"
 
-# Strip a leading "v" if present, then re-add it for the git ref -- lets the
-# caller write either form without ambiguity.
-TONADO_TAG="${TONADO_VERSION#v}"
-TONADO_TAG="v${TONADO_TAG}"
+# Normalize the git ref. Three accepted forms:
+#   '0.3.1-beta' / 'v0.3.1-beta' → 'v0.3.1-beta' (release tag)
+#   'main' or other branch name  → unchanged (PR dry-runs build main)
+#   bare commit SHA              → unchanged (not currently used)
+if [[ "${TONADO_VERSION}" =~ ^v?[0-9]+\. ]]; then
+    TONADO_TAG="v${TONADO_VERSION#v}"
+else
+    TONADO_TAG="${TONADO_VERSION}"
+fi
 
 install -d -o 1000 -g 1000 "${ROOTFS_DIR}/opt"
 

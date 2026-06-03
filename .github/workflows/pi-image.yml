@@ -103,18 +103,20 @@ jobs:
           echo "Building Tonado $TAG ($SHA) for ${{ matrix.target }}"
 
       - name: Install qemu-user binaries (pi-gen host check)
-        # pi-gen's build-docker.sh runs `which qemu-aarch64` (or qemu-arm)
-        # on the host before launching its Docker build. ubuntu-24.04 ships
-        # qemu-user-static with -static-suffixed binaries; remove it and
-        # install qemu-user for the un-suffixed names pi-gen expects.
-        # Do NOT install qemu-user-binfmt: its Debian-style binfmt handlers
-        # register without the F-flag, which the next step's Docker-aware
-        # handlers need to override.
+        # pi-gen's build-docker.sh runs `which qemu-aarch64-static` (older
+        # bookworm branches) OR `which qemu-aarch64` (newer master) on the
+        # host before launching its Docker build. Install BOTH variants:
+        #   qemu-user         → /usr/bin/qemu-aarch64 (dynamic)
+        #   qemu-user-static  → /usr/bin/qemu-aarch64-static (static)
+        # They do NOT conflict with each other. We exclude qemu-user-binfmt
+        # because its Debian-style binfmt handlers register without the
+        # F-flag, and the next step needs Docker-aware handlers (F-flag).
         run: |
           sudo apt-get update
-          sudo apt-get remove -y qemu-user-static qemu-user-binfmt || true
-          sudo apt-get install -y --no-install-recommends qemu-user
-          which qemu-aarch64 qemu-arm
+          sudo apt-get remove -y qemu-user-binfmt || true
+          sudo apt-get install -y --no-install-recommends \
+            qemu-user qemu-user-static
+          which qemu-aarch64 qemu-arm qemu-aarch64-static qemu-arm-static
 
       - name: Register binfmt handlers (F-flag for Docker chroot)
         uses: docker/setup-qemu-action@v3

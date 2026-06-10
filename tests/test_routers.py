@@ -1289,9 +1289,7 @@ async def test_confirm_complete_with_fresh_token_accepted(
 
     c, _ = client
     marker = tmp_path / "marker" / ".setup-complete"
-    unmanaged = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
     monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
-    monkeypatch.setattr(ws_mod.WifiService, "NM_UNMANAGED_CONF", unmanaged)
     ws_mod.clear_confirm_tokens()
 
     # Probe in mock mode issues a real token.
@@ -1326,9 +1324,7 @@ async def test_confirm_complete_token_in_query_param(client, tmp_path, monkeypat
 
     c, _ = client
     marker = tmp_path / "marker" / ".setup-complete"
-    unmanaged = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
     monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
-    monkeypatch.setattr(ws_mod.WifiService, "NM_UNMANAGED_CONF", unmanaged)
     ws_mod.clear_confirm_tokens()
 
     resp = await c.post(

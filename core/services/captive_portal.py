@@ -1,10 +1,19 @@
-"""Captive portal service for first-boot WiFi setup.
+"""Captive portal service for the runtime WiFi *recovery* AP.
 
-Creates a temporary WiFi access point (AP) so the user can connect
-with their smartphone and configure the real WiFi network via the
-setup wizard.
+Spins up a temporary WiFi access point so a phone can reconnect and
+reconfigure WiFi when the box loses its known network (taken to grandma's,
+in the car, …). Music keeps playing from the local library; this AP just
+makes the app reachable again.
 
-Uses hostapd for AP mode and dnsmasq for DHCP + DNS redirect.
+This is NOT the first-boot setup AP. That one is owned by systemd
+(`tonado-ap.service` → `setup-ap.sh start open`) and is deliberately OPEN,
+because the parents have no credentials yet. The recovery AP handled here is
+WPA2 and uses the SSID + password the parents picked in the setup wizard.
+
+All privileged network operations are delegated to `system/setup-ap.sh` via
+`sudo -n`: this process runs as the unprivileged `tonado` user and must never
+drive hostapd/dnsmasq/ip/nmcli itself. setup-ap.sh is the single source of
+truth for bringing wlan0 up as an AP and handing it back to NetworkManager.
 """
 
 import asyncio
@@ -12,7 +21,6 @@ import logging
 import secrets
 import shutil
 import time
-from pathlib import Path
 from typing import Any, Literal
 
 from core.services.base import BaseService
@@ -23,30 +31,12 @@ logger = logging.getLogger(__name__)
 
 PortalOwner = Literal["setup", "auto", "manual"]
 
-_HOSTAPD_CONF = """\
-interface=wlan0
-driver=nl80211
-ssid={ssid}
-hw_mode=g
-channel=7
-wmm_enabled=0
-macaddr_acl=0
-auth_algs=1
-ignore_broadcast_ssid=0
-wpa=2
-wpa_key_mgmt=WPA-PSK
-rsn_pairwise=CCMP
-wpa_passphrase={password}
-"""
+# The single privileged AP mechanism. Every wlan0 mutation is delegated to it
+# via sudo; see system/sudoers.d/tonado for the matching NOPASSWD grants.
+SETUP_AP_SCRIPT = "/opt/tonado/system/setup-ap.sh"
 
-_DNSMASQ_CONF = """\
-interface=wlan0
-bind-interfaces
-dhcp-range=192.168.4.2,192.168.4.20,255.255.255.0,24h
-address=/#/192.168.4.1
-"""
-
-AP_SSID_PREFIX = "Tonado-Setup"
+AP_SSID_DEFAULT = "Tonado"
+CONFIG_KEY_SSID = "captive_portal.ap_ssid"
 CONFIG_KEY_PASSWORD = "captive_portal.ap_password"
 CONFIG_KEY_TIMEOUT = "captive_portal.timeout_minutes"
 DEFAULT_TIMEOUT_MINUTES = 30
@@ -54,7 +44,8 @@ MIN_PASSWORD_LENGTH = 10
 
 
 class CaptivePortalService(BaseService):
-    """Manages the captive portal AP for first-boot WiFi configuration."""
+    """Manages the runtime recovery AP. State (active/owner/timeout/creds)
+    lives here; the actual wlan0 work is delegated to setup-ap.sh."""
 
     def __init__(
         self,
@@ -62,13 +53,9 @@ class CaptivePortalService(BaseService):
         config_service: ConfigService | None = None,
     ) -> None:
         super().__init__()
-        self._ssid = ssid or f"{AP_SSID_PREFIX}"
+        self._ssid = ssid or AP_SSID_DEFAULT
         self._config = config_service
-        self._hostapd_conf = Path("/tmp/tonado-hostapd.conf")
-        self._dnsmasq_conf = Path("/tmp/tonado-dnsmasq.conf")
         self._active = False
-        self._hostapd_proc: asyncio.subprocess.Process | None = None
-        self._dnsmasq_proc: asyncio.subprocess.Process | None = None
         self._password: str = ""
         self._timeout_seconds: int = DEFAULT_TIMEOUT_MINUTES * 60
         self._timeout_task: asyncio.Task[None] | None = None
@@ -109,6 +96,14 @@ class CaptivePortalService(BaseService):
             "owner": self._owner,
         }
 
+    async def _load_ssid(self) -> str:
+        """Read the AP SSID from config, falling back to the default."""
+        if self._config is not None:
+            stored = await self._config.get(CONFIG_KEY_SSID)
+            if isinstance(stored, str) and stored.strip():
+                return stored.strip()
+        return self._ssid
+
     async def _load_or_generate_password(self) -> str:
         """Read the AP password from config or generate + persist a new one."""
         if self._config is not None:
@@ -129,7 +124,9 @@ class CaptivePortalService(BaseService):
         password = self._password or await self._load_or_generate_password()
         if not self._password:
             self._password = password
-        return {"ssid": self._ssid, "password": password}
+        ssid = await self._load_ssid()
+        self._ssid = ssid
+        return {"ssid": ssid, "password": password}
 
     async def _load_timeout_seconds(self) -> int:
         if self._config is None:
@@ -142,20 +139,21 @@ class CaptivePortalService(BaseService):
         return max(1, int(minutes * 60))
 
     async def start(self, owner: PortalOwner = "manual") -> bool:
-        """Start the captive portal AP.
+        """Start the recovery AP (WPA2) by delegating to setup-ap.sh.
 
-        Returns True if successfully started, False if prerequisites missing.
+        Returns True if successfully started, False if prerequisites are
+        missing or the script failed.
 
-        `owner` records who triggered the start: "setup" (first-boot wizard),
-        "auto" (ConnectivityMonitor fallback) or "manual" (expert endpoint).
-        ConnectivityMonitor uses this to decide whether it may stop the portal
-        on WiFi recovery — it must never stop one it did not start.
+        `owner` records who triggered the start: "setup", "auto"
+        (ConnectivityMonitor fallback) or "manual" (expert endpoint).
+        ConnectivityMonitor uses this to decide whether it may stop the
+        portal on WiFi recovery — it must never stop one it did not start.
         """
         if self._active:
             logger.warning("Captive portal already active (owner=%s)", self._owner)
             return True
 
-        # Check prerequisites
+        # Prerequisites: setup-ap.sh needs these binaries to be present.
         if not shutil.which("hostapd") or not shutil.which("dnsmasq"):
             logger.warning(
                 "hostapd or dnsmasq not installed — captive portal unavailable. "
@@ -164,65 +162,27 @@ class CaptivePortalService(BaseService):
             return False
 
         self._password = await self._load_or_generate_password()
+        self._ssid = await self._load_ssid()
         self._timeout_seconds = await self._load_timeout_seconds()
 
-        try:
-            # Stop any existing WiFi connection
-            await self._run("nmcli", "device", "disconnect", "wlan0")
-
-            # Configure static IP for AP
-            await self._run(
-                "ip", "addr", "flush", "dev", "wlan0",
-            )
-            await self._run(
-                "ip", "addr", "add", "192.168.4.1/24", "dev", "wlan0",
-            )
-            await self._run("ip", "link", "set", "wlan0", "up")
-
-            # Write config files
-            self._hostapd_conf.write_text(
-                _HOSTAPD_CONF.format(ssid=self._ssid, password=self._password)
-            )
-            self._dnsmasq_conf.write_text(_DNSMASQ_CONF)
-
-            # Start hostapd
-            self._hostapd_proc = await asyncio.create_subprocess_exec(
-                "hostapd", str(self._hostapd_conf),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            # Start dnsmasq
-            self._dnsmasq_proc = await asyncio.create_subprocess_exec(
-                "dnsmasq", "-C", str(self._dnsmasq_conf), "--no-daemon",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            # Brief wait to check if processes started successfully
-            await asyncio.sleep(1)
-            if self._hostapd_proc.returncode is not None:
-                logger.error("hostapd failed to start")
-                await self.stop()
-                return False
-
-            self._active = True
-            self._started_at = time.monotonic()
-            self._owner = owner
-            logger.warning(
-                "Captive portal started: owner=%s SSID=%s password=%s timeout=%dmin ip=192.168.4.1",
-                owner,
-                self._ssid,
-                self._password,
-                self._timeout_seconds // 60,
-            )
-            self._timeout_task = asyncio.create_task(self._auto_timeout())
-            return True
-
-        except Exception as e:
-            logger.error("Failed to start captive portal: %s", e)
+        rc = await self._run_ap("start", "secured", self._ssid, self._password)
+        if rc != 0:
+            logger.error("setup-ap.sh start failed (rc=%s) — recovery AP not up", rc)
+            # Best-effort cleanup in case the script half-configured wlan0.
             await self.stop()
             return False
+
+        self._active = True
+        self._started_at = time.monotonic()
+        self._owner = owner
+        logger.warning(
+            "Recovery AP started: owner=%s SSID=%s timeout=%dmin ip=192.168.4.1",
+            owner,
+            self._ssid,
+            self._timeout_seconds // 60,
+        )
+        self._timeout_task = asyncio.create_task(self._auto_timeout())
+        return True
 
     async def _auto_timeout(self) -> None:
         """Stop the portal once the configured timeout elapses."""
@@ -238,7 +198,7 @@ class CaptivePortalService(BaseService):
             await self.stop()
 
     async def stop(self) -> None:
-        """Stop the captive portal and restore normal WiFi."""
+        """Stop the recovery AP and restore normal WiFi via setup-ap.sh."""
         if self._timeout_task is not None and not self._timeout_task.done():
             self._timeout_task.cancel()
             try:
@@ -247,34 +207,24 @@ class CaptivePortalService(BaseService):
                 pass
         self._timeout_task = None
 
-        if self._hostapd_proc and self._hostapd_proc.returncode is None:
-            self._hostapd_proc.terminate()
-            await self._hostapd_proc.wait()
-
-        if self._dnsmasq_proc and self._dnsmasq_proc.returncode is None:
-            self._dnsmasq_proc.terminate()
-            await self._dnsmasq_proc.wait()
-
-        # Clean up config files
-        self._hostapd_conf.unlink(missing_ok=True)
-        self._dnsmasq_conf.unlink(missing_ok=True)
-
-        # Restore wlan0
-        await self._run("ip", "addr", "flush", "dev", "wlan0")
-
-        # Restart NetworkManager if available
-        if shutil.which("nmcli"):
-            await self._run("nmcli", "device", "set", "wlan0", "managed", "yes")
+        # `setup-ap.sh stop` is idempotent (pkill || true, managed yes) so it's
+        # safe to call even if start() never fully brought the AP up.
+        await self._run_ap("stop")
 
         self._active = False
         self._started_at = None
         self._owner = None
-        self._hostapd_proc = None
-        self._dnsmasq_proc = None
         logger.info("Captive portal stopped")
 
     @staticmethod
-    async def _run(*cmd: str) -> int:
-        """Run a system command, suppressing errors."""
-        rc, _, _ = await async_run(list(cmd))
+    async def _run_ap(*args: str) -> int:
+        """Delegate a privileged AP operation to setup-ap.sh via sudo.
+
+        Returns the script's exit code (async_run yields 1 if sudo or the
+        script is missing — e.g. on a dev box — which we treat as failure
+        without raising).
+        """
+        rc, _, stderr = await async_run(["sudo", "-n", SETUP_AP_SCRIPT, *args])
+        if rc != 0 and stderr.strip():
+            logger.debug("setup-ap.sh %s: %s", " ".join(args), stderr.strip())
         return rc

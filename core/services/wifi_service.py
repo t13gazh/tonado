@@ -437,9 +437,6 @@ class WifiService(BaseService):
     PROBE_CONNECTION_NAME = "tonado-home-probe"
 
     SETUP_COMPLETE_MARKER = Path("/opt/tonado/config/.setup-complete")
-    NM_UNMANAGED_CONF = Path(
-        "/etc/NetworkManager/conf.d/99-tonado-wlan0-unmanaged.conf"
-    )
 
     async def probe_home_wifi(
         self,
@@ -631,11 +628,11 @@ class WifiService(BaseService):
              interrupted. Written via tempfile+rename so a mid-write
              power loss can't leave a zero-byte marker that downstream
              code would still consider "setup done".
-          2. Stop and disable the systemd AP unit (via sudo).
-          3. Drop the NetworkManager "unmanaged wlan0" override so NM
-             takes full control of the interface again — otherwise the
-             home-WiFi connection we're relying on would be suspended the
-             next time the AP would have claimed wlan0.
+          2. Stop and disable the systemd AP unit (via sudo). Stopping it
+             runs its ExecStop (setup-ap.sh stop), which kills hostapd/
+             dnsmasq and hands wlan0 back to NetworkManager — wlan0 is only
+             unmanaged while the AP is up, so there is no static override to
+             remove.
 
         Raises:
             RuntimeError: if any of the step-2/3 commands failed on a
@@ -686,7 +683,9 @@ class WifiService(BaseService):
             # 2. Stop and disable the AP unit via sudoers. We shell out
             #    with explicit sudo so the exact argv matches the
             #    sudoers.d/tonado grants — any drift there results in a
-            #    password prompt which would hang forever.
+            #    password prompt which would hang forever. Stopping the unit
+            #    runs setup-ap.sh stop, which hands wlan0 back to NM; no
+            #    separate unmanaged-conf removal is needed.
             failures: list[tuple[str, int]] = []
             for cmd in (
                 ["sudo", "-n", "systemctl", "stop", "tonado-ap.service"],
@@ -695,21 +694,6 @@ class WifiService(BaseService):
                 rc = await self._run_silent(cmd)
                 if rc != 0:
                     failures.append((" ".join(cmd), rc))
-
-            # 3. Remove the NM unmanaged drop-in so wlan0 is fully under
-            #    NM control again. The file is root-owned, so use sudo.
-            rm_cmd = ["sudo", "-n", "rm", str(self.NM_UNMANAGED_CONF)]
-            if self.NM_UNMANAGED_CONF.exists():
-                rc = await self._run_silent(rm_cmd)
-                if rc != 0:
-                    failures.append((" ".join(rm_cmd), rc))
-
-            # Ask NM to reload so the dropped conf file takes effect
-            # without a reboot. Best-effort but still reported.
-            reload_cmd = ["sudo", "-n", "nmcli", "general", "reload"]
-            rc = await self._run_silent(reload_cmd)
-            if rc != 0:
-                failures.append((" ".join(reload_cmd), rc))
 
             if failures:
                 # Leave the marker in place — a reboot will still bypass

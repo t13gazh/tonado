@@ -1,56 +1,46 @@
-"""Tests for the captive portal service — password generation + auto-timeout."""
+"""Tests for the captive portal service.
+
+Since v0.4 the service no longer drives hostapd/dnsmasq itself — it delegates
+every wlan0 operation to `setup-ap.sh` via sudo. These tests patch
+`async_run` to record the delegated commands and assert on those, plus the
+password generation / auto-timeout / owner state machine that still lives here.
+"""
 
 import asyncio
+from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from core.services.captive_portal import (
     CONFIG_KEY_PASSWORD,
+    CONFIG_KEY_SSID,
     CONFIG_KEY_TIMEOUT,
     MIN_PASSWORD_LENGTH,
+    SETUP_AP_SCRIPT,
     CaptivePortalService,
 )
 from core.services.config_service import ConfigService
 
 
-def _mock_running_proc() -> MagicMock:
-    """Create a fake process that looks like it's still running."""
-    proc = MagicMock()
-    proc.returncode = None
-    proc.terminate = MagicMock()
-    proc.wait = AsyncMock(return_value=0)
-    return proc
-
-
-def _prep_portal(portal: CaptivePortalService, tmp_path: Path) -> None:
-    """Redirect hostapd/dnsmasq config paths into tmp_path so write_text works."""
-    portal._hostapd_conf = tmp_path / "hostapd.conf"
-    portal._dnsmasq_conf = tmp_path / "dnsmasq.conf"
-
-
+@contextmanager
 def _portal_env():
-    """Context-manager stack patching subprocess + shutil.which for start()."""
-    from contextlib import ExitStack
+    """Patch shutil.which (prereq check) + async_run (sudo delegation).
 
-    stack = ExitStack()
-    stack.enter_context(
-        patch("core.services.captive_portal.shutil.which", return_value="/usr/bin/mock")
-    )
-    stack.enter_context(
-        patch(
-            "core.services.captive_portal.asyncio.create_subprocess_exec",
-            new=AsyncMock(side_effect=lambda *a, **kw: _mock_running_proc()),
-        )
-    )
-    stack.enter_context(
-        patch(
-            "core.services.captive_portal.async_run",
-            new=AsyncMock(return_value=(0, "", "")),
-        )
-    )
-    return stack
+    Yields the list of argv lists passed to async_run so tests can assert
+    on the setup-ap.sh delegation.
+    """
+    calls: list[list[str]] = []
+
+    async def fake_async_run(cmd, **kwargs):
+        calls.append(list(cmd))
+        return (0, "", "")
+
+    with patch(
+        "core.services.captive_portal.shutil.which", return_value="/usr/bin/mock"
+    ), patch("core.services.captive_portal.async_run", new=fake_async_run):
+        yield calls
 
 
 @pytest.mark.asyncio
@@ -58,7 +48,6 @@ async def test_generates_password_on_first_start(
     config_service: ConfigService, tmp_path: Path
 ) -> None:
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     # Long timeout so auto-timeout doesn't race the assertions.
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     with _portal_env():
@@ -72,21 +61,60 @@ async def test_generates_password_on_first_start(
 
 
 @pytest.mark.asyncio
-async def test_reuses_existing_password(
+async def test_start_delegates_secured_ap_to_setup_ap_script(
     config_service: ConfigService, tmp_path: Path
 ) -> None:
     await config_service.set(CONFIG_KEY_PASSWORD, "preexisting-password-12345")
+    await config_service.set(CONFIG_KEY_SSID, "Tonado-Recovery")
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
-    with _portal_env():
+    with _portal_env() as calls:
         await portal.start()
         assert portal.ap_password == "preexisting-password-12345"
-        # Confirm hostapd.conf contains WPA2 + the password
-        content = (tmp_path / "hostapd.conf").read_text()
-        assert "wpa=2" in content
-        assert "wpa_passphrase=preexisting-password-12345" in content
+        # The recovery AP must be brought up as WPA2 (secured) with the
+        # configured SSID + password, delegated via sudo to setup-ap.sh.
+        start_calls = [
+            c for c in calls if SETUP_AP_SCRIPT in c and "start" in c
+        ]
+        assert start_calls, "start must delegate to setup-ap.sh"
+        argv = start_calls[0]
+        assert argv[:2] == ["sudo", "-n"]
+        assert "secured" in argv
+        assert "Tonado-Recovery" in argv
+        assert "preexisting-password-12345" in argv
         await portal.stop()
+        # stop must also delegate
+        assert any(SETUP_AP_SCRIPT in c and "stop" in c for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_start_fails_when_script_fails(
+    config_service: ConfigService, tmp_path: Path
+) -> None:
+    await config_service.set(CONFIG_KEY_TIMEOUT, 60)
+    portal = CaptivePortalService(config_service=config_service)
+
+    async def failing_run(cmd, **kwargs):
+        # `stop` (cleanup) succeeds, `start` fails.
+        return (0 if "stop" in cmd else 5, "", "boom")
+
+    with patch(
+        "core.services.captive_portal.shutil.which", return_value="/usr/bin/mock"
+    ), patch("core.services.captive_portal.async_run", new=failing_run):
+        started = await portal.start()
+    assert started is False
+    assert portal.active is False
+
+
+@pytest.mark.asyncio
+async def test_start_returns_false_without_binaries(
+    config_service: ConfigService,
+) -> None:
+    portal = CaptivePortalService(config_service=config_service)
+    with patch("core.services.captive_portal.shutil.which", return_value=None):
+        started = await portal.start()
+    assert started is False
+    assert portal.active is False
 
 
 @pytest.mark.asyncio
@@ -94,7 +122,6 @@ async def test_timeout_stops_portal(
     config_service: ConfigService, tmp_path: Path
 ) -> None:
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     # Patch the loader to bypass the min-60s clamp on the Config path.
     with patch.object(portal, "_load_timeout_seconds", new=AsyncMock(return_value=0)):
         with _portal_env():
@@ -113,7 +140,6 @@ async def test_stop_cancels_timeout(
 ) -> None:
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     with _portal_env():
         await portal.start()
         timeout_task = portal._timeout_task
@@ -129,7 +155,6 @@ async def test_owner_defaults_to_manual_and_resets_on_stop(
 ) -> None:
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     with _portal_env():
         assert portal.owner is None
         await portal.start()
@@ -146,7 +171,6 @@ async def test_owner_records_auto_and_setup(
 ) -> None:
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     with _portal_env():
         await portal.start(owner="auto")
         assert portal.owner == "auto"
@@ -163,7 +187,6 @@ async def test_status_reports_timeout_and_password_flag(
 ) -> None:
     await config_service.set(CONFIG_KEY_TIMEOUT, 60)
     portal = CaptivePortalService(config_service=config_service)
-    _prep_portal(portal, tmp_path)
     with _portal_env():
         await portal.start()
         status = portal.status()

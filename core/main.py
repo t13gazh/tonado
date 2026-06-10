@@ -208,13 +208,14 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         setup_wizard.start(),
     )
 
-    # If setup not complete and on Pi, start captive portal
-    if not setup_wizard.is_complete and settings.hardware_mode != "mock":
-        logger.info("Setup not complete — starting captive portal")
-        await captive_portal.start(owner="setup")
+    # The first-boot setup AP is owned by systemd (tonado-ap.service →
+    # setup-ap.sh start open), NOT by this service — having both bring up
+    # wlan0 would collide. CaptivePortalService here only drives the runtime
+    # *recovery* AP, via ConnectivityMonitor or the expert /portal/start
+    # endpoint.
 
     # Auto-fallback AP monitor — only after setup is done, otherwise the
-    # setup-wizard portal and the monitor would fight over wlan0.
+    # setup AP and the monitor's recovery AP would fight over wlan0.
     connectivity_monitor = ConnectivityMonitor(
         wifi=wifi_service,
         portal=captive_portal,

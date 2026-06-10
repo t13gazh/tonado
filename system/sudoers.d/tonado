@@ -2,9 +2,10 @@
 # Deployed to /etc/sudoers.d/tonado by install.sh.
 # EDIT WITH CAUTION. Always `visudo -cf` before committing changes.
 #
-# Only the exact commands below are allowed without password.
-# No wildcards, no shell expansion — we prefer false-negative over
-# false-positive grants.
+# Only the commands below are allowed without password. We prefer exact
+# argv and avoid wildcards; the one exception (setup-ap.sh, see below)
+# carries variable WiFi credentials and is a script that never spawns a
+# shell, so the wildcard cannot expand into anything but literal argv.
 #
 # %TONADO_USER% is replaced by install.sh with the actual install user
 # (from $SUDO_USER, default "pi"). On Raspberry Pi OS Bookworm, the real
@@ -16,14 +17,19 @@
 %TONADO_USER% ALL=(root) NOPASSWD: /usr/sbin/reboot
 
 # Setup-AP teardown (called once from /api/setup/confirm-complete).
-# Exact argv strings, no wildcards — sudoers does not expand them anyway.
+# Stopping the unit runs its ExecStop (setup-ap.sh stop), which hands wlan0
+# back to NetworkManager — so no separate unmanaged-conf removal is needed.
 %TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/systemctl stop tonado-ap.service
 %TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/systemctl disable tonado-ap.service
-%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/nmcli general reload
-%TONADO_USER% ALL=(root) NOPASSWD: /usr/bin/rm /etc/NetworkManager/conf.d/99-tonado-wlan0-unmanaged.conf
+
+# Recovery AP: CaptivePortalService (runs as the unprivileged tonado user)
+# delegates every wlan0 mutation to setup-ap.sh via sudo. SSID/PSK are
+# variable, hence the trailing wildcard — setup-ap.sh never invokes a shell,
+# so the args remain literal argv.
+%TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/setup-ap.sh start secured *
+%TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/setup-ap.sh stop
 
 Defaults!/usr/bin/systemctl !setenv
 Defaults!/usr/sbin/shutdown !setenv
 Defaults!/usr/sbin/reboot !setenv
-Defaults!/usr/bin/nmcli !setenv
-Defaults!/usr/bin/rm !setenv
+Defaults!/opt/tonado/system/setup-ap.sh !setenv

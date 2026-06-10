@@ -164,7 +164,16 @@ jobs:
             echo "STAGE_LIST='stage0 stage1 stage2 stage-tonado'"
             echo "DEPLOY_COMPRESSION='xz'"
             echo "DEPLOY_ZIP=0"
-            # No default password — the Imager forces the user to set one.
+            # No default password baked in. NOTE: the Raspberry Pi Imager
+            # only shows its OS-customization dialog (user/password/SSH/WiFi)
+            # for the official Pi OS images it recognises — NOT for a custom
+            # .img.xz. So parents never set a password; the `pi` user ends up
+            # with no password and password-based SSH login is impossible
+            # (PermitEmptyPasswords no). That is intended: parents reach the
+            # device solely through Tonado's setup AP + wizard, never a shell.
+            # Tinkerers who want SSH drop a `userconf.txt` (and/or an SSH key)
+            # onto the bootfs FAT partition after flashing. With RENAME=0 the
+            # Bookworm userconf mechanism is present and consumes that file.
             echo "DISABLE_FIRST_BOOT_USER_RENAME=0"
             # Tonado-specific. MUST be exported so sub-shells (our
             # 00-run-chroot.sh, 03-tonado-finalize/00-run.sh) inherit

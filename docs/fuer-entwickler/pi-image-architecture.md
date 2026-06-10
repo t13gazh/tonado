@@ -338,7 +338,7 @@ Wenn wir später (Post-Beta) von `git pull` auf Download+Extract von GitHub Rele
 | Item | Grund | Wo generiert |
 |------|-------|-------------|
 | SSH-Host-Keys | Sonst teilen alle Tonado-Pis weltweit dieselben Keys → MITM trivial | `firstrun.sh` via `ssh-keygen -A` (nachdem alte keys gelöscht) |
-| Default-User-Passwort | Pi OS Lite hatte früher `pi/raspberry` — Bookworm erzwingt Imager-Setup. Im Image: **kein Passwort für `pi`**, SSH per Key-Only oder vom Imager gesetzt | Imager setzt Passwort beim Flashen (Pi OS Imager Advanced Options) |
+| Default-User-Passwort | Pi OS Lite hatte früher `pi/raspberry`. Im Image: **kein Passwort für `pi`** → Passwort-SSH-Login unmöglich (`PermitEmptyPasswords no`). Achtung: der Imager-Customization-Dialog erscheint **nicht** bei eigenem `.img.xz`, erzwingt also nichts | Eltern brauchen kein Login (Setup-AP). Bastler: `userconf.txt` manuell auf bootfs (siehe 7.4) |
 | Setup-AP-PSK | Wenn alle Image-Boxen dasselbe WLAN-PSK haben, kann Nachbar sich einloggen und Wizard hijacken | `firstrun.sh` generiert 16-Zeichen-PSK pro Gerät |
 | Tonado-PIN | Experten-PIN muss vom User gesetzt werden | Setup-Wizard, nicht Image |
 | JWT-Secret | Sonst kann jeder mit Image-JWT alle Boxen angreifen | `firstrun.sh` generiert zufälliges 32-Byte-Secret in `/opt/tonado/config/jwt_secret` |
@@ -387,9 +387,13 @@ date -Iseconds > "$FIRSTRUN_MARKER"
 
 ### 7.4 SSH im Image
 
-**SSH-Server aktiv, kein Default-Passwort, Key-Login oder Imager-Passwort nötig.** Begründung: Bastler brauchen SSH für Debug; nicht-technische Eltern kommen nie auf die Idee, einen SSH-Client zu öffnen. Die Angriffsfläche ist klein, solange wir kein Default-Passwort liefern.
+**SSH-Server aktiv, aber kein Default-Passwort.** Begründung: Bastler brauchen SSH für Debug; nicht-technische Eltern kommen nie auf die Idee, einen SSH-Client zu öffnen. Die Angriffsfläche ist klein, solange wir kein Default-Passwort liefern.
 
-Pi OS Imager Advanced Options zwingen den User, **entweder** Passwort **oder** SSH-Key zu setzen — das kommt uns zugute.
+**Wichtig — der Imager hilft hier NICHT:** Der OS-Customization-Dialog (User/Passwort/SSH-Key/WLAN) erscheint im Raspberry Pi Imager nur bei den offiziellen Pi-OS-Images, die er aus seiner Liste kennt — **nicht** bei einem eigenen `.img.xz` über „Use custom". Es wird also weder ein Passwort noch ein SSH-Key gesetzt. Folge: Der `pi`-User bleibt passwortlos und ein Passwort-SSH-Login ist mangels Passwort unmöglich (`sshd` lehnt leere Passwörter ab). Das ist sicherheitstechnisch eher gut.
+
+Konsequenzen je Zielgruppe:
+- **Eltern:** brauchen nie SSH. Zugang ausschliesslich über den Setup-AP + Wizard (Abschnitt 1), danach `http://tonado.local`.
+- **Bastler/Entwickler:** wer SSH will, legt **nach dem Flashen** auf die `bootfs`-FAT-Partition (im Windows-Explorer/Finder sichtbar) eine `userconf.txt` mit `pi:<crypt-hash>` (Hash via `openssl passwd -6`) und/oder einen Public Key nach `/home/pi/.ssh/authorized_keys`. Mit `DISABLE_FIRST_BOOT_USER_RENAME=0` ist der Bookworm-`userconf`-Mechanismus im Image vorhanden und konsumiert die Datei beim ersten Boot. Beim Pi 3B+/4/5 ist LAN-Kabel der robusteste Headless-Zugang (kein WLAN-Raten nötig).
 
 ## 8. Rollout-Plan
 
@@ -463,7 +467,7 @@ Vor der Impl-Welle zu beantworten (Ja/Nein oder A/B/C):
 - C) Identisches PSK für alle Images, dokumentiert in `flashen.md` (einfach, aber bei Nachbar-Tonado-Box trivial angreifbar)
 
 **Q3 — Default-SSH im Image:** SSH aktiv lassen?
-- A) Ja, aktiv. Pi Imager zwingt eh User zu Passwort/Key (empfohlen, Bastler-Kompat)
+- A) Ja, aktiv. `pi` ist passwortlos → Login nur, wenn ein Bastler bewusst `userconf.txt`/Key auf bootfs legt; Eltern-Angriffsfläche bleibt null (empfohlen, Bastler-Kompat). **Korrektur:** Der Imager erzwingt **kein** Passwort/Key bei Custom-Images — siehe 7.4.
 - B) Nein, nur per Wizard aktivierbar. Erhöht Aufwand für alle Debug-Pfade.
 
 **Q4 — Wann wird `.setup-complete` gesetzt?**

@@ -77,8 +77,12 @@ TONADO_EXPECTED_SHA='7659797988...'   # volle 40-Zeichen-SHA eintragen
 # Optional: eigenen Repo-Fork verwenden.
 # TONADO_REPO='https://github.com/deinuser/tonado.git'
 
-# Optional: user-Angaben unterdruecken, damit der Pi Imager sie erzwingt.
-# (Kein Default-Passwort im Image.)
+# Kein Default-Passwort im Image. Achtung: Der Raspberry Pi Imager zeigt
+# seinen Customization-Dialog (User/Passwort/SSH/WLAN) nur fuer die offiziellen
+# Pi-OS-Images, NICHT fuer ein eigenes .img.xz. Eltern setzen also kein
+# Passwort -- der pi-User bleibt passwortlos, SSH-Passwort-Login ist damit
+# unmoeglich. So gewollt: Eltern kommen ueber den Setup-AP rein, nie ueber eine
+# Shell. Bastler legen fuer SSH manuell userconf.txt auf die bootfs-Partition.
 DISABLE_FIRST_BOOT_USER_RENAME=0
 ```
 

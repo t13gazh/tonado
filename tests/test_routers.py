@@ -479,6 +479,98 @@ async def test_setup_complete_succeeds_with_parent_pin(client):
 
 
 @pytest.mark.asyncio
+async def test_recovery_wifi_suggestion(client):
+    """GET /api/setup/recovery-wifi returns a pre-filled SSID + password."""
+    c, _ = client
+    resp = await c.get("/api/setup/recovery-wifi")
+    assert resp.status_code == 200
+    body = resp.json()
+    # Default SSID is "Tonado"; password is generated and >= 10 chars.
+    assert body["ssid"] == "Tonado"
+    assert len(body["password"]) >= 10
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_save_persists_to_config(client):
+    """POST /api/setup/recovery-wifi stores creds under the captive-portal keys."""
+    c, _ = client
+    resp = await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "Familie Müller", "password": "geheim12345"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["success"] is True
+
+    # Verify the exact config keys the CaptivePortalService reads.
+    ssid = await c.get("/api/setup/recovery-wifi")
+    assert ssid.json()["ssid"] == "Familie Müller"
+    assert ssid.json()["password"] == "geheim12345"
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_save_uses_correct_config_keys(client):
+    """Persisted values must land under captive_portal.ap_ssid/.ap_password."""
+    from core.services.captive_portal import CONFIG_KEY_PASSWORD, CONFIG_KEY_SSID
+
+    c, _ = client
+    await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "Wohnzimmer", "password": "starkespasswort"},
+    )
+    cfg = await c.get("/api/config/")
+    data = cfg.json()
+    assert data[CONFIG_KEY_SSID] == "Wohnzimmer"
+    assert data[CONFIG_KEY_PASSWORD] == "starkespasswort"
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_rejects_short_password(client):
+    """Passwords shorter than 10 chars must be rejected with a German message."""
+    c, _ = client
+    resp = await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "Tonado", "password": "kurz"},
+    )
+    assert resp.status_code == 400
+    assert "mindestens" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_rejects_empty_ssid(client):
+    """An empty SSID must be rejected."""
+    c, _ = client
+    resp = await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "   ", "password": "langgenug123"},
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_rejects_too_long_ssid(client):
+    """SSIDs longer than 32 chars must be rejected."""
+    c, _ = client
+    resp = await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "X" * 33, "password": "langgenug123"},
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_blocked_after_complete(client):
+    """Once setup is complete, the recovery-wifi endpoints are 403."""
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    await c.post("/api/setup/complete")
+    resp = await c.post(
+        "/api/setup/recovery-wifi",
+        json={"ssid": "Tonado", "password": "langgenug123"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_config_sensitive_keys_blocked(client):
     c, auth_svc = client
     token = await _get_token(auth_svc, AuthTier.PARENT)

@@ -22,7 +22,9 @@ set -euo pipefail
 
 FLAG_DIR="/run/tonado"
 FLAG_FILE="${FLAG_DIR}/home-wifi-active"
-PROBE_TIMEOUT=20  # seconds
+PROBE_TIMEOUT=30  # seconds — generous: without network-online.target this may
+                  # start before NM has finished associating the imager-seeded
+                  # connection on a cold boot.
 PROBE_INTERVAL=1  # seconds
 
 mkdir -p "${FLAG_DIR}"

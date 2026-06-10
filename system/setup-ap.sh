@@ -47,6 +47,11 @@ start_ap() {
 
     echo "Starting Tonado AP (mode=${mode}, ssid=${ssid})..."
 
+    # hostapd -B daemonizes immediately; if a later step (e.g. dnsmasq) fails
+    # under 'set -e', hostapd would be left orphaned broadcasting an SSID with
+    # no DHCP. Tear both down on any error in this function.
+    trap 'pkill -f "hostapd.*tonado" 2>/dev/null || true; pkill -f "dnsmasq.*tonado" 2>/dev/null || true' ERR
+
     mkdir -p "${RUN_DIR}"
 
     # Take wlan0 away from NetworkManager for the lifetime of the AP only.

@@ -47,6 +47,16 @@ systemctl enable tonado.service
 systemctl enable tonado-ap.service
 
 # --- Hardware group membership for the pi user ---
+# The spi/gpio/i2c groups are normally created by raspberrypi-sys-mods udev
+# provisioning, but a stage that runs before that (or a minimal base) may not
+# have them yet. usermod -aG fails hard on a missing group, which would abort
+# this substage under 'set -e'. Create any missing group by name first (udev
+# rules reference these groups by name, so a freshly created one still gets the
+# device-node ownership), then add pi. tonado.service's SupplementaryGroups
+# relies on all four existing.
+for grp in audio spi i2c gpio; do
+    getent group "\$grp" >/dev/null 2>&1 || groupadd -r "\$grp"
+done
 usermod -aG audio,spi,i2c,gpio pi
 # MPD needs access to pi-owned media dir.
 usermod -aG pi mpd || true

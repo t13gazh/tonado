@@ -549,6 +549,24 @@ export default {
 	'setup.pin_access_denied': 'Keine Berechtigung. Bitte in den Eltern-Bereich anmelden.',
 	'setup.pin_unauthorized': 'Sitzung abgelaufen. Bitte erneut anmelden.',
 
+	// Recovery WiFi (Notfall-WLAN der Box)
+	'setup.step_recovery': 'Notfall-WLAN',
+	'setup.recovery_title': 'Notfall-WLAN der Box',
+	'setup.recovery_desc': 'Findet die Box einmal kein bekanntes WLAN — zum Beispiel bei Oma oder im Auto — spannt sie ein eigenes WLAN auf. Darüber erreichst du die Box weiterhin mit dem Handy.',
+	'setup.recovery_why': 'Notiere dir Name und Passwort am besten jetzt (zum Beispiel an den Kühlschrank). Sobald die Box ihr eigenes WLAN aufspannt, ist dein Handy nämlich nicht mehr im Heim-WLAN und kann die Daten nicht mehr anzeigen.',
+	'setup.recovery_loading': 'Vorschlag wird geladen…',
+	'setup.recovery_name_label': 'Name des WLANs',
+	'setup.recovery_password_label': 'Passwort',
+	'setup.recovery_show_password': 'Passwort anzeigen',
+	'setup.recovery_hide_password': 'Passwort verbergen',
+	'setup.recovery_regenerate': 'Neues Passwort vorschlagen',
+	'setup.recovery_save': 'Übernehmen',
+	'setup.recovery_saved': 'Notfall-WLAN gespeichert.',
+	'setup.recovery_ssid_required': 'Bitte gib einen Namen für das Notfall-WLAN ein.',
+	'setup.recovery_ssid_too_long': 'Der Name darf höchstens 32 Zeichen lang sein.',
+	'setup.recovery_password_too_short': 'Das Passwort muss mindestens 10 Zeichen lang sein.',
+	'setup.recovery_save_failed': 'Notfall-WLAN konnte nicht gespeichert werden.',
+
 	// Help (Setup-Wizard Troubleshooting)
 	'help.open_aria': 'Hilfe öffnen',
 	'help.close_aria': 'Hilfe schließen',

@@ -25,9 +25,11 @@ on:
   pull_request:
     paths:
       - 'scripts/pi-gen-stage/**'
+      - 'system/**'
       - '.github/workflows/pi-image.yml'
       - 'scripts/ci/qemu-smoke.sh'
       - 'scripts/ci/release-notes.sh'
+      - 'scripts/ci/assert-no-baked-db.sh'
 
 permissions:
   contents: write      # gh release upload / edit
@@ -146,10 +148,40 @@ jobs:
           ref: ${{ matrix.arch == 'arm64' && env.PI_GEN_REF_ARM64 || env.PI_GEN_REF_ARMHF }}
           path: pi-gen
 
+      - name: Restore +x bit on shell scripts
+        # Windows checkouts (and zip-based source exports) drop the executable
+        # bit. pi-gen SILENTLY SKIPS a substage's run.sh / run-chroot.sh if it
+        # is not executable — the stage appears to "succeed" but bakes nothing.
+        # setup-ap.sh (WP1) and the other system/*.sh helpers also need +x at
+        # runtime on the device. Re-apply +x to every Tonado shell hook BEFORE
+        # the stage is copied into pi-gen, plus the system/ helpers in place.
+        # The 00-run.sh / 00-run-chroot.sh glob deliberately covers all current
+        # substages (01-sys-tweaks, 02-tonado-code, 03-tonado-config,
+        # 04-tonado-finalize) and any future ones.
+        working-directory: tonado
+        run: |
+          set -euo pipefail
+          chmod +x scripts/pi-gen-stage/stage-tonado/prerun.sh
+          # All substage hooks: 00-run.sh and 00-run-chroot.sh under every NN-* dir.
+          find scripts/pi-gen-stage/stage-tonado -type f \
+            \( -name '*.sh' -o -name 'run' -o -name 'run-chroot' \) \
+            -exec chmod +x {} +
+          # Runtime helpers shipped in the repo: setup-ap.sh, firstrun.sh,
+          # imager-wifi-probe.sh, install.sh, uninstall.sh.
+          chmod +x system/*.sh
+          echo "--- executable Tonado scripts ---"
+          find scripts/pi-gen-stage/stage-tonado system -type f -name '*.sh' \
+            -perm -u+x -print | sort
+
       - name: Wire in Tonado stage
         run: |
           set -euo pipefail
-          cp -r tonado/scripts/pi-gen-stage/stage-tonado pi-gen/stage-tonado
+          # Preserve the +x bit re-applied in the previous step (cp -r keeps
+          # mode bits, but be explicit with --preserve=mode).
+          cp -r --preserve=mode tonado/scripts/pi-gen-stage/stage-tonado pi-gen/stage-tonado
+          # Belt-and-braces: re-assert +x on the copy in case the runner FS
+          # or a future cp change strips it.
+          find pi-gen/stage-tonado -type f -name '*.sh' -exec chmod +x {} +
           # Let our stage own the exported image instead of the Lite stage.
           rm -f pi-gen/stage2/EXPORT_IMAGE pi-gen/stage2/EXPORT_NOOBS
 
@@ -172,11 +204,22 @@ jobs:
             # (PermitEmptyPasswords no). That is intended: parents reach the
             # device solely through Tonado's setup AP + wizard, never a shell.
             # Tinkerers who want SSH drop a `userconf.txt` (and/or an SSH key)
-            # onto the bootfs FAT partition after flashing. With RENAME=0 the
-            # Bookworm userconf mechanism is present and consumes that file.
-            echo "DISABLE_FIRST_BOOT_USER_RENAME=0"
+            # onto the bootfs FAT partition after flashing; the Bookworm
+            # userconf-pi service consumes that file on first boot regardless
+            # of this flag.
+            #
+            # DISABLE_FIRST_BOOT_USER_RENAME=1 is MANDATORY for headless boot:
+            # on Bookworm, leaving it at 0 makes the base image ship the
+            # `userconfig.service` interactive first-boot user-creation prompt
+            # on tty1. With no keyboard/monitor attached the box hangs at that
+            # prompt forever and never reaches the setup AP — fatal for the
+            # parent flow. Setting it to 1 bakes the `pi` user in directly.
+            # The pi user stays passwordless (no default password is set
+            # above), so password-based SSH login remains impossible
+            # (PermitEmptyPasswords no) — the security posture is unchanged.
+            echo "DISABLE_FIRST_BOOT_USER_RENAME=1"
             # Tonado-specific. MUST be exported so sub-shells (our
-            # 00-run-chroot.sh, 03-tonado-finalize/00-run.sh) inherit
+            # 00-run-chroot.sh, 04-tonado-finalize/00-run.sh) inherit
             # them. pi-gen's standard vars above happen to work without
             # export because pi-gen exports them itself; custom vars
             # need the explicit `export`.
@@ -216,6 +259,14 @@ jobs:
           [ "$SRC" = "$DEST" ] || mv "$SRC" "$DEST"
           echo "path=$DEST" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "$DEST")" >> "$GITHUB_OUTPUT"
+
+      - name: Guard against a baked tonado.db (BLOCKING)
+        # Supply-chain guard: fail the build if a SQLite DB leaked into the
+        # image under /opt/tonado/config. A baked tonado.db would give every
+        # device the same per-device JWT secret + shared auth state. Runs for
+        # PRs too (unlike the non-blocking qemu-smoke job) so a leak can never
+        # merge. Loop-mounts the freshly built image and inspects the rootfs.
+        run: sudo bash tonado/scripts/ci/assert-no-baked-db.sh "${{ steps.img.outputs.path }}"
 
       - name: Compute SHA256
         id: sum

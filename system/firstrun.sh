@@ -7,7 +7,8 @@
 # Responsibilities:
 #   - Rotate SSH host keys (image ships with empty /etc/ssh so every
 #     device gets unique keys instead of sharing the pi-gen chroot keys).
-#   - Generate a per-device JWT secret for the Tonado auth service.
+#   - Release the WiFi rfkill soft-block so the setup AP can come up on
+#     the very first boot (runtime guard — see the rfkill section below).
 #   - Configure Git so the system-side update flow can operate on the
 #     repo without owner-mismatch complaints.
 #   - Write the marker file so we never run again.
@@ -19,8 +20,6 @@
 set -euo pipefail
 
 FIRSTRUN_MARKER="/var/lib/tonado/firstrun.done"
-CONFIG_DIR="/opt/tonado/config"
-JWT_SECRET_FILE="${CONFIG_DIR}/jwt_secret"
 TONADO_USER="pi"
 TONADO_GROUP="pi"
 REPO_DIR="/opt/tonado"
@@ -29,6 +28,26 @@ REPO_DIR="/opt/tonado"
 if [ -f "${FIRSTRUN_MARKER}" ]; then
     exit 0
 fi
+
+# --- WiFi rfkill soft-block release ---
+# A freshly flashed image has no WiFi regulatory domain set at runtime, so
+# wlan0 comes up rfkill-soft-blocked and hostapd refuses to start — the
+# setup AP never appears and a headless box is unreachable.
+#
+# The persistent country code lives in the bake (chroot) via
+# `raspi-config nonint do_wifi_country DE` and is NOT our responsibility.
+# But `iw reg set` is not reboot-persistent and the baked value may only
+# take effect once the radio is actually unblocked, so we release the
+# soft-block at runtime here, before tonado-ap.service starts hostapd.
+# firstrun.service orders itself Before=tonado-ap.service, which in turn
+# calls setup-ap.sh — so this guard always wins the race.
+#
+# Both tools are best-effort: on a dev box (or a minimal image) they may be
+# absent, hence the `|| true`. `iw reg set DE` is a belt-and-braces double
+# safeguard in case unblock alone leaves the domain at the world-roaming
+# default "00".
+rfkill unblock wifi 2>/dev/null || true
+iw reg set DE 2>/dev/null || true
 
 # --- SSH host keys ---
 # The image is baked with the keys from the pi-gen chroot. Leaving them in
@@ -47,16 +66,13 @@ if [ -d /etc/ssh ]; then
     systemctl start ssh.service 2>/dev/null || true
 fi
 
-# --- JWT secret ---
-# 32 random bytes, URL-safe base64 — matches the Python auth service
-# expectations. File is readable by the tonado user only.
-mkdir -p "${CONFIG_DIR}"
-if [ ! -s "${JWT_SECRET_FILE}" ]; then
-    python3 -c "import secrets; print(secrets.token_urlsafe(32))" \
-        > "${JWT_SECRET_FILE}"
-fi
-chown "${TONADO_USER}:${TONADO_GROUP}" "${JWT_SECRET_FILE}"
-chmod 600 "${JWT_SECRET_FILE}"
+# --- JWT secret: intentionally NOT handled here ---
+# A previous version wrote /opt/tonado/config/jwt_secret here. That file was
+# dead: AuthService.start() reads/generates auth.jwt_secret from the SQLite
+# config (ConfigService), never from a file — verified against
+# core/services/auth_service.py. Writing it produced false confidence about
+# a secret that is never consumed, so the block was removed. The per-device
+# secret is generated on first AuthService start and persisted in the DB.
 
 # --- Git trust configuration ---
 # The repo is baked into the image as the pi-gen chroot user, but runs

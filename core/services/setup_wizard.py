@@ -32,6 +32,7 @@ class SetupStep(StrEnum):
     BUTTONS_SETUP = "buttons_setup"
     FIRST_CARD = "first_card"
     PIN_SETUP = "pin_setup"
+    RECOVERY_WIFI = "recovery_wifi"
     COMPLETED = "completed"
 
 
@@ -217,6 +218,17 @@ class SetupWizard(BaseService):
     async def mark_pin_setup_done(self) -> dict[str, Any]:
         """Step 6: Mark PIN setup as done (advances the wizard state)."""
         await self._save_step(SetupStep.PIN_SETUP)
+        return {"success": True}
+
+    async def mark_recovery_wifi_done(self) -> dict[str, Any]:
+        """Step 7: Mark the recovery-WiFi credentials step as done.
+
+        The actual SSID + password are persisted by the setup router via
+        the captive portal config keys; this method only advances the
+        wizard's own step state so the UI can proceed. Idempotent — calling
+        it again is a no-op beyond re-saving the same step.
+        """
+        await self._save_step(SetupStep.RECOVERY_WIFI)
         return {"success": True}
 
     async def complete_setup(self) -> dict[str, Any]:

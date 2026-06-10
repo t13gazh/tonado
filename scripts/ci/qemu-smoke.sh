@@ -77,9 +77,73 @@ for unit in mpd nginx avahi-daemon; do
     "ls $R/etc/systemd/system/multi-user.target.wants/$unit.service >/dev/null 2>&1"
 done
 
-# Build-only packages must be gone (03-tonado-finalize purges them).
+# Build-only packages must be gone (04-tonado-finalize purges them).
 check "build-essential purged" \
   "[ ! -e '$R/usr/bin/gcc' ]"
+
+# --- 03-tonado-config outputs (network-free config baked at image time) ---
+# nginx site is written + enabled, and the stock default site removed, so the
+# captive portal / SPA front the box on :80 from first boot.
+check "nginx site available (sites-available/tonado)" \
+  "[ -f '$R/etc/nginx/sites-available/tonado' ]"
+check "nginx site enabled (sites-enabled/tonado symlink)" \
+  "[ -L '$R/etc/nginx/sites-enabled/tonado' ]"
+check "nginx default site removed" \
+  "[ ! -e '$R/etc/nginx/sites-enabled/default' ]"
+
+# The distro dnsmasq.service must be MASKED — it would otherwise grab :53 on
+# boot and starve setup-ap.sh's own dnsmasq instance (no DHCP on the setup AP).
+# Masking yields a symlink to /dev/null in /etc/systemd/system.
+check "distro dnsmasq.service masked" \
+  "[ \"\$(readlink '$R/etc/systemd/system/dnsmasq.service' 2>/dev/null)\" = '/dev/null' ]"
+check "distro dnsmasq.service not enabled" \
+  "! ls $R/etc/systemd/system/*.wants/dnsmasq.service >/dev/null 2>&1"
+
+# i2c-dev must be auto-loaded on boot (Bookworm does not by default) or the
+# MPU6050 gyro + PN532 RFID are dead. modules-load.d entry wires it up.
+check "i2c-dev module-load entry present" \
+  "grep -rqx 'i2c-dev' $R/etc/modules-load.d/ 2>/dev/null"
+
+# Minimal sudoers drop-in, installed 0440 root:root by visudo-validated copy.
+check "sudoers drop-in present (/etc/sudoers.d/tonado)" \
+  "[ -f '$R/etc/sudoers.d/tonado' ]"
+check "sudoers drop-in mode 0440" \
+  "[ \"\$(stat -c '%a' '$R/etc/sudoers.d/tonado' 2>/dev/null)\" = '440' ]"
+
+# MPD config is baked so audio works without anyone running install.sh.
+check "mpd.conf present" \
+  "[ -f '$R/etc/mpd.conf' ]"
+
+# machine-id blanked at bake time -> systemd regenerates a unique one per
+# device on first boot. A non-empty machine-id means all devices share one.
+check "machine-id blanked (0 bytes)" \
+  "[ -f '$R/etc/machine-id' ] && [ ! -s '$R/etc/machine-id' ]"
+
+# cmdline.txt MUST stay a SINGLE line. ipv6.disable=1 is appended to line 1
+# only (sed '1 s/...'); a multi-line cmdline.txt makes the kernel ignore
+# every parameter after the first line -> init=/resize/root params lost and
+# the box fails to boot. Assert exactly one line AND that ipv6.disable=1 plus
+# the resize init hook survived on that single line.
+CMDLINE=""
+for c in "$R/boot/firmware/cmdline.txt" "$R/boot/cmdline.txt"; do
+  [ -f "$c" ] && { CMDLINE="$c"; break; }
+done
+check "cmdline.txt present" \
+  "[ -n '$CMDLINE' ]"
+if [ -n "$CMDLINE" ]; then
+  check "cmdline.txt is single-line" \
+    "[ \"\$(wc -l < '$CMDLINE')\" -le 1 ]"
+  check "cmdline.txt has ipv6.disable=1" \
+    "grep -q 'ipv6.disable=1' '$CMDLINE'"
+  # pi-gen's first-boot resize hook must survive the in-place sed append.
+  check "cmdline.txt keeps init= resize hook" \
+    "grep -q 'init=' '$CMDLINE'"
+fi
+
+# --- Supply-chain: no baked SQLite DB (shared JWT secret guard) ---
+# Mirrors the BLOCKING assert-no-baked-db.sh build step; harmless redundancy.
+check "no baked tonado.db (config DB seeded on first boot)" \
+  "[ ! -e '$R/opt/tonado/config/tonado.db' ]"
 echo "::endgroup::"
 
 if [ "$fail" -ne 0 ]; then

@@ -551,6 +551,12 @@ export interface WifiStatus {
 	signal_strength: number;
 }
 
+/** Suggested (or saved) recovery-WiFi credentials shown in the setup wizard. */
+export interface RecoveryWifiCredentials {
+	ssid: string;
+	password: string;
+}
+
 export const setupApi = {
 	status: () => request<SetupStatus>('/setup/status'),
 	detectHardware: () => request<HardwareDetection>('/setup/detect-hardware', { method: 'POST' }),
@@ -572,6 +578,16 @@ export const setupApi = {
 	testAudio: () => request<{ success: boolean }>('/setup/test-audio', { method: 'POST' }),
 	firstCardDone: () => request<{ success: boolean }>('/setup/first-card-done', { method: 'POST' }),
 	pinDone: () => request<{ success: boolean }>('/setup/pin-done', { method: 'POST' }),
+	// Recovery-WiFi step: GET a pre-filled suggestion (default SSID + a
+	// freshly generated strong password), POST the (possibly edited) values.
+	// Persisted under captive_portal.ap_ssid / .ap_password for the runtime AP.
+	recoveryWifiSuggestion: () =>
+		request<RecoveryWifiCredentials>('/setup/recovery-wifi'),
+	saveRecoveryWifi: (ssid: string, password: string) =>
+		request<{ success: boolean }>('/setup/recovery-wifi', {
+			method: 'POST',
+			body: JSON.stringify({ ssid, password }),
+		}),
 	complete: () => request<{ success: boolean }>('/setup/complete', { method: 'POST' }),
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 	portalCredentials: () =>

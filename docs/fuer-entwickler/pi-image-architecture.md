@@ -94,12 +94,20 @@ stage-tonado/
 │       └── boot/firmware/
 │           └── config.txt.append       # wird an stage2-config.txt angehängt
 ├── 02-tonado-code/
-│   ├── 00-run-chroot.sh         # läuft IM Chroot: git clone, pip install
-│   └── files/
-│       └── (leer — Code kommt per git clone im run-chroot)
-└── 03-tonado-finalize/
+│   └── 00-run.sh                # läuft IM Chroot: git clone, pip install
+├── 03-tonado-config/
+│   └── 00-run.sh                # Config aus install.sh portiert: nginx-Site,
+│                                # mpd.conf, sudoers, i2c-dev, WLAN-Land DE,
+│                                # journald-Limit, ipv6-disable
+└── 04-tonado-finalize/
     └── 00-run.sh                # Permissions, Marker-Dateien, cleanup
 ```
+
+> Hinweis: Die Config-Dateien (nginx-Site, mpd.conf, sudoers …) werden in
+> `03-tonado-config/00-run.sh` zur Bake-Time **geschrieben**, nicht über `files/`
+> abgelegt — pi-gen kopiert `files/` nicht automatisch (nur `config.txt.append`
+> wird in `01-sys-tweaks` explizit ins ROOTFS kopiert). Diese Architektur-Doku
+> wird in WP6 vollständig auf den aktuellen Stand (AP-Konsolidierung) gebracht.
 
 ### 2.3 Package-Liste (`00-packages`)
 
@@ -115,7 +123,7 @@ network-manager
 avahi-daemon
 i2c-tools spi-tools
 git
-# Build (für pip install, wird am Ende von 03-tonado-finalize wieder purged)
+# Build (für pip install, wird am Ende von 04-tonado-finalize wieder purged)
 python3-dev build-essential libffi-dev
 ```
 
@@ -168,7 +176,7 @@ dtoverlay=gpio-poweroff,gpiopin=4,active_low=1
 
 ### 2.6 Post-Install-Scripts in der Stage
 
-`03-tonado-finalize/00-run.sh` (läuft zur Bake-Time außerhalb vom Chroot):
+`04-tonado-finalize/00-run.sh` (läuft zur Bake-Time außerhalb vom Chroot):
 
 ```bash
 #!/bin/bash -e

@@ -12,4 +12,8 @@ dnsmasq
 network-manager
 avahi-daemon
 i2c-tools
+spi-tools
+rfkill
+iw
+wireless-tools
 git

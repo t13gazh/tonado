@@ -16,7 +16,12 @@ from core.dependencies import (
     require_tier,
 )
 from core.services.auth_service import AuthService, AuthTier
-from core.services.captive_portal import CaptivePortalService
+from core.services.captive_portal import (
+    CONFIG_KEY_PASSWORD,
+    CONFIG_KEY_SSID,
+    MIN_PASSWORD_LENGTH,
+    CaptivePortalService,
+)
 from core.services.connectivity_monitor import ConnectivityMonitor
 from core.services.setup_wizard import SetupWizard
 from core.services.wifi_service import (
@@ -260,6 +265,75 @@ async def pin_done(wizard: SetupWizard = Depends(get_setup_wizard)) -> dict:
     """
     _require_setup_incomplete(wizard)
     return await wizard.mark_pin_setup_done()
+
+
+@router.get("/recovery-wifi")
+async def recovery_wifi_suggestion(
+    wizard: SetupWizard = Depends(get_setup_wizard),
+    portal: CaptivePortalService = Depends(get_captive_portal),
+) -> dict:
+    """Return a pre-filled suggestion for the recovery-WiFi credentials.
+
+    The parent app shows these so the family can write them down before
+    the recovery AP ever comes up (by then the phone is already offline).
+    Reuses portal.credentials(), which generates + persists a strong
+    password on first call and returns the configured SSID (default
+    "Tonado"). The parent can overwrite both via the POST endpoint.
+    """
+    _require_setup_incomplete(wizard)
+    return await portal.credentials()
+
+
+class RecoveryWifiRequest(BaseModel):
+    ssid: str
+    password: str
+
+
+@router.post("/recovery-wifi")
+async def save_recovery_wifi(
+    req: RecoveryWifiRequest,
+    wizard: SetupWizard = Depends(get_setup_wizard),
+    portal: CaptivePortalService = Depends(get_captive_portal),
+) -> dict:
+    """Validate + persist the (possibly edited) recovery-WiFi credentials.
+
+    Writes the captive-portal config keys the CaptivePortalService reads
+    (captive_portal.ap_ssid / .ap_password) and advances the wizard past
+    the recovery-WiFi step. Validation mirrors WPA2 constraints, but with a
+    stricter 10-char password minimum (MIN_PASSWORD_LENGTH).
+    """
+    _require_setup_incomplete(wizard)
+
+    ssid = req.ssid.strip()
+    if not ssid:
+        raise HTTPException(400, "Bitte gib einen Namen für das Notfall-WLAN ein.")
+    if len(ssid) > 32:
+        raise HTTPException(400, "Der WLAN-Name darf höchstens 32 Zeichen lang sein.")
+    # SSID must be printable on a single line — no control chars / newlines
+    # that would break hostapd's config or be impossible to type on a phone.
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in ssid):
+        raise HTTPException(400, "Der WLAN-Name enthält ungültige Zeichen.")
+
+    password = req.password
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            400,
+            f"Das Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen lang sein.",
+        )
+    if len(password) > 63:
+        # WPA2-PSK passphrase upper bound.
+        raise HTTPException(400, "Das Passwort darf höchstens 63 Zeichen lang sein.")
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in password):
+        raise HTTPException(400, "Das Passwort enthält ungültige Zeichen.")
+
+    await wizard._config.set(CONFIG_KEY_SSID, ssid)
+    await wizard._config.set(CONFIG_KEY_PASSWORD, password)
+    # Keep the live portal instance in sync so a recovery AP started later
+    # in the same process uses the freshly chosen credentials immediately.
+    portal._ssid = ssid
+    portal._password = password
+
+    return await wizard.mark_recovery_wifi_done()
 
 
 @router.post("/complete")

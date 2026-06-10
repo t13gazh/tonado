@@ -19,7 +19,8 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Verbessert
 
-- **sudoers.d/tonado erweitert** um AP-Teardown-Rechte (systemctl stop/disable tonado-ap, nmcli general reload, Löschen der NetworkManager-Unmanaged-Config). Nach dem Setup kann die Box den Setup-Modus sauber abschalten.
+- **Access-Point-Pfad konsolidiert — eine Quelle für wlan0.** Vorher konkurrierten zwei AP-Implementierungen beim Boot um `wlan0` (das Bash-Skript `setup-ap.sh` und der Python-`CaptivePortalService`), was den headless-Eltern-Pfad des Pi-Images blockierte. Jetzt ist `setup-ap.sh` der einzige privilegierte Mechanismus: Setup-AP (offen, beim Boot via `tonado-ap.service start open`) und Recovery-AP (WPA2, zur Laufzeit via `CaptivePortalService`) gehen beide durch dieses eine Skript. Der `CaptivePortalService` läuft als unprivilegierter Nutzer und delegiert jede `wlan0`-Operation per `sudo -n setup-ap.sh`. WLAN-Land `DE` wird in der hostapd-Config gesetzt (sonst bleibt der Funk rfkill-gesperrt), Configs liegen in `/run` statt `/tmp`, und `wlan0` ist nur noch dynamisch unmanaged (solange der AP läuft) statt über eine statische NetworkManager-Drop-in-Datei.
+- **sudoers.d/tonado angepasst** an die AP-Konsolidierung: Recovery-AP-Steuerung (`setup-ap.sh start secured`/`stop`) und Setup-AP-Teardown (`systemctl stop/disable tonado-ap`). Die nicht mehr benötigten `nmcli general reload`- und `rm`-Rechte für die Unmanaged-Config sind entfallen.
 - **CSP und CORS im Setup-Modus aufgelockert.** Nur solange die Ersteinrichtung offen ist, darf der Browser quer über die Setup-WLAN- und mDNS-Adressen gehen; sobald `.setup-complete` existiert, greift wieder die strenge Policy.
 - **Pre-Commit-Hook fängt 0-Byte-Müll-Dateien im Repo-Root.** Shell-Fragment-Artefakte (Klammern, Python-Literals) landen nicht mehr versehentlich im Commit. Bypass via `SKIP_JUNK_CHECK=1`.
 

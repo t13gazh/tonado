@@ -239,38 +239,29 @@ async def test_probe_home_wifi_mock_mode() -> None:
 
 @pytest.mark.asyncio
 async def test_finalize_setup_ap_teardown_writes_marker(tmp_path: Path) -> None:
-    """finalize_setup_ap_teardown must write the marker and stop the AP unit."""
+    """finalize_setup_ap_teardown must write the marker and stop the AP unit.
+
+    Since v0.4 wlan0 is only unmanaged while the AP is up (setup-ap.sh
+    handles managed-restore on stop), so there is no static unmanaged-conf
+    to remove and no nmcli reload — just stop + disable the unit.
+    """
     service = WifiService()
     service._mock = False
     service._use_nmcli = True
 
     marker = tmp_path / "config" / ".setup-complete"
-    unmanaged_conf = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
-    unmanaged_conf.parent.mkdir(parents=True)
-    unmanaged_conf.write_text("[keyfile]\nunmanaged-devices=interface-name:wlan0\n")
 
     commands: list[list[str]] = []
 
     async def fake_run_silent(cmd: list[str]) -> int:
         commands.append(cmd)
-        # Ensure the sudo-rm call actually removes the conf file so
-        # downstream assertions mirror reality. The real rm would be
-        # invoked; our fake has to do it explicitly.
-        if cmd[:3] == ["sudo", "-n", "rm"] and len(cmd) > 3:
-            path = Path(cmd[3])
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
         return 0
 
     with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
-         patch.object(WifiService, "NM_UNMANAGED_CONF", unmanaged_conf), \
          patch.object(WifiService, "_run_silent", new=AsyncMock(side_effect=fake_run_silent)):
         await service.finalize_setup_ap_teardown()
 
     assert marker.exists(), "setup-complete marker must be written"
-    assert not unmanaged_conf.exists(), "NM unmanaged override must be removed"
 
     # F4: every privileged call must be prefixed with `sudo -n` so the
     # sudoers.d/tonado NOPASSWD grants match exactly — otherwise a
@@ -286,10 +277,6 @@ async def test_finalize_setup_ap_teardown_writes_marker(tmp_path: Path) -> None:
     assert stop_calls, "systemctl stop tonado-ap.service must be called"
     assert disable_calls, "systemctl disable tonado-ap.service must be called"
 
-    # nmcli reload issued so the dropped conf file takes effect
-    reload_calls = [c for c in commands if c[-3:] == ["nmcli", "general", "reload"]]
-    assert reload_calls, "nmcli general reload must be called"
-
 
 @pytest.mark.asyncio
 async def test_finalize_raises_on_sudo_failure(tmp_path: Path) -> None:
@@ -299,23 +286,14 @@ async def test_finalize_raises_on_sudo_failure(tmp_path: Path) -> None:
     service._use_nmcli = True
 
     marker = tmp_path / "config" / ".setup-complete"
-    unmanaged_conf = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
-    unmanaged_conf.parent.mkdir(parents=True)
-    unmanaged_conf.write_text("unmanaged\n")
 
     async def fake_run_silent(cmd: list[str]) -> int:
         # Simulate `systemctl stop` failing (e.g. sudoers drift).
         if "stop" in cmd and "tonado-ap.service" in cmd:
             return 5
-        if cmd[:3] == ["sudo", "-n", "rm"] and len(cmd) > 3:
-            try:
-                Path(cmd[3]).unlink()
-            except FileNotFoundError:
-                pass
         return 0
 
     with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
-         patch.object(WifiService, "NM_UNMANAGED_CONF", unmanaged_conf), \
          patch.object(WifiService, "_run_silent", new=AsyncMock(side_effect=fake_run_silent)):
         with pytest.raises(RuntimeError, match="AP-Teardown"):
             await service.finalize_setup_ap_teardown()
@@ -335,7 +313,6 @@ async def test_finalize_is_idempotent(tmp_path: Path) -> None:
     marker = tmp_path / "config" / ".setup-complete"
     marker.parent.mkdir(parents=True)
     marker.write_text("ok")
-    unmanaged_conf = tmp_path / "conf.d" / "99-tonado-wlan0-unmanaged.conf"
 
     called = False
 
@@ -345,7 +322,6 @@ async def test_finalize_is_idempotent(tmp_path: Path) -> None:
         return 0
 
     with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
-         patch.object(WifiService, "NM_UNMANAGED_CONF", unmanaged_conf), \
          patch.object(WifiService, "_run_silent", new=AsyncMock(side_effect=fake_run_silent)):
         await service.finalize_setup_ap_teardown()
 
@@ -413,10 +389,8 @@ async def test_finalize_setup_ap_teardown_mock_still_writes_marker(tmp_path: Pat
     service = WifiService()  # defaults to mock on dev boxes
 
     marker = tmp_path / ".setup-complete"
-    unmanaged_conf = tmp_path / "99-tonado.conf"
 
-    with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
-         patch.object(WifiService, "NM_UNMANAGED_CONF", unmanaged_conf):
+    with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker):
         await service.finalize_setup_ap_teardown()
 
     assert marker.exists()

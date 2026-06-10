@@ -10,7 +10,7 @@ ConditionPathExists=!/run/tonado/home-wifi-active
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/opt/tonado/system/setup-ap.sh start
+ExecStart=/opt/tonado/system/setup-ap.sh start open
 ExecStop=/opt/tonado/system/setup-ap.sh stop
 
 [Install]

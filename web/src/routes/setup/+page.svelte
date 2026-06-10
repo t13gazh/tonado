@@ -11,6 +11,7 @@
 	import ButtonsStep from '$lib/components/setup/ButtonsStep.svelte';
 	import CardStep from '$lib/components/setup/CardStep.svelte';
 	import PinStep from '$lib/components/setup/PinStep.svelte';
+	import RecoveryWifiStep from '$lib/components/setup/RecoveryWifiStep.svelte';
 	import CompleteStep from '$lib/components/setup/CompleteStep.svelte';
 	import HelpSheet from '$lib/components/HelpSheet.svelte';
 	import Icon from '$lib/components/Icon.svelte';
@@ -18,9 +19,9 @@
 	import type { CardStepType } from '$lib/components/setup/CardStep.svelte';
 	import type { ButtonStepType } from '$lib/components/setup/ButtonsStep.svelte';
 
-	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'buttons' | 'card' | 'pin' | 'complete';
+	type WizardStep = 'hardware' | 'wifi' | 'audio' | 'buttons' | 'card' | 'pin' | 'recovery' | 'complete';
 
-	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'buttons', 'card', 'pin', 'complete'];
+	const STEPS: WizardStep[] = ['hardware', 'wifi', 'audio', 'buttons', 'card', 'pin', 'recovery', 'complete'];
 	const STEP_LABELS: Record<WizardStep, () => string> = {
 		hardware: () => t('setup.step_hardware'),
 		wifi: () => t('setup.step_wifi'),
@@ -28,6 +29,7 @@
 		buttons: () => t('setup.step_buttons'),
 		card: () => t('setup.step_card'),
 		pin: () => t('setup.step_pin'),
+		recovery: () => t('setup.step_recovery'),
 		complete: () => t('setup.step_done'),
 	};
 
@@ -77,6 +79,10 @@
 	let pinSaved = $state(false);
 	let pinStepRef: PinStep;
 
+	// Recovery WiFi (notfall AP credentials parents can write down)
+	let recoverySaved = $state(false);
+	let recoveryStepRef: RecoveryWifiStep;
+
 	const backendDown = $derived(isBackendOffline());
 	const currentIdx = $derived(STEPS.indexOf(currentStep));
 	const hasRfid = $derived(hardware ? hardware.rfid.reader !== 'none' : false);
@@ -116,7 +122,8 @@
 				audio_setup: 'buttons',
 				buttons_setup: 'card',
 				first_card: 'pin',
-				pin_setup: 'complete',
+				pin_setup: 'recovery',
+				recovery_wifi: 'complete',
 				completed: 'complete',
 			};
 			const mapped = stepMap[status.current_step];
@@ -160,6 +167,7 @@
 		else if (step === 'audio') await loadAudioOutputs();
 		else if (step === 'buttons') { await loadFreeGpios(); await loadExistingButtons(); }
 		else if (step === 'card') { cardStep = 'intro'; await loadExistingCards(); }
+		else if (step === 'recovery') recoverySaved = false; // allow re-editing on re-entry
 		else if (step === 'complete') await loadSavedButtons();
 	}
 
@@ -327,6 +335,14 @@
 			<PinStep
 				bind:this={pinStepRef}
 				bind:saved={pinSaved}
+				{error}
+				{onError}
+				onSaved={async () => { await nextStep(); }}
+			/>
+		{:else if currentStep === 'recovery'}
+			<RecoveryWifiStep
+				bind:this={recoveryStepRef}
+				bind:saved={recoverySaved}
 				{error}
 				{onError}
 				onSaved={async () => { await nextStep(); }}
@@ -504,6 +520,19 @@
 					disabled={backendDown}
 					class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
 					{pinSaved ? t('setup.next') : t('general.save')}
+				</button>
+			</div>
+
+		{:else if currentStep === 'recovery'}
+			<div class="flex gap-3">
+				<button onclick={prevStep}
+					class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
+					{t('general.back')}
+				</button>
+				<button onclick={async () => { if (recoverySaved) { await nextStep(); } else { await recoveryStepRef.submit(); } }}
+					disabled={backendDown}
+					class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
+					{recoverySaved ? t('setup.next') : t('setup.recovery_save')}
 				</button>
 			</div>
 

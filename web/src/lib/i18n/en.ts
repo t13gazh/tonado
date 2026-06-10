@@ -549,6 +549,24 @@ export default {
 	'setup.pin_access_denied': 'No permission. Please log in to the parent area.',
 	'setup.pin_unauthorized': 'Session expired. Please log in again.',
 
+	// Recovery WiFi (the box's own fallback network)
+	'setup.step_recovery': 'Backup WiFi',
+	'setup.recovery_title': "The box's backup WiFi",
+	'setup.recovery_desc': "If the box ever can't find a known WiFi — at grandma's or in the car, for example — it opens its own network so you can still reach it from your phone.",
+	'setup.recovery_why': "Write the name and password down now (e.g. on the fridge). Once the box opens its own network, your phone is no longer on the home WiFi and can't show these details anymore.",
+	'setup.recovery_loading': 'Loading suggestion…',
+	'setup.recovery_name_label': 'Network name',
+	'setup.recovery_password_label': 'Password',
+	'setup.recovery_show_password': 'Show password',
+	'setup.recovery_hide_password': 'Hide password',
+	'setup.recovery_regenerate': 'Suggest a new password',
+	'setup.recovery_save': 'Apply',
+	'setup.recovery_saved': 'Backup WiFi saved.',
+	'setup.recovery_ssid_required': 'Please enter a name for the backup WiFi.',
+	'setup.recovery_ssid_too_long': 'The name may be at most 32 characters long.',
+	'setup.recovery_password_too_short': 'The password must be at least 10 characters long.',
+	'setup.recovery_save_failed': 'Could not save the backup WiFi.',
+
 	// Help (Setup-Wizard Troubleshooting)
 	'help.open_aria': 'Open help',
 	'help.close_aria': 'Close help',

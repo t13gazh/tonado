@@ -123,19 +123,31 @@ stage-tonado/
 ├── EXPORT_IMAGE                        # IMG_NAME + IMG_SUFFIX fuer pi-gen
 ├── 00-packages                         # apt Runtime + Build-Deps
 ├── 01-sys-tweaks/
-│   ├── 00-run.sh                       # config.txt append, enable distro-units
+│   ├── 00-run.sh                       # config.txt.append (explizit kopiert,
+│   │                                   #   fail-loud), enable distro-units
 │   └── files/
-│       ├── etc/NetworkManager/conf.d/99-tonado-wlan0-unmanaged.conf
-│       └── boot/firmware/config.txt.append
+│       └── boot/firmware/config.txt.append   # SPI/I2C/OnOff-SHIM overlays
 ├── 02-tonado-code/
-│   └── 00-run-chroot.sh                # git clone + SHA-Pin + pip install
-├── 03-tonado-finalize/
+│   └── 00-run.sh                       # git clone + SHA-Pin + pip install (chroot)
+├── 03-tonado-config/
+│   └── 00-run.sh                       # mpd.conf, nginx-Site (+Captive-Portal-
+│                                       #   Probes), sudoers, i2c-dev, journald,
+│                                       #   Dienste deaktivieren, ipv6, machine-id/ssh
+├── 04-tonado-finalize/
 │   └── 00-run.sh                       # apt purge, chown, unit symlinks+enable
 └── README.md                           # diese Datei
 
+# pi-gen kopiert files/ NICHT automatisch: nur 00-packages, *-patches, *-debconf
+# und die run.sh/run-chroot.sh-Hooks werden von pi-gens Standardlogik behandelt.
+# Alles unter files/ muss im run.sh explizit nach ${ROOTFS_DIR} kopiert werden
+# (siehe 01-sys-tweaks/00-run.sh).
+
 # Systemd-Unit-Files sind NICHT im Stage-Tree. Sie leben im Tonado-Repo unter
-# /opt/tonado/system/*.service und werden in Stage 03 nach /etc/systemd/system
-# symlinkt. Single source of truth = Tonado-Repo.
+# /opt/tonado/system/*.service und werden in Stage 04 (finalize) nach
+# /etc/systemd/system symlinkt. Single source of truth = Tonado-Repo.
+
+# Es gibt KEINE statische NetworkManager-Unmanaged-Conf mehr (WP1): wlan0 wird
+# nur dynamisch von setup-ap.sh unmanaged gesetzt, solange der AP laeuft.
 ```
 
 ## Troubleshooting

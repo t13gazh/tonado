@@ -70,10 +70,30 @@ async def test_wizard_step_progression(
     assert result["success"] is True
     assert wizard.current_step == SetupStep.PIN_SETUP
 
+    # Step 6: Recovery WiFi (wizard progression only; creds saved by router)
+    result = await wizard.mark_recovery_wifi_done()
+    assert result["success"] is True
+    assert wizard.current_step == SetupStep.RECOVERY_WIFI
+
     # Complete
     result = await wizard.complete_setup()
     assert result["success"] is True
     assert wizard.is_complete
+
+
+@pytest.mark.asyncio
+async def test_recovery_wifi_step_is_idempotent(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """mark_recovery_wifi_done() must be safe to call repeatedly (re-run)."""
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+
+    await wizard.mark_recovery_wifi_done()
+    assert wizard.current_step == SetupStep.RECOVERY_WIFI
+    # Calling again stays on the same step without raising.
+    await wizard.mark_recovery_wifi_done()
+    assert wizard.current_step == SetupStep.RECOVERY_WIFI
 
 
 @pytest.mark.asyncio

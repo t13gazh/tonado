@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { t } from '$lib/i18n';
 	import { setupApi, player, type HardwareAudioOutput } from '$lib/api';
+	import Icon from '$lib/components/Icon.svelte';
 	import InlineError from '$lib/components/InlineError.svelte';
 
 	interface Props {
@@ -15,6 +16,10 @@
 
 	let testing = $state(false);
 	let testResult = $state<'success' | 'error' | null>(null);
+	// Set when the backend reports the chosen output needs a reboot to take
+	// effect (e.g. a DAC overlay activated for the first time). Used to soften
+	// the "no sound on first test" surprise — never blocks progress.
+	let requiresReboot = $state(false);
 
 	async function testAudio() {
 		if (!selectedDevice) return;
@@ -42,7 +47,8 @@
 
 	async function selectAudio(output: HardwareAudioOutput) {
 		try {
-			await setupApi.setupAudio(output.device);
+			const result = await setupApi.setupAudio(output.device);
+			requiresReboot = result.requires_reboot === true;
 
 			// Enable the matching MPD output if possible, disable others (except "Browser")
 			try {
@@ -119,6 +125,19 @@
 				<span class="text-sm text-green-400">{t('setup.audio_test_ok')}</span>
 			{:else if testResult === 'error'}
 				<span class="text-sm text-red-400">{t('setup.audio_test_fail')}</span>
+			{/if}
+
+			<!-- Warm "no sound yet" reassurance — a first-time DAC overlay or a
+			     hardware swap only produces sound after the final reboot. -->
+			<div class="w-full max-w-sm bg-surface-light rounded-xl p-3 flex items-start gap-2">
+				<Icon name="help-circle" size={16} class="text-primary mt-0.5 shrink-0" strokeWidth={2} />
+				<p class="text-xs text-text-muted text-left">
+					{t('setup.audio_reboot_hint')}
+				</p>
+			</div>
+
+			{#if requiresReboot}
+				<p class="text-xs text-amber-400 max-w-sm text-center">{t('setup.audio_reboot_pending')}</p>
 			{/if}
 		</div>
 	{/if}

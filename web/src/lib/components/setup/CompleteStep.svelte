@@ -35,6 +35,10 @@
 		hardware: HardwareDetection | null;
 		sysInfo: SystemInfoData | null;
 		wifiStatus: WifiStatus | null;
+		/** Offline-first fork result. `offline` → terminal success screen, the
+		 *  box opens its own secured recovery network (no test/poll/QR-rejoin).
+		 *  `online` (or null) → the existing test→poll→confirm-complete flow. */
+		internetMode?: 'online' | 'offline' | null;
 		buttonCount: number;
 		buttonLabels: string[];
 		error: string;
@@ -47,6 +51,11 @@
 		 *  Lane B uses for /setup/test-wifi, the parent can pass the result here
 		 *  so CompleteStep skips re-testing and jumps straight to switching. */
 		wifiProbeResult?: WifiProbeResult | null;
+		/** Recovery-WLAN credentials (offline mode only). These become the box's
+		 *  permanent network; shown on the offline finish screen so the parent can
+		 *  reconnect their phone after the box swaps from the open setup AP. */
+		recoverySsid?: string;
+		recoveryPassword?: string;
 		/** Called when the user wants to go back to the WiFi step after a
 		 *  failed test or a polling timeout. */
 		onBackToWifi?: () => void;
@@ -56,12 +65,15 @@
 		hardware,
 		sysInfo,
 		wifiStatus,
+		internetMode = null,
 		buttonCount = 0,
 		buttonLabels = [],
 		error,
 		wifiSsid = '',
 		wifiPassword = '',
 		wifiProbeResult = null,
+		recoverySsid = '',
+		recoveryPassword = '',
 		onBackToWifi,
 	}: Props = $props();
 
@@ -86,6 +98,31 @@
 	/** Shown briefly before `window.location.href` fires so the user sees a
 	 *  success blip instead of a hard redirect. */
 	let showSuccessToast = $state(false);
+
+	// ─── Offline finish ────────────────────────────────────────────────────
+	// Offline mode is a terminal screen: no test, no polling, no QR-rejoin. The
+	// parent confirms, we call /setup/complete with mode=offline, the box swaps
+	// from the open setup AP to its secured recovery network — at which point the
+	// phone WILL drop. There is no auto-reconnect to wait for, so we never poll.
+	const isOffline = $derived(internetMode === 'offline');
+	let offlineFinishing = $state(false);
+	let offlineDone = $state(false);
+	let offlineError = $state('');
+	let showRecoveryPassword = $state(false);
+
+	async function finishOffline() {
+		if (offlineFinishing || offlineDone) return;
+		offlineFinishing = true;
+		offlineError = '';
+		try {
+			await setupApi.complete('offline');
+			offlineDone = true;
+		} catch (e) {
+			offlineError = e instanceof Error ? e.message : t('setup.complete_finish_failed');
+		} finally {
+			offlineFinishing = false;
+		}
+	}
 
 	// ─── Derived addresses ─────────────────────────────────────────────────
 	// Hostname resolution: prefer sysInfo.hostname, fall back to 'tonado'.
@@ -349,7 +386,85 @@
      title automatically; the focus is never moved programmatically so sighted
      users are not disoriented either. -->
 <div class="flex flex-col items-center gap-6 text-center" role="status" aria-live="polite">
-	{#if status === 'intro'}
+	{#if isOffline}
+		<!-- ─── Offline terminal screen ─────────────────────────────────────
+		     No test-wifi, no 5-min polling, no QR-rejoin. The box opens its own
+		     secured network; the phone will drop and must reconnect manually. -->
+		<div class="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
+			<Icon name="check" size={40} class="text-green-500" strokeWidth={2.5} />
+		</div>
+		<div>
+			<h2 class="text-2xl font-bold text-text mb-2">{t('setup.complete_offline_title')}</h2>
+			<p class="text-sm text-text-muted max-w-sm mx-auto">{t('setup.complete_offline_body')}</p>
+		</div>
+
+		<!-- The hard reality: the phone WILL be disconnected on the AP swap. -->
+		<div class="w-full max-w-sm bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2 text-left">
+			<Icon name="wifi" size={16} class="text-amber-400 mt-0.5 shrink-0" strokeWidth={2} />
+			<p class="text-xs text-text">{t('setup.complete_offline_disconnect')}</p>
+		</div>
+
+		<!-- Recovery credentials — the only way back to the box. -->
+		{#if recoverySsid}
+			<div class="w-full max-w-sm bg-surface-light rounded-xl p-4 space-y-3 text-left">
+				<div>
+					<p class="text-xs text-text-muted mb-1">{t('setup.complete_offline_network_label')}</p>
+					<p class="text-base font-semibold text-text break-all">{recoverySsid}</p>
+				</div>
+				<div>
+					<p class="text-xs text-text-muted mb-1">{t('setup.complete_offline_password_label')}</p>
+					<div class="flex items-center gap-2">
+						<p class="text-base font-mono font-semibold text-text break-all flex-1">
+							{showRecoveryPassword ? recoveryPassword : '•'.repeat(Math.max(recoveryPassword.length, 8))}
+						</p>
+						<button
+							type="button"
+							onclick={() => (showRecoveryPassword = !showRecoveryPassword)}
+							aria-label={showRecoveryPassword ? t('setup.complete_offline_hide_password') : t('setup.complete_offline_show_password')}
+							class="p-2 min-h-11 min-w-11 inline-flex items-center justify-center text-text-muted hover:text-text rounded-lg transition-colors shrink-0"
+						>
+							<Icon name={showRecoveryPassword ? 'eye-off' : 'eye'} size={18} />
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Write-it-down nudge — once the AP swaps the phone can't see this. -->
+			<div class="w-full max-w-sm bg-surface-light rounded-xl p-3 flex items-start gap-2 text-left">
+				<Icon name="help-circle" size={16} class="text-primary mt-0.5 shrink-0" strokeWidth={2} />
+				<div>
+					<p class="text-xs font-medium text-text">{t('setup.complete_offline_note_title')}</p>
+					<p class="text-xs text-text-muted mt-0.5">{t('setup.complete_offline_note')}</p>
+				</div>
+			</div>
+		{:else}
+			<p class="text-xs text-amber-400 max-w-sm">{t('setup.complete_offline_credentials_missing')}</p>
+		{/if}
+
+		<!-- Internet-later note. -->
+		<p class="text-xs text-text-muted max-w-sm">{t('setup.complete_offline_later')}</p>
+
+		{#if offlineDone}
+			<div class="flex items-center gap-2 text-green-400">
+				<Icon name="check" size={18} strokeWidth={3} />
+				<span class="text-sm font-medium">{t('setup.complete_success_toast')}</span>
+			</div>
+		{:else}
+			<button
+				type="button"
+				onclick={finishOffline}
+				disabled={offlineFinishing}
+				class="w-full max-w-sm py-3 bg-primary hover:bg-primary-light disabled:opacity-50 text-white rounded-lg font-medium transition-colors min-h-11 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+			>
+				{offlineFinishing ? t('setup.complete_offline_finishing') : t('setup.complete_offline_finish')}
+			</button>
+		{/if}
+
+		{#if offlineError}
+			<InlineError message={offlineError} />
+		{/if}
+
+	{:else if status === 'intro'}
 		<!-- State 0: informed-consent intro — no auto-start, no spinner. -->
 		<div class="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center">
 			<Icon name="check" size={40} class="text-primary" strokeWidth={2.5} />
@@ -606,7 +721,7 @@
 		</details>
 	{/if}
 
-	{#if displayError && status !== 'failed' && status !== 'timeout'}
+	{#if !isOffline && displayError && status !== 'failed' && status !== 'timeout'}
 		<InlineError message={displayError} />
 	{/if}
 </div>

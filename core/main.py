@@ -224,7 +224,23 @@ async def _create_services(settings: Settings, event_bus: EventBus) -> dict:
         mock=(settings.hardware_mode == "mock"),
     )
     if setup_wizard.is_complete:
-        await connectivity_monitor.start()
+        # A deliberately-offline box has NO home WiFi: after the completion
+        # reboot it must self-host the secured "Tonado" AP on every boot and
+        # keep it up permanently, or the parents are locked out forever.
+        #
+        # owner="offline" disables the auto-timeout so the AP never tears
+        # itself down. We do NOT arm the ConnectivityMonitor in this mode —
+        # there is nothing to monitor for, and with auto_fallback_enabled set
+        # to False (persisted at completion) it would no-op anyway. The OPEN
+        # setup AP (tonado-ap.service) is condition-guarded off by the
+        # .setup-complete marker that exists post-setup, so there is no
+        # double-bringup on wlan0.
+        offline_mode = await config_service.get("wifi.offline_mode")
+        if offline_mode:
+            logger.info("Offline box — self-hosting permanent recovery AP")
+            await captive_portal.start(owner="offline")
+        else:
+            await connectivity_monitor.start()
 
     return {
         "db_manager": db_manager,

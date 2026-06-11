@@ -29,7 +29,10 @@ from core.utils.subprocess import async_run
 
 logger = logging.getLogger(__name__)
 
-PortalOwner = Literal["setup", "auto", "manual"]
+# "offline" marks a permanent AP on a deliberately-offline box: it has no
+# home WiFi to fall back to, so the recovery AP must stay up forever (no
+# auto-timeout) or the parents would be locked out after 30 min.
+PortalOwner = Literal["setup", "auto", "manual", "offline"]
 
 # The single privileged AP mechanism. Every wlan0 mutation is delegated to it
 # via sudo; see system/sudoers.d/tonado for the matching NOPASSWD grants.
@@ -83,7 +86,9 @@ class CaptivePortalService(BaseService):
 
     def status(self) -> dict[str, Any]:
         seconds_until_timeout: int | None = None
-        if self._active and self._started_at is not None:
+        # owner="offline" runs without an auto-timeout, so there is no
+        # countdown to report — leave it None.
+        if self._active and self._started_at is not None and self._owner != "offline":
             elapsed = time.monotonic() - self._started_at
             remaining = max(0, int(self._timeout_seconds - elapsed))
             seconds_until_timeout = remaining
@@ -175,13 +180,23 @@ class CaptivePortalService(BaseService):
         self._active = True
         self._started_at = time.monotonic()
         self._owner = owner
-        logger.warning(
-            "Recovery AP started: owner=%s SSID=%s timeout=%dmin ip=192.168.4.1",
-            owner,
-            self._ssid,
-            self._timeout_seconds // 60,
-        )
-        self._timeout_task = asyncio.create_task(self._auto_timeout())
+        # An offline box's AP is permanent — never arm the auto-timeout, or
+        # the box would silently drop its only access point after 30 min and
+        # lock the parents out for good.
+        if owner == "offline":
+            logger.warning(
+                "Recovery AP started: owner=offline SSID=%s timeout=none "
+                "(permanent) ip=192.168.4.1",
+                self._ssid,
+            )
+        else:
+            logger.warning(
+                "Recovery AP started: owner=%s SSID=%s timeout=%dmin ip=192.168.4.1",
+                owner,
+                self._ssid,
+                self._timeout_seconds // 60,
+            )
+            self._timeout_task = asyncio.create_task(self._auto_timeout())
         return True
 
     async def _auto_timeout(self) -> None:

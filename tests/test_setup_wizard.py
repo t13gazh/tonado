@@ -1,10 +1,12 @@
 """Tests for the setup wizard service."""
 
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
 
+from core.hardware.detect import AudioOutput, HardwareProfile, PiModel
 from core.services.auth_service import AuthService, AuthTier
 from core.services.config_service import ConfigService
 from core.services.setup_wizard import SetupStep, SetupWizard
@@ -219,6 +221,132 @@ async def test_fingerprint_ignores_alsa_card_number(
         gyro_detected=True,
     )
     assert wizard._compute_hardware_fingerprint(profile_a) == wizard._compute_hardware_fingerprint(profile_b)
+
+
+# --- TASK 4: audio overlay activation + requires_reboot ---
+
+
+def _pi_profile(audio_outputs: list[AudioOutput]) -> HardwareProfile:
+    return HardwareProfile(
+        pi=PiModel(model="Pi 3B+", ram_mb=1024),
+        rfid_reader="rc522",
+        audio_outputs=audio_outputs,
+        gyro_detected=False,
+        is_mock=False,
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_audio_mock_no_reboot(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """On a dev/mock box selecting audio never triggers a reboot."""
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+    result = await wizard.setup_audio("hw:0")
+    assert result["success"] is True
+    assert result["device"] == "hw:0"
+    assert result["requires_reboot"] is False
+
+
+@pytest.mark.asyncio
+async def test_setup_audio_already_active_no_overlay_call(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """Choosing a device whose type is already live → no helper call, no reboot."""
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+    # I2S DAC already detected live → overlay already baked in.
+    wizard._hardware = _pi_profile([
+        AudioOutput(name="HifiBerry DAC", type="i2s", device="hw:0"),
+    ])
+
+    with patch(
+        "core.services.setup_wizard.async_run",
+        new=AsyncMock(return_value=(0, "", "")),
+    ) as run:
+        result = await wizard.setup_audio("hw:0")
+
+    assert result["requires_reboot"] is False
+    run.assert_not_called()
+    assert await config_service.get("audio.reboot_pending") in (None, False)
+
+
+@pytest.mark.asyncio
+async def test_setup_audio_flip_to_i2s_calls_helper_and_sets_reboot(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """User picks an I2S DAC whose overlay isn't live yet → helper + reboot.
+
+    detect_audio only lists active cards, so when only analog is live the user
+    chooses a logical 'i2s'/DAC option. The chosen mode (i2s) is absent from
+    the live outputs → flip + reboot pending.
+    """
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+    # Live = onboard analog only (DAC overlay not applied yet).
+    wizard._hardware = _pi_profile([
+        AudioOutput(name="Onboard 3.5mm", type="analog", device="hw:0"),
+    ])
+
+    captured: list[list[str]] = []
+
+    async def fake_run(cmd, **kwargs):
+        captured.append(cmd)
+        return (0, "I2S aktiviert", "")
+
+    with patch("core.services.setup_wizard.async_run", new=fake_run):
+        # The UI offers the DAC by a logical identifier that has no hw:N yet.
+        result = await wizard.setup_audio("hifiberry-dac")
+
+    assert result["requires_reboot"] is True
+    assert await config_service.get("audio.reboot_pending") is True
+    # Exactly one privileged helper call, with sudo -n + i2s mode.
+    assert len(captured) == 1
+    assert captured[0][:2] == ["sudo", "-n"]
+    assert captured[0][-1] == "i2s"
+
+
+@pytest.mark.asyncio
+async def test_setup_audio_flip_helper_failure_no_reboot(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """If the overlay helper fails, no reboot is claimed and nothing persists."""
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+    wizard._hardware = _pi_profile([
+        AudioOutput(name="Onboard 3.5mm", type="analog", device="hw:0"),
+    ])
+
+    async def failing_run(cmd, **kwargs):
+        return (1, "", "command not found")
+
+    with patch("core.services.setup_wizard.async_run", new=failing_run):
+        result = await wizard.setup_audio("hifiberry-dac")
+
+    assert result["requires_reboot"] is False
+    assert await config_service.get("audio.reboot_pending") in (None, False)
+
+
+@pytest.mark.asyncio
+async def test_setup_audio_hdmi_no_overlay(
+    config_service: ConfigService, wifi_service: WifiService
+) -> None:
+    """HDMI/USB outputs are not overlay-controlled → never a reboot."""
+    wizard = SetupWizard(config_service, wifi_service)
+    await wizard.start()
+    wizard._hardware = _pi_profile([
+        AudioOutput(name="HDMI Audio", type="hdmi", device="hw:0"),
+    ])
+
+    with patch(
+        "core.services.setup_wizard.async_run",
+        new=AsyncMock(return_value=(0, "", "")),
+    ) as run:
+        result = await wizard.setup_audio("hw:0")
+
+    assert result["requires_reboot"] is False
+    run.assert_not_called()
 
 
 @pytest.mark.asyncio

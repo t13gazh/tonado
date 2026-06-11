@@ -29,7 +29,14 @@
 %TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/setup-ap.sh start secured *
 %TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/setup-ap.sh stop
 
+# Audio overlay activation (called from the setup wizard's audio step).
+# FIXED argv, no wildcard — the helper edits config.txt to enable/disable the
+# I2S DAC overlay and never spawns a shell.
+%TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/apply-audio-overlay.sh i2s
+%TONADO_USER% ALL=(root) NOPASSWD: /opt/tonado/system/apply-audio-overlay.sh analog
+
 Defaults!/usr/bin/systemctl !setenv
 Defaults!/usr/sbin/shutdown !setenv
 Defaults!/usr/sbin/reboot !setenv
 Defaults!/opt/tonado/system/setup-ap.sh !setenv
+Defaults!/opt/tonado/system/apply-audio-overlay.sh !setenv

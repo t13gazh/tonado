@@ -77,6 +77,16 @@ for unit in mpd nginx avahi-daemon; do
     "ls $R/etc/systemd/system/multi-user.target.wants/$unit.service >/dev/null 2>&1"
 done
 
+# The systemd-exec'd runtime scripts MUST carry the exec bit. systemd ExecStart
+# (and the sudo'd captive-portal path) invoke these by absolute path; a 0644
+# script fails 203/EXEC, so firstrun (rfkill unblock) and the tonado-ap setup AP
+# never start and the box is headless-unreachable. Git-on-Windows commits 100644
+# by default — this assert is the regression guard for that exact failure.
+for s in setup-ap firstrun imager-wifi-probe; do
+  check "runtime script executable: system/$s.sh" \
+    "[ -x '$R/opt/tonado/system/$s.sh' ]"
+done
+
 # Build-only packages must be gone (04-tonado-finalize purges them).
 check "build-essential purged" \
   "[ ! -e '$R/usr/bin/gcc' ]"

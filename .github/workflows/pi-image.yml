@@ -326,7 +326,19 @@ jobs:
         working-directory: pi-gen/deploy
         run: |
           set -euo pipefail
-          gh release upload "${{ steps.meta.outputs.tag }}" \
+          TAG="${{ steps.meta.outputs.tag }}"
+          # Pushing a git tag does NOT create a GitHub Release object, and
+          # nothing else in this pipeline creates it — so `gh release upload`
+          # fails with "release not found". Create it idempotently here. The
+          # two matrix jobs run in parallel: `view || create || true` lets the
+          # first win and tolerates the loser's "already exists". --prerelease
+          # because every v*-beta is a pre-release; the real notes are written
+          # later by the update-release-notes job (release-notes.sh).
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --prerelease --title "$TAG" \
+                 --notes "Automatischer Build läuft – Notes folgen." \
+            || true
+          gh release upload "$TAG" \
             "${{ steps.img.outputs.name }}" \
             "${{ steps.img.outputs.name }}.sig" \
             "${{ steps.img.outputs.name }}.pem" \

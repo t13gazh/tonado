@@ -234,9 +234,16 @@ jobs:
 
       - name: Build image
         working-directory: pi-gen
-        run: sudo --preserve-env=DEBIAN_FRONTEND ./build-docker.sh
+        # pi-gen's Dockerfile uses `FROM i386/debian:bookworm`. With BuildKit
+        # (now default on the GitHub runner image) the strict cross-platform
+        # check trips: "InvalidBaseImagePlatform: Base image i386/debian:bookworm
+        # was pulled with platform linux/386, expected linux/amd64 (line 2)".
+        # The classic builder does not enforce that, so pin BuildKit off for the
+        # pi-gen build. Must be preserved across sudo to reach the docker call.
+        run: sudo --preserve-env=DEBIAN_FRONTEND,DOCKER_BUILDKIT ./build-docker.sh
         env:
           DEBIAN_FRONTEND: noninteractive
+          DOCKER_BUILDKIT: "0"
 
       - name: Hand deploy/ to runner user
         # pi-gen runs the build under sudo, so everything in deploy/ is owned

@@ -10,12 +10,16 @@ from pydantic import BaseModel
 from core.dependencies import (
     get_auth_service,
     get_captive_portal,
+    get_config_service,
     get_connectivity_monitor,
     get_setup_wizard,
+    get_system_service,
     get_wifi_service,
     require_tier,
 )
 from core.services.auth_service import AuthService, AuthTier
+from core.services.config_service import ConfigService
+from core.services.system_service import SystemService
 from core.services.captive_portal import (
     CONFIG_KEY_PASSWORD,
     CONFIG_KEY_SSID,
@@ -145,20 +149,47 @@ async def confirm_complete(
     req: ConfirmCompleteRequest = Body(default_factory=ConfirmCompleteRequest),
     token: str | None = None,
     wifi: WifiService = Depends(get_wifi_service),
+    wizard: SetupWizard = Depends(get_setup_wizard),
+    monitor: ConnectivityMonitor = Depends(get_connectivity_monitor),
+    config: ConfigService = Depends(get_config_service),
+    system: SystemService = Depends(get_system_service),
 ) -> dict:
-    """Finalize the wizard once the client has confirmed it can reach
-    the box over the home WiFi. Writes `.setup-complete`, stops and
-    disables the setup AP, and removes the NM unmanaged override.
+    """Finalize the ONLINE setup once the client has confirmed it can
+    reach the box over the home WiFi.
 
-    Requires the one-shot token returned by /test-wifi (or the
-    /wifi/connect probe path). Token may be passed as a JSON body field
-    or as a `?token=` query parameter — accept both because the setup
-    wizard lives on a captive-portal page where query strings sometimes
-    survive redirects better than request bodies.
+    This endpoint is the SINGLE source of truth for online completion.
+    The frontend's online CompleteStep calls it fire-and-forget (no-cors)
+    and never calls /complete, so everything that makes the box "done"
+    must happen here, in this order:
 
-    Returns 409 Conflict if setup has already been finalized previously,
-    403 if the token is missing, unknown or expired, 500 if the AP
-    teardown itself fails partway.
+      1. 409 guard — if the marker already exists, setup is finished.
+         409 is treated as success by the client; a retried no-cors call
+         short-circuits here so it can't error-loop or double-reboot.
+      2. Consume the one-shot probe token (403 if missing/expired). Token
+         may arrive as a JSON body field or `?token=` query parameter —
+         both survive captive-portal redirects differently.
+      3. PIN gate + wizard/auth completion via wizard.complete_setup().
+         It raises a German ValueError when the parent PIN is unset; we
+         map that to 400 and finalize NOTHING (no marker, no teardown —
+         the setup AP stays up so parents can still set a PIN). On
+         success it sets SetupStep.COMPLETED and auth.set_setup_complete.
+      4. AP teardown via finalize_setup_ap_teardown() (atomic marker
+         FIRST, then stop/disable the AP unit). Power-loss-safe: a torn
+         teardown still leaves the marker so a reboot skips the AP.
+      5. Arm the ConnectivityMonitor for auto-fallback recovery — only
+         when wifi.auto_fallback_enabled is truthy (default for online).
+      6. Consume audio.reboot_pending and reboot LAST, after all state
+         and the teardown are in place.
+
+    Ordering rationale: completion state (step 3) is set BEFORE teardown
+    (step 4) so a PIN-missing call short-circuits with the AP untouched.
+    The marker write inside step 4 happens before the systemctl calls, so
+    a teardown failure still leaves the marker — a subsequent retry hits
+    the 409 guard and returns success instead of re-running anything.
+
+    Returns 409 if already finalized (client treats as success), 403 on a
+    bad token, 400 if the parent PIN is missing, 500 if the AP teardown
+    fails partway.
     """
     if WifiService.SETUP_COMPLETE_MARKER.exists():
         raise HTTPException(409, "Setup wurde bereits abgeschlossen.")
@@ -170,14 +201,41 @@ async def confirm_complete(
             "Ungültiges oder abgelaufenes Token. Bitte WLAN-Test erneut ausführen.",
         )
 
+    # PIN gate + wizard/auth completion FIRST. complete_setup() raises a
+    # German ValueError when the parent PIN is unset (HIGH-2): we must not
+    # finalize anything in that case — leave the setup AP up so parents can
+    # still set a PIN. Setting COMPLETED state before teardown also means a
+    # PIN-missing call leaves marker + AP untouched.
+    try:
+        await wizard.complete_setup()
+    except ValueError as exc:
+        # Curated German user message (see setup_wizard.complete_setup).
+        raise HTTPException(400, str(exc)) from exc
+
     try:
         await wifi.finalize_setup_ap_teardown()
     except RuntimeError as exc:
         # Translate the teardown failure into an HTTP 500 so the client
         # knows the AP may still be up. The marker has been written
         # atomically earlier in finalize, so the system won't come back
-        # up in AP mode after a reboot anyway.
+        # up in AP mode after a reboot anyway. Wizard/auth state is already
+        # COMPLETED; a retry hits the 409 guard and returns ok.
         raise HTTPException(500, str(exc)) from exc
+
+    # Arm the auto-fallback monitor so home-WiFi loss later recovers into a
+    # recovery AP. Held back in main.py during the wizard because the setup
+    # AP and the monitor can't share wlan0. Only arm when auto-fallback is
+    # enabled (default True online; offline persists it False).
+    if await config.get("wifi.auto_fallback_enabled") and not monitor.is_running:
+        await monitor.start()
+
+    # Deferred audio-overlay reboot — LAST, after marker + teardown + state.
+    # Consume + clear the flag so a retry / next boot can't loop-reboot.
+    if await config.get("audio.reboot_pending"):
+        await config.set("audio.reboot_pending", False)
+        logger.info("Audio overlay reboot pending — rebooting box")
+        await system.reboot()
+
     return {"status": "ok"}
 
 
@@ -198,9 +256,19 @@ async def cancel_probe(
 
 
 @router.get("/wifi/scan")
-async def wifi_scan(wifi: WifiService = Depends(get_wifi_service)) -> list[dict]:
-    networks = await wifi.scan()
-    return [asdict(n) for n in networks]
+async def wifi_scan(wifi: WifiService = Depends(get_wifi_service)) -> dict:
+    """Return available WiFi networks plus the scan provenance.
+
+    On a single-radio box the setup AP and a live scan can't coexist, so the
+    list usually comes from the boot scan-cache (source="cache"). The frozen
+    contract is {networks, source, scanned_at} — see WifiScanResult.
+    """
+    result = await wifi.scan_result()
+    return {
+        "networks": [asdict(n) for n in result.networks],
+        "source": result.source,
+        "scanned_at": result.scanned_at,
+    }
 
 
 @router.get("/wifi/status")
@@ -336,33 +404,156 @@ async def save_recovery_wifi(
     return await wizard.mark_recovery_wifi_done()
 
 
+class CompleteSetupRequest(BaseModel):
+    # "online": the box has home WiFi — keep the legacy probe→confirm
+    # teardown flow untouched. "offline": no home WiFi — swap the single
+    # radio to a permanent secured AP. Defaults to "online" for back-compat
+    # with any client that posts an empty body.
+    mode: str = "online"
+
+
 @router.post("/complete")
 async def complete_setup(
+    req: CompleteSetupRequest = Body(default_factory=CompleteSetupRequest),
     wizard: SetupWizard = Depends(get_setup_wizard),
     portal: CaptivePortalService = Depends(get_captive_portal),
     monitor: ConnectivityMonitor = Depends(get_connectivity_monitor),
+    config: ConfigService = Depends(get_config_service),
+    wifi: WifiService = Depends(get_wifi_service),
+    system: SystemService = Depends(get_system_service),
 ) -> dict:
-    _require_setup_incomplete(wizard)
-    try:
-        result = await wizard.complete_setup()
-    except ValueError as e:
-        # ValueError carries a curated German user message (see setup_wizard.complete_setup)
-        raise HTTPException(400, str(e))
-    # Safety net: guarantee a recovery-AP password exists so the runtime
-    # recovery AP is functional + retrievable via /portal/credentials even
-    # if the recovery-WiFi wizard step was somehow bypassed (e.g. a direct
-    # API caller). credentials() generates + persists one only if missing,
-    # so a parent-chosen password set earlier is left untouched.
+    mode = req.mode if req.mode in ("online", "offline") else "online"
+
+    # FIX B: offline finalize is re-runnable. complete_setup() sets
+    # is_complete=True at the top, so if the subsequent _complete_offline AP
+    # swap fails (500), the normal _require_setup_incomplete guard would 403
+    # a retry and strand the parent (recoverable only by reboot). Allow a
+    # re-run when completion is recorded but the offline AP swap is not yet
+    # in place (offline_mode set + no live portal) so the swap can be
+    # re-driven idempotently. The healthy "already complete" guard is
+    # otherwise unchanged.
+    offline_retry = False
+    if wizard.is_complete:
+        offline_retry = (
+            await config.get("wifi.offline_mode") is True
+            and not portal.active
+        )
+        if not offline_retry:
+            raise HTTPException(
+                403, "Setup already completed. Use reset endpoint to re-run."
+            )
+        mode = "offline"
+
+    if not wizard.is_complete:
+        try:
+            result = await wizard.complete_setup()
+        except ValueError as e:
+            # ValueError carries a curated German user message (see setup_wizard.complete_setup)
+            raise HTTPException(400, str(e))
+    else:
+        # offline_retry: completion already recorded; re-drive the AP swap only.
+        result = {"success": True}
+
+    # Safety net (both modes): guarantee a recovery-AP password exists so the
+    # AP is functional + retrievable via /portal/credentials even if the
+    # recovery-WiFi wizard step was somehow bypassed. credentials() generates
+    # + persists one only if missing, so a parent-chosen password is left
+    # untouched.
     await portal.credentials()
-    # Stop captive portal if active
+
+    if mode == "offline":
+        await _complete_offline(wizard, portal, config, wifi)
+    else:
+        await _complete_online(portal, monitor)
+
+    # TASK 4: deferred audio-overlay reboot. Done LAST — after all state is
+    # persisted and (offline) the AP swap is in place — so the box boots
+    # straight into the finished state, and an offline box comes back up
+    # self-hosting the AP via the main.py startup path.
+    if await config.get("audio.reboot_pending"):
+        await config.set("audio.reboot_pending", False)
+        logger.info("Audio overlay reboot pending — rebooting box")
+        await system.reboot()
+
+    return result
+
+
+async def _complete_online(
+    portal: CaptivePortalService,
+    monitor: ConnectivityMonitor,
+) -> None:
+    """Online completion helper for the /complete direct path.
+
+    NOTE: the production online flow does NOT run through here. The
+    frontend's online CompleteStep finalizes via /confirm-complete
+    (fire-and-forget no-cors), which is now the single online-completion
+    authority — it drives wizard/auth completion, the AP teardown, monitor
+    arming and the deferred audio reboot itself (see confirm_complete).
+
+    This helper only runs when something calls POST /complete with mode
+    "online" directly (e.g. tests or a legacy client). It stops a live
+    portal instance and arms the auto-fallback monitor — a best-effort
+    superset of confirm-complete's monitor step, kept idempotent so the two
+    paths never conflict. The real setup-AP teardown still flows through
+    /confirm-complete + the probe token.
+    """
     if portal.active:
         await portal.stop()
-    # Now that setup is done, arm the auto-fallback monitor. It was held
-    # back in main.py because the setup-wizard portal and the monitor can't
-    # share wlan0.
+    # Arm the auto-fallback monitor. It was held back in main.py because the
+    # setup-wizard portal and the monitor can't share wlan0.
     if not monitor.is_running:
         await monitor.start()
-    return result
+
+
+async def _complete_offline(
+    wizard: SetupWizard,
+    portal: CaptivePortalService,
+    config: ConfigService,
+    wifi: WifiService,
+) -> None:
+    """Offline completion — swap the single radio to a permanent secured AP.
+
+    No home WiFi exists, so:
+      1. Persist the offline flags. auto_fallback_enabled=False makes the
+         ConnectivityMonitor a no-op even if something starts it, so we never
+         drive GRACE→fallback on a box that has nowhere to fall back to.
+      2. Write the .setup-complete marker + stop/disable the OPEN setup AP
+         (finalize_offline_setup — marker FIRST so an interrupted swap still
+         leaves a box that recovers via the boot self-host path).
+      3. Bring up the SECURED recovery AP as owner="offline" (permanent, no
+         auto-timeout) using the credentials the parents wrote down.
+
+    The ConnectivityMonitor is deliberately NOT armed here.
+    """
+    await config.set("wifi.offline_mode", True)
+    await config.set("wifi.auto_fallback_enabled", False)
+
+    # If a setup-wizard-owned portal instance is live in-process, stop it
+    # first so the owner re-tag below is clean. (The OPEN setup AP itself is a
+    # systemd unit, torn down by finalize_offline_setup.)
+    if portal.active:
+        await portal.stop()
+
+    try:
+        await wifi.finalize_offline_setup()
+    except RuntimeError as exc:
+        # The marker is written; the box will recover on reboot via the boot
+        # self-host path. Surface the partial swap so the UI can warn.
+        raise HTTPException(500, str(exc)) from exc
+
+    # Brief unavoidable single-radio outage happens here as the OPEN AP goes
+    # down and the SECURED AP comes up. Sequence is marker-first (above) so an
+    # interruption still leaves a recoverable box.
+    started = await portal.start(owner="offline")
+    if not started:
+        # hostapd/dnsmasq missing or script failed. The box is now offline
+        # with no AP — but the marker + offline_mode flag mean the next boot
+        # will retry the self-host. Tell the caller.
+        raise HTTPException(
+            500,
+            "Das Notfall-WLAN konnte nicht gestartet werden. "
+            "Bitte starte die Box neu.",
+        )
 
 
 @router.post("/reset")

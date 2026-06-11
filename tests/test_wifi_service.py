@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from core.services.wifi_service import (
+    WifiNetwork,
     WifiService,
     clear_confirm_tokens,
     consume_confirm_token,
@@ -393,4 +394,188 @@ async def test_finalize_setup_ap_teardown_mock_still_writes_marker(tmp_path: Pat
     with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker):
         await service.finalize_setup_ap_teardown()
 
+    assert marker.exists()
+
+
+# --- TASK 1: boot scan-cache reads ---
+
+
+@pytest.mark.asyncio
+async def test_scan_result_mock_source(tmp_path: Path) -> None:
+    """Dev/Windows mock mode reports source='mock' and ignores any cache."""
+    service = WifiService()  # mock on dev
+    # Even if a cache existed, mock short-circuits before reading it.
+    result = await service.scan_result()
+    assert result.source == "mock"
+    assert result.scanned_at is None
+    assert len(result.networks) > 0
+
+
+@pytest.mark.asyncio
+async def test_scan_result_reads_boot_cache(tmp_path: Path) -> None:
+    """A present, parseable cache yields source='cache' + scanned_at."""
+    import json as _json
+
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True  # would be used for a live scan if no cache
+
+    cache = tmp_path / "wifi-scan.json"
+    cache.write_text(_json.dumps({
+        "scanned_at": 1700000000,
+        "networks": [
+            {"ssid": "HomeNet", "signal": 80, "security": "wpa2"},
+            {"ssid": "WeakOpen", "signal": 20, "security": "open"},
+        ],
+    }))
+
+    with patch("core.services.wifi_service.WIFI_SCAN_CACHE_PATH", cache):
+        result = await service.scan_result()
+
+    assert result.source == "cache"
+    assert result.scanned_at == 1700000000
+    ssids = [n.ssid for n in result.networks]
+    assert "HomeNet" in ssids and "WeakOpen" in ssids
+    # Sorted by signal descending.
+    assert result.networks[0].ssid == "HomeNet"
+
+
+@pytest.mark.asyncio
+async def test_scan_result_empty_cache(tmp_path: Path) -> None:
+    """A valid cache with zero networks reports source='empty'."""
+    import json as _json
+
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    cache = tmp_path / "wifi-scan.json"
+    cache.write_text(_json.dumps({"scanned_at": 1700000001, "networks": []}))
+
+    with patch("core.services.wifi_service.WIFI_SCAN_CACHE_PATH", cache):
+        result = await service.scan_result()
+
+    assert result.source == "empty"
+    assert result.networks == []
+    assert result.scanned_at == 1700000001
+
+
+@pytest.mark.asyncio
+async def test_scan_result_corrupt_cache_falls_back_to_live(tmp_path: Path) -> None:
+    """A corrupt cache is treated as a miss → live nmcli scan (source='live')."""
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    cache = tmp_path / "wifi-scan.json"
+    cache.write_text("{not json at all")
+
+    async def fake_nmcli_scan() -> list[WifiNetwork]:
+        return [WifiNetwork(ssid="LiveNet", signal=50, security="wpa2")]
+
+    with patch("core.services.wifi_service.WIFI_SCAN_CACHE_PATH", cache), \
+         patch.object(WifiService, "_nmcli_scan", new=AsyncMock(side_effect=fake_nmcli_scan)):
+        result = await service.scan_result()
+
+    assert result.source == "live"
+    assert result.scanned_at is None
+    assert result.networks[0].ssid == "LiveNet"
+
+
+@pytest.mark.asyncio
+async def test_scan_result_absent_cache_falls_back_to_live(tmp_path: Path) -> None:
+    """No cache file → live nmcli scan (source='live')."""
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    cache = tmp_path / "does-not-exist.json"
+
+    async def fake_nmcli_scan() -> list[WifiNetwork]:
+        return []
+
+    with patch("core.services.wifi_service.WIFI_SCAN_CACHE_PATH", cache), \
+         patch.object(WifiService, "_nmcli_scan", new=AsyncMock(side_effect=fake_nmcli_scan)):
+        result = await service.scan_result()
+
+    assert result.source == "live"
+
+
+@pytest.mark.asyncio
+async def test_scan_legacy_wrapper_returns_networks(tmp_path: Path) -> None:
+    """The legacy scan() wrapper still returns a plain network list."""
+    import json as _json
+
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    cache = tmp_path / "wifi-scan.json"
+    cache.write_text(_json.dumps({
+        "scanned_at": 1700000002,
+        "networks": [{"ssid": "X", "signal": 60, "security": "wpa2"}],
+    }))
+
+    with patch("core.services.wifi_service.WIFI_SCAN_CACHE_PATH", cache):
+        networks = await service.scan()
+
+    assert [n.ssid for n in networks] == ["X"]
+
+
+# --- TASK 2: offline finalize (single-radio AP swap) ---
+
+
+@pytest.mark.asyncio
+async def test_finalize_offline_setup_writes_marker_and_stops_ap(tmp_path: Path) -> None:
+    """Offline finalize writes the marker FIRST and tears down the setup AP."""
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    marker = tmp_path / "config" / ".setup-complete"
+    commands: list[list[str]] = []
+
+    async def fake_run_silent(cmd: list[str]) -> int:
+        commands.append(cmd)
+        return 0
+
+    with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
+         patch.object(WifiService, "_run_silent", new=AsyncMock(side_effect=fake_run_silent)):
+        await service.finalize_offline_setup()
+
+    assert marker.exists()
+    for cmd in commands:
+        assert cmd[:2] == ["sudo", "-n"]
+    assert any("stop" in c and "tonado-ap.service" in c for c in commands)
+    assert any("disable" in c and "tonado-ap.service" in c for c in commands)
+
+
+@pytest.mark.asyncio
+async def test_finalize_offline_setup_raises_on_failure(tmp_path: Path) -> None:
+    """A failing AP-stop must raise so the router can surface a 500."""
+    service = WifiService()
+    service._mock = False
+    service._use_nmcli = True
+
+    marker = tmp_path / "config" / ".setup-complete"
+
+    async def fake_run_silent(cmd: list[str]) -> int:
+        return 5 if "stop" in cmd else 0
+
+    with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker), \
+         patch.object(WifiService, "_run_silent", new=AsyncMock(side_effect=fake_run_silent)):
+        with pytest.raises(RuntimeError, match="AP-Wechsel"):
+            await service.finalize_offline_setup()
+
+    # Marker still present so a reboot recovers via the boot self-host path.
+    assert marker.exists()
+
+
+@pytest.mark.asyncio
+async def test_finalize_offline_setup_mock_writes_marker(tmp_path: Path) -> None:
+    """Mock mode writes the marker and does not shell out."""
+    service = WifiService()  # mock on dev
+    marker = tmp_path / ".setup-complete"
+    with patch.object(WifiService, "SETUP_COMPLETE_MARKER", marker):
+        await service.finalize_offline_setup()
     assert marker.exists()

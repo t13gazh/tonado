@@ -5,6 +5,7 @@ Falls back to wpa_supplicant if NetworkManager is unavailable.
 """
 
 import asyncio
+import json
 import logging
 import os
 import secrets
@@ -17,6 +18,14 @@ from pathlib import Path
 from core.services.base import BaseService
 
 logger = logging.getLogger(__name__)
+
+# Boot-time scan cache produced by the boot layer (one-shot wlan0 scan before
+# the setup AP claims the single radio). On a single-radio CYW43455 the box
+# cannot host the setup AP and scan/associate at the same time, so a live
+# nmcli scan during the wizard is impossible — we read this snapshot instead.
+# Contract (shared with the boot agent): JSON object
+#   {"scanned_at": epoch_int, "networks": [{"ssid","signal","security"}, ...]}
+WIFI_SCAN_CACHE_PATH = Path("/run/tonado/wifi-scan.json")
 
 
 # --- Confirm-complete token registry ---
@@ -89,6 +98,26 @@ class WifiStatus:
     signal: int = 0
 
 
+@dataclass
+class WifiScanResult:
+    """Outcome of a WiFi scan, including provenance.
+
+    `source` tells the UI where the network list came from so it can render
+    an appropriate hint ("zuletzt gesehen" for a cached boot scan vs. a fresh
+    live scan):
+      - "cache": read from the boot scan-cache (/run/tonado/wifi-scan.json)
+      - "live":  fresh nmcli scan (only possible when wlan0 is NM-managed)
+      - "empty": cache present but parsed to zero networks
+      - "mock":  dev/Windows synthetic list
+    `scanned_at` is the epoch second the cached scan was taken, or None when
+    not applicable (live/mock).
+    """
+
+    networks: list["WifiNetwork"]
+    source: str
+    scanned_at: int | None = None
+
+
 class WifiService(BaseService):
     """Manages WiFi connections on the Raspberry Pi."""
 
@@ -117,13 +146,100 @@ class WifiService(BaseService):
             logger.info("WiFi service started (wpa_supplicant)")
 
     async def scan(self) -> list[WifiNetwork]:
-        """Scan for available WiFi networks."""
-        if self._mock:
-            return self._mock_scan()
+        """Scan for available WiFi networks (networks only).
 
+        Thin wrapper over `scan_result()` kept for callers/tests that only
+        need the network list. New code should prefer `scan_result()` so it
+        can surface the scan source + timestamp to the UI.
+        """
+        result = await self.scan_result()
+        return result.networks
+
+    async def scan_result(self) -> WifiScanResult:
+        """Scan for WiFi networks and report where the list came from.
+
+        Single-radio reality: while the setup AP is up, wlan0 cannot also
+        scan, so we read the boot scan-cache FIRST. Resolution order:
+
+          1. /run/tonado/wifi-scan.json present + parseable → cached list
+             (source="cache", or "empty" when it held zero networks).
+          2. No cache but nmcli available (wlan0 is NM-managed — rare during
+             the wizard but possible post-setup) → fresh live scan
+             (source="live").
+          3. Dev/Windows mock → synthetic list (source="mock").
+        """
+        # Dev/Windows: synthetic list regardless of cache presence.
+        if self._mock:
+            return WifiScanResult(
+                networks=self._mock_scan(), source="mock", scanned_at=None
+            )
+
+        cached = self._read_scan_cache()
+        if cached is not None:
+            networks, scanned_at = cached
+            return WifiScanResult(
+                networks=networks,
+                source="cache" if networks else "empty",
+                scanned_at=scanned_at,
+            )
+
+        # No cache: fall back to a live scan only if wlan0 is NM-managed.
         if self._use_nmcli:
-            return await self._nmcli_scan()
-        return await self._wpa_scan()
+            return WifiScanResult(
+                networks=await self._nmcli_scan(), source="live", scanned_at=None
+            )
+        return WifiScanResult(
+            networks=await self._wpa_scan(), source="live", scanned_at=None
+        )
+
+    def _read_scan_cache(self) -> tuple[list[WifiNetwork], int | None] | None:
+        """Read the boot scan-cache, or None if absent/corrupt.
+
+        Returns a (networks, scanned_at) tuple on a successful parse — an
+        empty-but-valid cache yields ([], scanned_at) so the caller can
+        distinguish "no networks found" (source="empty") from "no cache"
+        (fall through to live/mock). Any I/O or parse error is swallowed and
+        reported as a cache miss so a malformed file never breaks the wizard.
+        """
+        try:
+            raw = WIFI_SCAN_CACHE_PATH.read_text()
+        except (OSError, FileNotFoundError):
+            return None
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            logger.warning("WiFi scan cache is corrupt — ignoring")
+            return None
+        if not isinstance(data, dict):
+            logger.warning("WiFi scan cache has unexpected shape — ignoring")
+            return None
+
+        scanned_at_raw = data.get("scanned_at")
+        scanned_at = int(scanned_at_raw) if isinstance(scanned_at_raw, (int, float)) else None
+
+        networks: list[WifiNetwork] = []
+        seen: set[str] = set()
+        for entry in data.get("networks") or []:
+            if not isinstance(entry, dict):
+                continue
+            ssid = str(entry.get("ssid") or "").strip()
+            if not ssid or ssid in seen:
+                continue
+            seen.add(ssid)
+            signal_raw = entry.get("signal")
+            try:
+                signal = max(0, min(100, int(signal_raw)))
+            except (TypeError, ValueError):
+                signal = 0
+            security = str(entry.get("security") or "open").strip().lower()
+            if security not in ("open", "wpa", "wpa2", "wep"):
+                security = "wpa2"
+            networks.append(
+                WifiNetwork(ssid=ssid, signal=signal, security=security)
+            )
+
+        networks.sort(key=lambda n: -n.signal)
+        return networks, scanned_at
 
     async def connect(self, ssid: str, password: str = "") -> bool:
         """Connect to a WiFi network. Returns True on success."""
@@ -652,25 +768,7 @@ class WifiService(BaseService):
 
             # 1. Marker first — atomic write so a torn marker can't pass
             #    `SETUP_COMPLETE_MARKER.exists()` with zero bytes later.
-            self.SETUP_COMPLETE_MARKER.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp_name = tempfile.mkstemp(
-                dir=str(self.SETUP_COMPLETE_MARKER.parent),
-                prefix=".setup-complete.",
-                suffix=".tmp",
-            )
-            try:
-                with os.fdopen(fd, "w") as handle:
-                    handle.write("ok")
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                os.replace(tmp_name, self.SETUP_COMPLETE_MARKER)
-            except Exception:
-                # Best-effort cleanup of the temp file if replace failed.
-                try:
-                    os.unlink(tmp_name)
-                except OSError:
-                    pass
-                raise
+            self._write_setup_complete_marker()
 
             # Drop any outstanding confirm tokens — they've served their
             # purpose and the wizard is now over.
@@ -704,6 +802,85 @@ class WifiService(BaseService):
                 raise RuntimeError(
                     "AP-Teardown unvollständig: " + detail
                 )
+
+    def _write_setup_complete_marker(self) -> None:
+        """Atomically write the `.setup-complete` marker.
+
+        Shared by the online teardown path and the offline finalize path so
+        both produce a byte-identical, crash-safe marker. tempfile+fsync+
+        os.replace means a mid-write power loss can never leave a zero-byte
+        marker that `SETUP_COMPLETE_MARKER.exists()` would still treat as
+        "setup done".
+        """
+        self.SETUP_COMPLETE_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(self.SETUP_COMPLETE_MARKER.parent),
+            prefix=".setup-complete.",
+            suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w") as handle:
+                handle.write("ok")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_name, self.SETUP_COMPLETE_MARKER)
+        except Exception:
+            # Best-effort cleanup of the temp file if replace failed.
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
+    async def finalize_offline_setup(self) -> None:
+        """Finalize the wizard for a deliberately-offline box (no home WiFi).
+
+        Single-radio swap: the box hosted the OPEN setup AP on wlan0 during
+        the wizard; an offline box must instead permanently host the SECURED
+        recovery AP (the SSID/PSK the parents wrote down) so they're never
+        locked out. We can't run both on one radio, so we:
+
+          1. Write the `.setup-complete` marker FIRST (atomic) — if the swap
+             is interrupted by a power loss, the box still reboots into the
+             completed state and TASK-3 boot self-host brings the AP back up.
+          2. Stop + disable the OPEN setup AP unit (tonado-ap.service). This
+             hands wlan0 back to NetworkManager via setup-ap.sh stop.
+
+        The actual SECURED AP bring-up is the caller's job (it owns the
+        CaptivePortalService and starts it as owner="offline" right after
+        this returns). Keeping the AP start in the caller avoids wiring the
+        portal into WifiService.
+
+        Raises:
+            RuntimeError: if stopping/disabling the setup AP unit failed on a
+                real Pi — same contract as finalize_setup_ap_teardown so the
+                router can surface a 500. The marker is already written, so a
+                reboot recovers via the boot self-host path regardless.
+        """
+        async with self._finalize_lock:
+            marker_existed = self.SETUP_COMPLETE_MARKER.exists()
+            if not marker_existed:
+                self._write_setup_complete_marker()
+
+            clear_confirm_tokens()
+
+            if self._mock:
+                logger.info("Mock: finalized offline setup (marker written)")
+                return
+
+            failures: list[tuple[str, int]] = []
+            for cmd in (
+                ["sudo", "-n", "systemctl", "stop", "tonado-ap.service"],
+                ["sudo", "-n", "systemctl", "disable", "tonado-ap.service"],
+            ):
+                rc = await self._run_silent(cmd)
+                if rc != 0:
+                    failures.append((" ".join(cmd), rc))
+
+            if failures:
+                detail = "; ".join(f"{c} (rc={rc})" for c, rc in failures)
+                logger.error("finalize_offline_setup failures: %s", detail)
+                raise RuntimeError("AP-Wechsel unvollständig: " + detail)
 
     async def cancel_probe(self) -> dict:
         """Drop any lingering probe connection profile.

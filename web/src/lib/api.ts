@@ -544,6 +544,17 @@ export interface WifiNetwork {
 	connected: boolean;
 }
 
+/** Source of the scan list — backend serves a cached list captured at boot,
+ *  a fresh live scan, an empty result, or mock data on dev machines. */
+export type WifiScanSource = 'cache' | 'live' | 'empty' | 'mock';
+
+export interface WifiScanResult {
+	networks: WifiNetwork[];
+	source: WifiScanSource;
+	/** Unix epoch (seconds) when the cached/live scan was captured, or null. */
+	scanned_at: number | null;
+}
+
 export interface WifiStatus {
 	connected: boolean;
 	ssid: string;
@@ -568,10 +579,10 @@ export const setupApi = {
 			method: 'POST',
 			body: JSON.stringify({ ssid, password }),
 		}),
-	wifiScan: () => request<WifiNetwork[]>('/setup/wifi/scan'),
+	wifiScan: () => request<WifiScanResult>('/setup/wifi/scan'),
 	wifiStatus: () => request<WifiStatus>('/setup/wifi/status'),
 	setupAudio: (device: string) =>
-		request<{ success: boolean; device: string }>('/setup/audio', {
+		request<{ success: boolean; device: string; requires_reboot: boolean }>('/setup/audio', {
 			method: 'POST',
 			body: JSON.stringify({ device }),
 		}),
@@ -588,7 +599,14 @@ export const setupApi = {
 			method: 'POST',
 			body: JSON.stringify({ ssid, password }),
 		}),
-	complete: () => request<{ success: boolean }>('/setup/complete', { method: 'POST' }),
+	/** Finalise setup. `mode` tells the backend whether the box should switch to
+	 *  the home WLAN (online) or open its own secured recovery network (offline).
+	 *  Defaults to online to match the historical behaviour. */
+	complete: (mode: 'online' | 'offline' = 'online') =>
+		request<{ success: boolean }>('/setup/complete', {
+			method: 'POST',
+			body: JSON.stringify({ mode }),
+		}),
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 	portalCredentials: () =>
 		request<{ ssid: string; password: string }>('/setup/portal/credentials'),

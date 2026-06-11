@@ -182,6 +182,30 @@ async def test_owner_records_auto_and_setup(
 
 
 @pytest.mark.asyncio
+async def test_offline_owner_has_no_auto_timeout(
+    config_service: ConfigService, tmp_path: Path
+) -> None:
+    """owner='offline' must run permanently — no auto-timeout task, and the
+    status reports no countdown. Otherwise an offline box would silently drop
+    its only AP after the timeout and lock the parents out."""
+    # Even a 0s timeout config must not tear an offline AP down.
+    portal = CaptivePortalService(config_service=config_service)
+    with patch.object(portal, "_load_timeout_seconds", new=AsyncMock(return_value=0)):
+        with _portal_env():
+            await portal.start(owner="offline")
+            assert portal.owner == "offline"
+            # No timeout task scheduled at all.
+            assert portal._timeout_task is None
+            # Give a normal-mode timeout a chance to fire (it must not).
+            await asyncio.sleep(0.05)
+            assert portal.active is True
+            status = portal.status()
+            assert status["seconds_until_timeout"] is None
+            await portal.stop()
+    assert portal.owner is None
+
+
+@pytest.mark.asyncio
 async def test_status_reports_timeout_and_password_flag(
     config_service: ConfigService, tmp_path: Path
 ) -> None:

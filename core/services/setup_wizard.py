@@ -19,9 +19,14 @@ from core.hardware.detect import HardwareProfile
 from core.services.auth_service import AuthService, AuthTier
 from core.services.base import BaseService
 from core.services.config_service import ConfigService
+from core.utils.subprocess import async_run
 from core.services.wifi_service import WifiService
 
 logger = logging.getLogger(__name__)
+
+# Privileged helper that edits config.txt to (de)activate the I2S DAC overlay.
+# Owned + sudoers-granted by the boot layer; we only invoke it via sudo -n.
+AUDIO_OVERLAY_SCRIPT = "/opt/tonado/system/apply-audio-overlay.sh"
 
 
 class SetupStep(StrEnum):
@@ -195,11 +200,101 @@ class SetupWizard(BaseService):
         return {"success": False, "error": "Verbindung fehlgeschlagen"}
 
     async def setup_audio(self, device: str) -> dict[str, Any]:
-        """Step 3: Select audio output device."""
+        """Step 3: Select audio output device and activate it if needed.
+
+        Selecting an output may require flipping the firmware config.txt
+        overlay (analog ↔ I2S DAC). The common case is "already active":
+        `detect_audio` only reports a HifiBerry/I2S card when the overlay is
+        already live, so picking that card needs no config change. When the
+        chosen type differs from what's live, we call the privileged
+        apply-audio-overlay.sh helper and flag a pending reboot — the actual
+        reboot is deferred to setup completion so the wizard doesn't drop the
+        phone mid-flow.
+
+        Returns {success, device, requires_reboot}.
+        """
         await self._config.set("audio.device", device)
         await self._save_step(SetupStep.AUDIO_SETUP)
-        logger.info("Audio output set to: %s", device)
-        return {"success": True, "device": device}
+
+        requires_reboot = await self._activate_audio_overlay(device)
+
+        logger.info(
+            "Audio output set to: %s (requires_reboot=%s)", device, requires_reboot
+        )
+        return {"success": True, "device": device, "requires_reboot": requires_reboot}
+
+    async def _activate_audio_overlay(self, device: str) -> bool:
+        """Activate the firmware overlay for `device` if it differs from live.
+
+        Returns True iff a config.txt change was made and a reboot is now
+        pending (also persists audio.reboot_pending=True in that case).
+
+        Decision:
+          1. Map the chosen device to a target overlay mode (i2s | analog).
+             Prefer the type of the matching live output; fall back to a
+             string heuristic so the wizard can offer an I2S DAC option even
+             before its overlay is live (detect_audio only lists *active*
+             cards, so a not-yet-enabled DAC has no hw:N entry to resolve).
+             A device that maps to neither mode (HDMI/USB/unknown) → no-op.
+          2. If the live profile already has a card of the target type, the
+             overlay is already baked in → no-op, no reboot. This is the
+             common case (DAC overlay applied at install time).
+          3. Otherwise call apply-audio-overlay.sh {mode} and flag a pending
+             reboot. The reboot itself is deferred to setup completion.
+        """
+        profile = self._hardware or self._get_profile()
+        if profile.is_mock:
+            # Dev/Windows: nothing to flip, never a reboot.
+            return False
+
+        outputs = profile.audio_outputs or []
+        target_mode = self._resolve_audio_mode(device, outputs)
+        if target_mode is None:
+            # HDMI/USB/unknown — no config.txt overlay involved.
+            return False
+
+        # detect_audio only surfaces a card whose overlay is already live, so
+        # if a card of the target mode is present, that mode is already active.
+        already_active = any(a.type == target_mode for a in outputs)
+        if already_active:
+            return False
+
+        rc, _, stderr = await async_run(
+            ["sudo", "-n", AUDIO_OVERLAY_SCRIPT, target_mode]
+        )
+        if rc != 0:
+            # Helper missing (dev) or sudoers drift. Don't claim a reboot is
+            # pending — the overlay wasn't changed.
+            logger.warning(
+                "apply-audio-overlay.sh %s failed (rc=%s): %s",
+                target_mode, rc, stderr.strip(),
+            )
+            return False
+
+        await self._config.set("audio.reboot_pending", True)
+        logger.info("Audio overlay activated (%s) — reboot pending", target_mode)
+        return True
+
+    @staticmethod
+    def _resolve_audio_mode(device: str, outputs: list) -> str | None:
+        """Map a chosen audio `device` to its overlay mode (i2s | analog).
+
+        Returns None for outputs that are not overlay-controlled (HDMI, USB)
+        or that can't be classified. Resolution order:
+          1. Exact device match against a live output's type.
+          2. String heuristic on the device identifier — lets the UI pass a
+             logical choice ("i2s" / "hifiberry-dac" / "analog") for a card
+             whose overlay isn't live yet and therefore has no hw:N entry.
+        """
+        for out in outputs:
+            if out.device == device:
+                return out.type if out.type in ("i2s", "analog") else None
+        token = device.lower()
+        if any(k in token for k in ("i2s", "hifiberry", "dac")):
+            return "i2s"
+        if any(k in token for k in ("analog", "3.5", "headphone", "onboard", "bcm2835")):
+            return "analog"
+        return None
 
     async def setup_buttons(self, buttons: list[dict] | None = None) -> dict[str, Any]:
         """Step 4: Save GPIO button configuration."""

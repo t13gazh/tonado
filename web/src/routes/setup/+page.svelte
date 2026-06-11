@@ -35,8 +35,18 @@
 
 	let currentStep = $state<WizardStep>('hardware');
 	let highestStep = $state(0);
-	let loading = $state(false);
 	let error = $state('');
+
+	// ─── Offline-first fork ────────────────────────────────────────────────
+	// Chosen at the entry of the WiFi step. `online` → WifiStep scans + probes
+	// the home WLAN; `offline` → skip scan/probe entirely, the box will open its
+	// own secured recovery network at the end. `null` until the parent decides.
+	let internetMode = $state<'online' | 'offline' | null>(null);
+	// In offline mode the Recovery-WLAN step is load-bearing (its SSID+password
+	// become the box's permanent network), so it must NOT be skippable. These
+	// hold the persisted recovery credentials shown on the offline finish screen.
+	let recoverySsid = $state('');
+	let recoveryPassword = $state('');
 
 	// Hardware
 	let hardware = $state<HardwareDetection | null>(null);
@@ -45,7 +55,6 @@
 
 	// WiFi
 	let wifiStatus = $state<WifiStatus | null>(null);
-	let wifiLoading = $state(false);
 	// Credentials captured from WifiStep for the final test-wifi call in CompleteStep.
 	// Kept in memory only — never persisted on the client.
 	let capturedWifiSsid = $state('');
@@ -163,12 +172,16 @@
 		const idx = STEPS.indexOf(step);
 		if (idx > highestStep) highestStep = idx;
 		if (step === 'hardware' && !hardware) await detectHardware();
-		else if (step === 'wifi') await loadWifiStatus();
+		else if (step === 'wifi') { if (internetMode === 'online') await loadWifiStatus(); }
 		else if (step === 'audio') await loadAudioOutputs();
 		else if (step === 'buttons') { await loadFreeGpios(); await loadExistingButtons(); }
 		else if (step === 'card') { cardStep = 'intro'; await loadExistingCards(); }
 		else if (step === 'recovery') recoverySaved = false; // allow re-editing on re-entry
-		else if (step === 'complete') await loadSavedButtons();
+		else if (step === 'complete') {
+			await loadSavedButtons();
+			// Offline finish screen shows the recovery WLAN the box now opens.
+			if (internetMode === 'offline') await loadRecoveryCredentials();
+		}
 	}
 
 	async function nextStep() {
@@ -181,13 +194,19 @@
 	}
 
 	function canClickStep(idx: number): boolean {
-		return idx <= highestStep && !backendDown;
+		if (idx > highestStep || backendDown) return false;
+		// Offline mode: the recovery WLAN becomes the box's permanent network, so
+		// the parent must not be able to jump straight to the finish via the step
+		// indicator before those credentials are saved — that would skip the only
+		// SAVE that makes the box reachable afterwards.
+		if (internetMode === 'offline' && STEPS[idx] === 'complete' && !recoverySsid && !recoverySaved) {
+			return false;
+		}
+		return true;
 	}
 
 	async function loadWifiStatus() {
-		wifiLoading = true;
 		try { wifiStatus = await setupApi.wifiStatus(); } catch { wifiStatus = null; }
-		finally { wifiLoading = false; }
 	}
 
 	async function loadFreeGpios() {
@@ -236,6 +255,20 @@
 		} catch { hardwareAudio = []; }
 	}
 
+	async function loadRecoveryCredentials() {
+		// In offline mode the recovery step was completed earlier, so the backend
+		// returns the persisted SSID+password (credentials() does not regenerate
+		// once a password exists). These are surfaced on the offline finish screen.
+		try {
+			const creds = await setupApi.recoveryWifiSuggestion();
+			recoverySsid = creds.ssid;
+			recoveryPassword = creds.password;
+		} catch {
+			recoverySsid = '';
+			recoveryPassword = '';
+		}
+	}
+
 	async function loadExistingCards() {
 		try {
 			const list = await cards.list();
@@ -245,12 +278,6 @@
 
 	function onError(msg: string) { error = msg; }
 	function onClearError() { error = ''; }
-
-	async function completeSetup() {
-		loading = true;
-		try { await setupApi.complete(); goto('/'); }
-		catch (e) { error = e instanceof Error ? e.message : t('setup.completion_failed'); loading = false; }
-	}
 </script>
 
 <div class="flex flex-col h-dvh">
@@ -304,13 +331,67 @@
 				{onError}
 			/>
 		{:else if currentStep === 'wifi'}
-			<WifiStep
-				{wifiStatus} {wifiLoading} {error}
-				{onError}
-				onWifiStatusChange={(status) => { wifiStatus = status; }}
-				onCredentialsCaptured={(ssid, password) => { capturedWifiSsid = ssid; capturedWifiPassword = password; }}
-				onWifiProbeCaptured={(probe) => { capturedWifiProbe = probe; }}
-			/>
+			{#if internetMode === null}
+				<!-- Offline-first fork: two equally-weighted choices. -->
+				<div class="flex flex-col gap-4">
+					<div class="text-center">
+						<h2 class="text-lg font-semibold text-text">{t('setup.internet_choice_title')}</h2>
+						<p class="text-sm text-text-muted mt-1">{t('setup.internet_choice_desc')}</p>
+					</div>
+					<button
+						type="button"
+						onclick={() => { internetMode = 'online'; onClearError(); }}
+						class="w-full text-left bg-surface-light hover:bg-surface-lighter rounded-2xl p-5 flex items-start gap-3 transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+					>
+						<div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+							<Icon name="wifi" size={22} class="text-primary" strokeWidth={2} />
+						</div>
+						<div>
+							<p class="text-base font-semibold text-text">{t('setup.internet_online_title')}</p>
+							<p class="text-sm text-text-muted mt-0.5">{t('setup.internet_online_desc')}</p>
+						</div>
+					</button>
+					<button
+						type="button"
+						onclick={() => { internetMode = 'offline'; onClearError(); }}
+						class="w-full text-left bg-surface-light hover:bg-surface-lighter rounded-2xl p-5 flex items-start gap-3 transition-colors focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+					>
+						<div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+							<Icon name="music" size={22} class="text-primary" strokeWidth={2} />
+						</div>
+						<div>
+							<p class="text-base font-semibold text-text">{t('setup.internet_offline_title')}</p>
+							<p class="text-sm text-text-muted mt-0.5">{t('setup.internet_offline_desc')}</p>
+						</div>
+					</button>
+				</div>
+			{:else if internetMode === 'online'}
+				<WifiStep
+					{wifiStatus} {error}
+					{onError}
+					onWifiStatusChange={(status) => { wifiStatus = status; }}
+					onCredentialsCaptured={(ssid, password) => { capturedWifiSsid = ssid; capturedWifiPassword = password; }}
+					onWifiProbeCaptured={(probe) => { capturedWifiProbe = probe; }}
+				/>
+			{:else}
+				<!-- Offline chosen: short confirmation, the box stays internet-free. -->
+				<div class="flex flex-col items-center gap-4 text-center">
+					<div class="w-16 h-16 rounded-full bg-primary/15 flex items-center justify-center">
+						<Icon name="music" size={32} class="text-primary" strokeWidth={2} />
+					</div>
+					<div>
+						<h2 class="text-lg font-semibold text-text">{t('setup.internet_offline_title')}</h2>
+						<p class="text-sm text-text-muted mt-1 max-w-xs">{t('setup.internet_offline_desc')}</p>
+					</div>
+					<button
+						type="button"
+						onclick={() => { internetMode = null; capturedWifiSsid = ''; capturedWifiPassword = ''; capturedWifiProbe = null; onClearError(); }}
+						class="text-xs text-primary hover:text-primary-light transition-colors"
+					>
+						{t('setup.internet_change')}
+					</button>
+				</div>
+			{/if}
 		{:else if currentStep === 'audio'}
 			<AudioStep
 				{hardwareAudio} selectedDevice={selectedAudioDevice} {error}
@@ -340,6 +421,14 @@
 				onSaved={async () => { await nextStep(); }}
 			/>
 		{:else if currentStep === 'recovery'}
+			{#if internetMode === 'offline'}
+				<!-- Offline mode: this WLAN is load-bearing — it becomes the box's
+				     permanent network, the only way to reach it afterwards. -->
+				<div class="mb-3 bg-primary/10 border border-primary/30 rounded-xl p-3 flex items-start gap-2">
+					<Icon name="wifi" size={16} class="text-primary mt-0.5 shrink-0" strokeWidth={2} />
+					<p class="text-xs text-text">{t('setup.recovery_offline_note')}</p>
+				</div>
+			{/if}
 			<RecoveryWifiStep
 				bind:this={recoveryStepRef}
 				bind:saved={recoverySaved}
@@ -352,12 +441,15 @@
 				{hardware}
 				{sysInfo}
 				{wifiStatus}
+				{internetMode}
 				buttonCount={savedButtonLabels.length}
 				buttonLabels={savedButtonLabels}
 				{error}
 				wifiSsid={capturedWifiSsid}
 				wifiPassword={capturedWifiPassword}
 				wifiProbeResult={capturedWifiProbe}
+				recoverySsid={recoverySsid}
+				recoveryPassword={recoveryPassword}
 				onBackToWifi={() => goToStep('wifi')}
 			/>
 		{/if}
@@ -377,11 +469,11 @@
 
 		{:else if currentStep === 'wifi'}
 			<div class="flex gap-3">
-				<button onclick={prevStep}
+				<button onclick={() => { if (internetMode === 'online') { internetMode = null; capturedWifiSsid = ''; capturedWifiPassword = ''; capturedWifiProbe = null; onClearError(); } else { prevStep(); } }}
 					class="py-3 px-5 bg-surface-light hover:bg-surface-lighter text-text-muted rounded-lg text-sm font-medium transition-colors">
 					{t('general.back')}
 				</button>
-				<button onclick={nextStep} disabled={backendDown}
+				<button onclick={nextStep} disabled={backendDown || internetMode === null}
 					class="flex-1 py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors">
 					{t('setup.next')}
 				</button>

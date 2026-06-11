@@ -479,6 +479,351 @@ async def test_setup_complete_succeeds_with_parent_pin(client):
 
 
 @pytest.mark.asyncio
+async def test_setup_complete_online_via_complete_arms_monitor(client, monkeypatch):
+    """Direct POST /complete (mode online) still arms the monitor and leaves
+    the offline flags untouched — the /complete path remains usable directly
+    even though production online completion now runs via /confirm-complete."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    monitor = app.state.connectivity_monitor
+    config = app.state.config_service
+    start_spy = AsyncMock()
+    monkeypatch.setattr(monitor, "start", start_spy)
+
+    resp = await c.post("/api/setup/complete", json={"mode": "online"})
+    assert resp.status_code == 200
+    # Monitor armed (was not running on the mock client).
+    start_spy.assert_awaited()
+    # Offline flags untouched.
+    assert await config.get("wifi.offline_mode") in (None, False)
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_online_finalizes_everything(
+    client, tmp_path, monkeypatch
+):
+    """The production online path: /confirm-complete is the SINGLE completion
+    authority. After it, the wizard is COMPLETED, auth setup-complete is set,
+    the monitor is armed, the AP teardown ran, and a pending audio reboot
+    fired LAST. The frontend never calls /complete in this flow."""
+    from unittest.mock import AsyncMock, MagicMock
+    from core.services import wifi_service as ws_mod
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    wizard = app.state.setup_wizard
+    monitor = app.state.connectivity_monitor
+    config = app.state.config_service
+
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    # A pending audio overlay reboot must be consumed + fired last.
+    await config.set("audio.reboot_pending", True)
+    monitor_start = AsyncMock()
+    reboot_spy = AsyncMock()
+    setup_complete_spy = MagicMock()
+    monkeypatch.setattr(monitor, "start", monitor_start)
+    monkeypatch.setattr(app.state.system_service, "reboot", reboot_spy)
+    monkeypatch.setattr(auth_svc, "set_setup_complete", setup_complete_spy)
+
+    # Probe issues a token.
+    resp = await c.post(
+        "/api/setup/test-wifi", json={"ssid": "HomeWiFi", "password": "pw"}
+    )
+    token = resp.json()["token"]
+
+    resp = await c.post("/api/setup/confirm-complete", json={"token": token})
+    assert resp.status_code == 200
+
+    # Wizard COMPLETED + auth notified.
+    assert wizard.is_complete is True
+    setup_complete_spy.assert_called_with(True)
+    # AP teardown wrote the marker.
+    assert marker.exists()
+    # Monitor armed (auto_fallback_enabled defaults True for online).
+    monitor_start.assert_awaited()
+    # Pending audio reboot consumed + fired.
+    reboot_spy.assert_awaited()
+    assert await config.get("audio.reboot_pending") is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_without_pin_finalizes_nothing(
+    client, tmp_path, monkeypatch
+):
+    """HIGH-2 server gate: if the parent PIN is unset, /confirm-complete must
+    finalize NOTHING — no marker, no teardown, no completion state — and
+    return a 4xx so the setup AP stays up for the parent to set a PIN."""
+    from unittest.mock import AsyncMock
+    from core.services import wifi_service as ws_mod
+
+    c, _ = client  # NB: deliberately no PIN set.
+
+    app = c._transport.app
+    wizard = app.state.setup_wizard
+    wifi = app.state.wifi_service
+
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    teardown_spy = AsyncMock()
+    monkeypatch.setattr(wifi, "finalize_setup_ap_teardown", teardown_spy)
+
+    resp = await c.post(
+        "/api/setup/test-wifi", json={"ssid": "HomeWiFi", "password": "pw"}
+    )
+    token = resp.json()["token"]
+
+    resp = await c.post("/api/setup/confirm-complete", json={"token": token})
+    assert resp.status_code == 400
+    # Nothing finalized.
+    assert wizard.is_complete is False
+    assert not marker.exists()
+    teardown_spy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_skips_monitor_when_fallback_disabled(
+    client, tmp_path, monkeypatch
+):
+    """The monitor is armed only when wifi.auto_fallback_enabled is truthy."""
+    from unittest.mock import AsyncMock
+    from core.services import wifi_service as ws_mod
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    config = app.state.config_service
+    monitor = app.state.connectivity_monitor
+    await config.set("wifi.auto_fallback_enabled", False)
+
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    monitor_start = AsyncMock()
+    monkeypatch.setattr(monitor, "start", monitor_start)
+
+    resp = await c.post(
+        "/api/setup/test-wifi", json={"ssid": "x", "password": "y"}
+    )
+    token = resp.json()["token"]
+    resp = await c.post("/api/setup/confirm-complete", json={"token": token})
+    assert resp.status_code == 200
+    monitor_start.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_complete_retry_after_marker_is_success_no_double_reboot(
+    client, tmp_path, monkeypatch
+):
+    """no-cors retry safety: a second confirm-complete after the marker exists
+    returns 409 (treated as success, not an error) and does NOT reboot again."""
+    from unittest.mock import AsyncMock
+    from core.services import wifi_service as ws_mod
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    config = app.state.config_service
+    marker = tmp_path / "marker" / ".setup-complete"
+    monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    ws_mod.clear_confirm_tokens()
+
+    await config.set("audio.reboot_pending", True)
+    monkeypatch.setattr(app.state.connectivity_monitor, "start", AsyncMock())
+    reboot_spy = AsyncMock()
+    monkeypatch.setattr(app.state.system_service, "reboot", reboot_spy)
+
+    resp = await c.post(
+        "/api/setup/test-wifi", json={"ssid": "x", "password": "y"}
+    )
+    token = resp.json()["token"]
+    resp = await c.post("/api/setup/confirm-complete", json={"token": token})
+    assert resp.status_code == 200
+    assert reboot_spy.await_count == 1
+
+    # Second call: marker now exists → 409 (client treats as success), no
+    # second reboot.
+    resp = await c.post("/api/setup/confirm-complete", json={"token": token})
+    assert resp.status_code == 409
+    assert reboot_spy.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_default_mode_is_online(client, monkeypatch):
+    """An empty body defaults to online mode (back-compat)."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    app = c._transport.app
+    monkeypatch.setattr(app.state.connectivity_monitor, "start", AsyncMock())
+
+    resp = await c.post("/api/setup/complete")
+    assert resp.status_code == 200
+    assert await app.state.config_service.get("wifi.offline_mode") in (None, False)
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_offline_swaps_ap_and_skips_monitor(client, monkeypatch):
+    """Offline completion sets the offline flags, calls finalize_offline_setup
+    + portal.start(owner='offline'), and does NOT arm the monitor."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    config = app.state.config_service
+    wifi = app.state.wifi_service
+    portal = app.state.captive_portal
+    monitor = app.state.connectivity_monitor
+
+    finalize_spy = AsyncMock()
+    portal_start_spy = AsyncMock(return_value=True)
+    monitor_start_spy = AsyncMock()
+    monkeypatch.setattr(wifi, "finalize_offline_setup", finalize_spy)
+    monkeypatch.setattr(portal, "start", portal_start_spy)
+    monkeypatch.setattr(monitor, "start", monitor_start_spy)
+
+    resp = await c.post("/api/setup/complete", json={"mode": "offline"})
+    assert resp.status_code == 200
+
+    # Offline flags persisted.
+    assert await config.get("wifi.offline_mode") is True
+    assert await config.get("wifi.auto_fallback_enabled") is False
+    # AP swap performed: marker/teardown + permanent secured AP.
+    finalize_spy.assert_awaited()
+    portal_start_spy.assert_awaited()
+    assert portal_start_spy.await_args.kwargs.get("owner") == "offline"
+    # Monitor NOT armed the home-wifi way.
+    monitor_start_spy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_offline_ap_start_failure_500(client, monkeypatch):
+    """If the secured AP fails to start, completion surfaces a 500."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    app = c._transport.app
+    monkeypatch.setattr(app.state.wifi_service, "finalize_offline_setup", AsyncMock())
+    monkeypatch.setattr(
+        app.state.captive_portal, "start", AsyncMock(return_value=False)
+    )
+
+    resp = await c.post("/api/setup/complete", json={"mode": "offline"})
+    assert resp.status_code == 500
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_offline_retry_redrives_swap(client, monkeypatch):
+    """FIX B: after an offline AP-swap failure (completion recorded but no
+    live portal), a retried POST /complete must re-drive the swap instead of
+    403-ing. is_complete is already True, offline_mode set, portal inactive."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+
+    app = c._transport.app
+    config = app.state.config_service
+    wifi = app.state.wifi_service
+    portal = app.state.captive_portal
+    monitor = app.state.connectivity_monitor
+
+    finalize_spy = AsyncMock()
+    monitor_start_spy = AsyncMock()
+    monkeypatch.setattr(wifi, "finalize_offline_setup", finalize_spy)
+    monkeypatch.setattr(monitor, "start", monitor_start_spy)
+
+    # First attempt: secured AP fails to start → 500, completion recorded.
+    monkeypatch.setattr(portal, "start", AsyncMock(return_value=False))
+    resp = await c.post("/api/setup/complete", json={"mode": "offline"})
+    assert resp.status_code == 500
+    assert app.state.setup_wizard.is_complete is True
+    assert await config.get("wifi.offline_mode") is True
+    assert portal.active is False
+
+    # Retry: must NOT 403. Re-drives the swap; this time the AP starts.
+    retry_start = AsyncMock(return_value=True)
+    monkeypatch.setattr(portal, "start", retry_start)
+    resp = await c.post("/api/setup/complete", json={"mode": "offline"})
+    assert resp.status_code == 200
+    retry_start.assert_awaited()
+    assert retry_start.await_args.kwargs.get("owner") == "offline"
+    # Monitor still never armed on the offline path.
+    monitor_start_spy.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_already_complete_online_still_403(client, monkeypatch):
+    """FIX B must not weaken the healthy guard: a completed ONLINE box
+    (no offline_mode) still 403s a re-run of /complete."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    app = c._transport.app
+    monkeypatch.setattr(app.state.connectivity_monitor, "start", AsyncMock())
+
+    resp = await c.post("/api/setup/complete", json={"mode": "online"})
+    assert resp.status_code == 200
+    # Re-run: online box is fully complete → 403.
+    resp = await c.post("/api/setup/complete", json={"mode": "online"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_setup_complete_reboots_when_audio_pending(client, monkeypatch):
+    """A pending audio overlay reboot is triggered LAST, in both modes."""
+    from unittest.mock import AsyncMock
+
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
+    app = c._transport.app
+    config = app.state.config_service
+    await config.set("audio.reboot_pending", True)
+
+    monkeypatch.setattr(app.state.connectivity_monitor, "start", AsyncMock())
+    reboot_spy = AsyncMock()
+    monkeypatch.setattr(app.state.system_service, "reboot", reboot_spy)
+
+    resp = await c.post("/api/setup/complete", json={"mode": "online"})
+    assert resp.status_code == 200
+    reboot_spy.assert_awaited()
+    # Pending flag cleared so a later boot doesn't loop-reboot.
+    assert await config.get("audio.reboot_pending") is False
+
+
+@pytest.mark.asyncio
+async def test_wifi_scan_returns_contract_shape(client):
+    """GET /api/setup/wifi/scan returns {networks, source, scanned_at}."""
+    c, _ = client
+    resp = await c.get("/api/setup/wifi/scan")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert set(body.keys()) == {"networks", "source", "scanned_at"}
+    # Mock client → wifi service is in mock mode.
+    assert body["source"] == "mock"
+    assert isinstance(body["networks"], list)
+    assert all("ssid" in n and "signal" in n for n in body["networks"])
+
+
+@pytest.mark.asyncio
 async def test_recovery_wifi_suggestion(client):
     """GET /api/setup/recovery-wifi returns a pre-filled SSID + password."""
     c, _ = client
@@ -1377,11 +1722,17 @@ async def test_confirm_complete_with_fresh_token_accepted(
     client, tmp_path, monkeypatch
 ):
     """A fresh token from /test-wifi must let /confirm-complete finalize."""
+    from unittest.mock import AsyncMock
     from core.services import wifi_service as ws_mod
 
-    c, _ = client
+    c, auth_svc = client
+    # PIN gate: online completion now requires a parent PIN (HIGH-2).
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
     marker = tmp_path / "marker" / ".setup-complete"
     monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    monkeypatch.setattr(
+        c._transport.app.state.connectivity_monitor, "start", AsyncMock()
+    )
     ws_mod.clear_confirm_tokens()
 
     # Probe in mock mode issues a real token.
@@ -1401,7 +1752,9 @@ async def test_confirm_complete_with_fresh_token_accepted(
     assert resp.status_code == 200
     assert marker.exists()
 
-    # Token is single-use: replay is rejected with 409 (marker exists now).
+    # no-cors retry safety: a second call with the marker present returns 409
+    # (client treats it as success), not a 500 / error-loop. The marker guard
+    # short-circuits before the token / completion machinery.
     resp = await c.post(
         "/api/setup/confirm-complete",
         json={"token": token},
@@ -1412,11 +1765,16 @@ async def test_confirm_complete_with_fresh_token_accepted(
 @pytest.mark.asyncio
 async def test_confirm_complete_token_in_query_param(client, tmp_path, monkeypatch):
     """Token passed via ?token= query string is equally accepted."""
+    from unittest.mock import AsyncMock
     from core.services import wifi_service as ws_mod
 
-    c, _ = client
+    c, auth_svc = client
+    await auth_svc.set_pin(AuthTier.PARENT, "1234")
     marker = tmp_path / "marker" / ".setup-complete"
     monkeypatch.setattr(ws_mod.WifiService, "SETUP_COMPLETE_MARKER", marker)
+    monkeypatch.setattr(
+        c._transport.app.state.connectivity_monitor, "start", AsyncMock()
+    )
     ws_mod.clear_confirm_tokens()
 
     resp = await c.post(

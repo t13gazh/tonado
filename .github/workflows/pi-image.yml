@@ -323,6 +323,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.upload == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # working-directory is the pi-gen clone, whose git origin is
+          # RPi-Distro/pi-gen — without GH_REPO, gh targets that repo and
+          # gets HTTP 403, so the release is never created ("release not found").
+          GH_REPO: ${{ github.repository }}
         working-directory: pi-gen/deploy
         run: |
           set -euo pipefail
@@ -378,4 +382,5 @@ jobs:
       - name: Assemble + publish release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: bash scripts/ci/release-notes.sh "${{ github.event.inputs.tag || github.ref_name }}"

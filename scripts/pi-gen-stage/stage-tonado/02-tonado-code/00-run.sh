@@ -72,6 +72,16 @@ GITCFG
 chown pi:pi /home/pi/.gitconfig
 chmod 644 /home/pi/.gitconfig
 
+# --- Executable bits on runtime scripts ---
+# Git on Windows commits shell scripts 100644 (no +x). systemd ExecStart and
+# the sudo'd captive-portal path invoke system/*.sh by absolute path, which
+# REQUIRES the exec bit: a 0644 ExecStart fails 203/EXEC, so firstrun (rfkill
+# unblock) and the tonado-ap setup AP never start and the box is headless-
+# unreachable. The git index now carries 100755, but re-assert here belt-and-
+# braces so a future script added without the bit can never silently brick the
+# image. Verified on real Pi 3B+ hardware (qemu-smoke.sh also asserts this).
+chmod +x /opt/tonado/system/*.sh
+
 # Python venv with runtime + Pi-hardware extras.
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip --quiet

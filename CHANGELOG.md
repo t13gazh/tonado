@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Behoben
+
+- **Headless-Boot: Setup-WLAN „Tonado-Setup" erscheint wieder.** Die Runtime-Skripte unter `system/` (`firstrun.sh`, `imager-wifi-probe.sh`, `setup-ap.sh`) waren im Git-Index `100644` (kein Executable-Bit — Git unter Windows committet Shell-Skripte standardmäßig ohne `+x`). systemd `ExecStart` führt sie per absolutem Pfad aus, was das Bit zwingend braucht; ohne es brach jeder Boot-Service mit `203/EXEC permission denied` ab — `firstrun` (rfkill-Unblock) und der `tonado-ap`-Setup-AP starteten nie, die Box war headless komplett unerreichbar (und durch das zufällige First-User-Passwort ohne Recovery-Login). Behoben auf echter Pi-3B+-Hardware aufgedeckt (das geflashte Image headless gebootet, nicht nur Dev-Install). Fix dreischichtig: Executable-Bit im Git-Index gesetzt (`100755`), Stage 02 zieht `chmod +x /opt/tonado/system/*.sh` nach dem Clone belt-and-braces nach, und der qemu-Smoke-Test assertet das Exec-Bit der `ExecStart`-Ziele, damit es nie wieder still regressiert.
+
 ### Für Entwickler
 
 - **Pi-Image-Build: BuildKit für den pi-gen-Container deaktiviert (`DOCKER_BUILDKIT=0`).** Der GitHub-Runner aktivierte BuildKit als Default, das die Plattform-Konsistenz von pi-gens `FROM i386/debian:bookworm` strikt prüft und den Build (armhf) mit `InvalidBaseImagePlatform` abbrach. Der klassische Builder erzwingt das nicht — der `v0.4.0-beta`-Tag-Build (Run 27330026900) scheiterte daran, derselbe Workflow lief am Vortag noch durch.

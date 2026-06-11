@@ -1,10 +1,44 @@
 # Pi-Image-Architektur
 
-> **Status:** Entwurf, noch nicht implementiert. Referenz für die Welle „Pi-Image zum Flashen" aus [`BACKLOG.md`](../../BACKLOG.md#prio-3--wertvolle-erweiterungen) (Prio 3).
+> **Status:** Umgesetzt für `v0.4.0-beta`. Die ursprüngliche Entwurfs-Fassung (Abschnitte 1–8) ist als Begründungs-Historie erhalten; wo sich die reale Umsetzung davon unterscheidet, gilt der **Abschnitt „Stand der Umsetzung"** direkt unten — er ist die maßgebliche Quelle.
 >
-> **Zielversion:** `v0.4.0-beta` (erste Image-fähige Tonado-Release).
->
-> **Vorarbeit:** [`install-strategy.md`](install-strategy.md) beschreibt die UX-Lücke zwischen SSH-Installation (Alpha) und flashbarem Image (Beta-Ziel). Dieses Dokument beschreibt die technische Umsetzung.
+> **Vorarbeit:** [`install-strategy.md`](install-strategy.md) beschreibt die UX-Lücke zwischen SSH-Installation (Alpha) und flashbarem Image (Beta-Ziel).
+
+## Stand der Umsetzung (v0.4.0-beta, maßgeblich)
+
+Die Boot-Fix-Welle vom 2026-06-10/11 hat das Image vom „bootet headless nicht" zum funktionsfähigen Setup-Pfad gebracht. Wo die Entwurfs-Abschnitte unten abweichen, gilt das hier.
+
+### Access-Point-Architektur — eine Quelle für `wlan0`
+
+Es gibt **genau einen** privilegierten AP-Mechanismus: [`system/setup-ap.sh`](../../system/setup-ap.sh). Früher konkurrierten zwei Implementierungen (das Bash-Skript **und** ein zweiter, privilegierter Pfad im Python-`CaptivePortalService`) um `wlan0` und kollidierten beim Boot. Jetzt:
+
+| AP-Typ | Wann | Wer startet | Sicherheit | SSID |
+|--------|------|-------------|------------|------|
+| **Setup-AP** | Erst-Boot, bis `.setup-complete` | systemd: `tonado-ap.service` → `setup-ap.sh start open` | **OFFEN** (Eltern haben noch keine Zugangsdaten — Henne-Ei) | `Tonado-Setup` |
+| **Recovery-AP** | Laufzeit, wenn das bekannte WLAN wegfällt | `ConnectivityMonitor` → `CaptivePortalService` → `sudo -n setup-ap.sh start secured …` | **WPA2** (Eltern kennen die Creds aus dem Wizard) | konfigurierbar (Default `Tonado`) |
+
+- `setup-ap.sh` CLI: `start open [ssid]` | `start secured <ssid> <psk>` | `stop`. Setzt `country_code=DE` in der hostapd-Config, schreibt Configs nach `/run/tonado/` (tmpfs, SD-schonend), und setzt `wlan0` **dynamisch** unmanaged (`nmcli device set wlan0 managed no` beim Start, `… yes` beim Stop) — es gibt **keine** statische NetworkManager-Unmanaged-Drop-in-Datei mehr (die war ein Henne-Ei-Deadlock).
+- `CaptivePortalService` (läuft als unprivilegierter `pi`-User) hält nur noch die State-Machine (Owner/Timeout/Credentials) und delegiert jede `wlan0`-Operation per `sudo -n setup-ap.sh` — kein privilegierter Netzwerk-Code mehr im App-Prozess. Die passenden NOPASSWD-Grants stehen in [`system/sudoers.d/tonado`](../../system/sudoers.d/tonado).
+- Recovery-Zugangsdaten (`captive_portal.ap_ssid` / `captive_portal.ap_password`) setzen die Eltern im Wizard-Schritt „Notfall-WLAN" (vorausgefüllt, editierbar).
+- Teardown nach Setup: `wifi_service.finalize_setup_ap_teardown` stoppt+disabled `tonado-ap.service`; dessen `ExecStop` (`setup-ap.sh stop`) gibt `wlan0` an NetworkManager zurück.
+
+### Reale Stage-Struktur (`scripts/pi-gen-stage/stage-tonado/`)
+
+Die Config-Schritte werden zur **Bake-Time im Stage-Skript geschrieben**, nicht über `files/` abgelegt — pi-gen kopiert `files/` nicht automatisch (nur `config.txt.append` wird in `01-sys-tweaks` explizit ins ROOTFS kopiert).
+
+| Substage | Inhalt |
+|----------|--------|
+| `01-sys-tweaks/` | Distro-Units enablen (mpd, nginx, avahi); `config.txt.append` explizit kopieren (SPI, I2C, OnOff-SHIM) |
+| `02-tonado-code/00-run.sh` | im Chroot: `git clone` + `pip install .[pi]` (Frontend ist als `web/build/` im Repo committed — kein npm im Image) |
+| `03-tonado-config/00-run.sh` | **alle netzwerkfreien `install.sh`-Schritte:** nginx-Site (+ Captive-Portal-Auto-Open-Antworten für Android/iOS/Windows, Default-Site entfernt), `mpd.conf`, sudoers-Drop-in (visudo-validiert), `i2c-dev`-modules-load, WLAN-Land `DE`, journald-Limit 30 MB, `dnsmasq.service`+`hostapd.service` **maskiert** (sonst :53-Konflikt mit der eigenen Portal-Instanz), Bluetooth/triggerhappy/ModemManager disabled, `ipv6.disable=1` (einzeilig), `machine-id`+SSH-Host-Keys geleert |
+| `04-tonado-finalize/00-run.sh` | Build-Deps purgen, `chown pi:pi`, Repo-Units symlinken+enablen, Hardware-Gruppen, Install-Marker |
+
+### Was `firstrun.sh` beim Erst-Boot wirklich tut
+
+Einmalig, Marker-gated: SSH-Host-Keys regenerieren (Image liefert leere `/etc/ssh`), **WLAN-Funk entsperren** (`rfkill unblock wifi` + `iw reg set DE`, vor dem AP-Start), Git-Trust für den `pi`-User einrichten. **Kein** JWT-Secret und **kein** Setup-AP-PSK — der Setup-AP ist offen, und das JWT-Secret erzeugt der `AuthService` selbst pro Gerät in der SQLite-DB (deshalb darf die DB nicht ins Image gebacken werden; ein blockierender CI-Schritt `scripts/ci/assert-no-baked-db.sh` erzwingt das).
+
+### Build & Verifikation
+[`.github/workflows/pi-image.yml`](../../.github/workflows/pi-image.yml) setzt `DISABLE_FIRST_BOOT_USER_RENAME=1` (sonst headless-Konsolen-Hang), `chmod +x` auf alle Stage- und `system/`-Skripte (Windows-Checkout verliert das Bit), und ruft den DB-Guard. [`scripts/ci/qemu-smoke.sh`](../../scripts/ci/qemu-smoke.sh) prüft die Bake-Outputs offline (nginx-Site, sudoers, i2c-dev, cmdline einzeilig, dnsmasq maskiert, machine-id leer).
 
 ## 0. Abgrenzung zum heutigen Stand
 
@@ -27,10 +61,10 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 |---|---------------|-------|-----------------------------|
 | 1 | Raspberry Pi Imager öffnen, „Tonado" im Custom-Image-Feld wählen | 1 min | Imager lädt `tonado-<version>-<arch>.img.xz` + prüft SHA256 |
 | 2 | SD-Karte flashen | 2–4 min | Imager schreibt Image, erweitert Root-Partition beim ersten Boot nicht nötig (siehe 2.4) |
-| 3 | SD-Karte rein, Strom an | 30–60 s | First-Boot-Expand, `firstrun.service` generiert gerätespezifische Secrets, `tonado-ap.service` startet AP |
-| 4 | Handy → WLAN „Tonado-Setup" verbinden (PSK auf Rückseite / LED-Code — siehe 7) | 30 s | Captive-Portal-Redirect öffnet Setup-Wizard im Browser |
-| 5 | Wizard durchklicken (Heim-WLAN, Audio-Output, ggf. Figuren) | 3–5 min | Bestehender Setup-Wizard (Meilenstein 1, Phase 3), am Ende `touch /opt/tonado/config/.setup-complete` |
-| 6 | Pi rebootet ins Heim-WLAN, Handy mit Heim-WLAN verbinden, Box via `tonado.local` erreichen | 30 s | `tonado-ap.service` überspringt sich wegen `ConditionPathExists=!` |
+| 3 | SD-Karte rein, Strom an | 30–60 s | First-Boot-Expand, `firstrun.service` (SSH-Keys, rfkill-Unblock, Git-Trust), `tonado-ap.service` startet den **offenen** Setup-AP |
+| 4 | Handy → WLAN „Tonado-Setup" verbinden (**offen, kein Passwort** — siehe „Stand der Umsetzung") | 30 s | Captive-Portal-Redirect öffnet Setup-Wizard im Browser (`http://192.168.4.1`) |
+| 5 | Wizard durchklicken (Heim-WLAN, Audio-Output, Eltern-PIN, Notfall-WLAN, ggf. Figuren) | 3–5 min | Setup-Wizard, am Ende `touch /opt/tonado/config/.setup-complete` |
+| 6 | Pi wechselt ins Heim-WLAN, Handy mit Heim-WLAN verbinden, Box via `tonado.local` erreichen | 30 s | `tonado-ap.service` überspringt sich wegen `ConditionPathExists=!` |
 
 **Was im Image vorbereitet ist (Bake-Time):**
 - Komplettes `/opt/tonado/` inkl. Git-History, `.venv` und `web/build/`
@@ -40,11 +74,12 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 - Nginx-Config, MPD-Config, sudoers.d-Drop-In
 - `/boot/firmware/config.txt` bereits mit `dtparam=spi=on`, `dtparam=i2c_arm=on`, gpio-shutdown/poweroff (OnOff-SHIM), ohne HifiBerry-Overlay (wird im Wizard gesetzt)
 
-**Was beim First Boot passiert (`firstrun.service`, einmalig):**
-- Gerätespezifische Secrets generieren (Setup-AP-PSK, SSH-Host-Keys rotieren, evtl. Default-PIN-Salt)
-- `/etc/machine-id` neu (Debian-Standard-First-Boot)
-- Dateisystem auf SD-Karten-Größe expandieren (`raspi-config --expand-rootfs` Äquivalent, wird von Pi OS Lite übernommen wenn vorhanden)
-- Self-Disable (`systemctl disable firstrun.service`)
+**Was beim First Boot passiert (`firstrun.service`, einmalig):** *(maßgeblich: „Stand der Umsetzung" oben)*
+- SSH-Host-Keys rotieren, WLAN-Funk entsperren (`rfkill unblock` + `iw reg set DE`), Git-Trust setzen
+- `/etc/machine-id` wird vom Image leer ausgeliefert → systemd regeneriert eine eindeutige pro Gerät
+- Dateisystem auf SD-Karten-Größe expandieren (von Pi OS Lite übernommen)
+- Self-Disable via Marker-Datei
+- **Kein** Setup-AP-PSK (der Setup-AP ist offen) und **kein** JWT-Secret-File (der `AuthService` erzeugt es pro Gerät in der DB)
 
 **Was beim ersten Setup-Wizard passiert:**
 - WLAN-Credentials via `nmcli` in NetworkManager schreiben
@@ -122,6 +157,7 @@ hostapd dnsmasq
 network-manager
 avahi-daemon
 i2c-tools spi-tools
+rfkill iw wireless-tools   # WLAN-Funk entsperren + Imager-Probe (iwgetid)
 git
 # Build (für pip install, wird am Ende von 04-tonado-finalize wieder purged)
 python3-dev build-essential libffi-dev
@@ -136,7 +172,7 @@ python3-dev build-essential libffi-dev
 
 ### 2.4 Python-Dependencies im Image
 
-Im Chroot-Script `02-tonado-code/00-run-chroot.sh`:
+Im Chroot-Script `02-tonado-code/00-run.sh` (ein `00-run.sh`, das intern `on_chroot` nutzt — pi-gen behandelt `run.sh` und `run-chroot.sh` unterschiedlich; wir verwenden durchgängig `00-run.sh` mit explizitem `on_chroot`):
 
 ```bash
 #!/bin/bash -e
@@ -261,18 +297,18 @@ ExecStart=/opt/tonado/system/firstrun.sh
 WantedBy=multi-user.target
 ```
 
-Das Script (`system/firstrun.sh`, neu zu erstellen) macht:
+**Maßgeblich ist „Stand der Umsetzung" oben.** Das reale `system/firstrun.sh` generiert **kein** Setup-AP-PSK (der Setup-AP ist offen) und rendert kein hostapd-Template — das macht `setup-ap.sh` zur Laufzeit. Es macht:
 - SSH-Host-Keys regenerieren (im Image sind sie leer, siehe 7)
-- Setup-AP-PSK generieren (16 Zeichen base32, in `/opt/tonado/config/setup-ap.psk`)
-- `hostapd.conf`-Template mit dem PSK rendern
+- WLAN-Funk entsperren (`rfkill unblock wifi` + `iw reg set DE`) vor dem AP-Start
+- Git-Trust für den `pi`-User setzen
 - Marker `/var/lib/tonado/firstrun.done` schreiben
 
 ### 4.3 Flag-Datei `.setup-complete`
 
-Die heutige Logik (`ConditionPathExists=!/opt/tonado/config/.setup-complete`) bleibt. Sie wird vom Setup-Wizard am Ende des WLAN-Steps (oder erst am Ende des gesamten Wizards — siehe Product-Owner-Frage Q4) angelegt. Wichtig:
+Die Logik (`ConditionPathExists=!/opt/tonado/config/.setup-complete`) bleibt. Sie wird vom Setup-Wizard am Ende angelegt. Wichtig:
 
-- **Bei späterem WLAN-Verlust:** Der AP soll sich **nicht** automatisch wieder aufspannen. Sonst verliert man die Kontrolle, wenn das Heim-WLAN einmal 5 Minuten ausfällt. Stattdessen: manuelle WLAN-Rettung über physischen Knopf (Reset-Flow, heute noch nicht implementiert — eigene Welle, siehe Product-Owner-Frage Q5).
-- **Bei Image-Reflash:** Neue SD-Karte hat kein `.setup-complete` → AP wieder aktiv. Korrekt.
+- **Bei späterem WLAN-Verlust** spannt der `ConnectivityMonitor` nach einer Karenzzeit **automatisch** den Recovery-AP auf (WPA2, Creds aus dem Wizard) — anders als hier ursprünglich geplant. Das ist die „WLAN-Rettung": die Box wird unterwegs (Oma, Auto) wieder erreichbar, ohne physischen Knopf. Schutz gegen Ping-Pong bei kurzen Aussetzern: Boot-Grace, Double-Check, Circuit-Breaker (siehe [`core/services/connectivity_monitor.py`](../../core/services/connectivity_monitor.py)). Ein physischer Reset-Knopf bleibt als zusätzlicher Fallback im Backlog.
+- **Bei Image-Reflash:** Neue SD-Karte hat kein `.setup-complete` → Setup-AP wieder aktiv. Korrekt.
 
 ### 4.4 Captive-Portal-Redirect
 
@@ -347,51 +383,19 @@ Wenn wir später (Post-Beta) von `git pull` auf Download+Extract von GitHub Rele
 |------|-------|-------------|
 | SSH-Host-Keys | Sonst teilen alle Tonado-Pis weltweit dieselben Keys → MITM trivial | `firstrun.sh` via `ssh-keygen -A` (nachdem alte keys gelöscht) |
 | Default-User-Passwort | Pi OS Lite hatte früher `pi/raspberry`. Im Image: **kein Passwort für `pi`** → Passwort-SSH-Login unmöglich (`PermitEmptyPasswords no`). Achtung: der Imager-Customization-Dialog erscheint **nicht** bei eigenem `.img.xz`, erzwingt also nichts | Eltern brauchen kein Login (Setup-AP). Bastler: `userconf.txt` manuell auf bootfs (siehe 7.4) |
-| Setup-AP-PSK | Wenn alle Image-Boxen dasselbe WLAN-PSK haben, kann Nachbar sich einloggen und Wizard hijacken | `firstrun.sh` generiert 16-Zeichen-PSK pro Gerät |
-| Tonado-PIN | Experten-PIN muss vom User gesetzt werden | Setup-Wizard, nicht Image |
-| JWT-Secret | Sonst kann jeder mit Image-JWT alle Boxen angreifen | `firstrun.sh` generiert zufälliges 32-Byte-Secret in `/opt/tonado/config/jwt_secret` |
+| Setup-AP-PSK | — | **Entfällt: der Setup-AP ist offen** (Option C, siehe 7.2). Der *Recovery-*AP ist WPA2; seine Creds setzen die Eltern im Wizard |
+| Tonado-PIN | Experten-/Eltern-PIN muss vom User gesetzt werden (Setup ist ohne PIN nicht abschließbar) | Setup-Wizard, nicht Image |
+| JWT-Secret | Sonst kann jeder mit Image-JWT alle Boxen angreifen | **`AuthService` erzeugt es pro Gerät in der SQLite-DB** beim ersten Start (kein File); CI-Guard verhindert eine gebackene DB |
 
-### 7.2 Setup-WLAN-Passwort: pro Gerät generiert
+### 7.2 Setup-WLAN: offen (Option C umgesetzt)
 
-**Entscheidung:** Pro-Gerät-PSK, 16 Zeichen Base32 (~80 Bit Entropie). Nicht identisch.
+**Umgesetzt: Option C — offener Setup-AP.** Der User verbindet sich ohne Passwort mit `Tonado-Setup`, der Wizard ist nur über das Captive-Portal erreichbar (RFC-1918-Link, kein Internet-Zugang durch den AP). Der Wizard ist **nicht abschließbar, ohne dass eine Eltern-PIN gesetzt wurde** (`setup_wizard.complete_setup` wirft sonst) — danach `.setup-complete` → Setup-AP aus.
 
-**Wo sieht der User das PSK?** Drei Optionen (Product-Owner-Frage Q2 unten):
-
-A. **Auf der Rückseite des Pi-Gehäuses** — setzt voraus, dass wir Gehäuse mitliefern (tun wir nicht, open-source).
-B. **Als Aufkleber auf der SD-Karte / Papier in der Box** — nur bei kommerziellen Komplettpaketen. Für Download-Image nicht möglich.
-C. **Open SSID (PSK-frei) für die Setup-Phase.** Der User verbindet sich ohne Passwort, der Wizard ist nur über Captive-Portal erreichbar, Wizard erzwingt direkt im ersten Schritt das Setzen des Experten-PIN. Danach `.setup-complete` → AP aus.
-
-**Empfehlung: Option C.** Begründung: In den 2–5 Minuten, die der AP aktiv ist, ist das Security-Fenster minimal; das Wizard-Interface ist ohnehin an den lokalen Link gebunden (RFC 1918, kein Internet-Zugang durch den AP); der UX-Gewinn („Handy findet WLAN, tippen, rein, fertig") ist massiv. Wenn ein Angreifer im WLAN-Radius sitzt, kann er den Wizard parallel öffnen — aber das Wizard-Erste-Feld ist „setze deinen Experten-PIN" und ab dann ist die Box gelockt. Ein Angreifer müsste genau zwischen AP-Up und User-Setup den Wizard beenden und PIN übernehmen — schmaler Angriffsvektor, dafür UX-Gewinn für 100% der Fälle.
+Begründung: In dem Fenster, in dem der offene AP aktiv ist, ist das Security-Fenster klein; der UX-Gewinn („Handy findet WLAN, tippen, rein, fertig") ist massiv. Ein Angreifer im Funkradius könnte den Wizard parallel öffnen — aber Heim-WLAN-Bruteforce ist via `PROBE_FAIL_LOCKOUT` gedeckelt, und ohne gesetzte Eltern-PIN bleibt das Setup offen statt „fertig". Der **Recovery-**AP (nach Setup) ist dagegen WPA2, weil die Box dann unterwegs sein kann und die Eltern die Creds kennen. Bekannte Resthärtung (offener Setup-AP ohne Zeit-Timeout) steht im [`BACKLOG.md`](../../BACKLOG.md).
 
 ### 7.3 Secrets-Generierung im `firstrun.sh`
 
-Skizze (nicht final, zur Illustration):
-
-```bash
-#!/bin/bash
-set -euo pipefail
-FIRSTRUN_MARKER=/var/lib/tonado/firstrun.done
-[ -f "$FIRSTRUN_MARKER" ] && exit 0
-
-# SSH-Host-Keys
-rm -f /etc/ssh/ssh_host_*
-ssh-keygen -A
-
-# JWT-Secret
-python3 -c "import secrets; print(secrets.token_urlsafe(32))" \
-    > /opt/tonado/config/jwt_secret
-chown pi:pi /opt/tonado/config/jwt_secret
-chmod 600 /opt/tonado/config/jwt_secret
-
-# Git-Trust
-git config --global --add safe.directory /opt/tonado
-git config --global user.email "tonado@localhost"
-git config --global user.name "Tonado"
-
-# Marker
-mkdir -p "$(dirname "$FIRSTRUN_MARKER")"
-date -Iseconds > "$FIRSTRUN_MARKER"
-```
+Maßgeblich ist [`system/firstrun.sh`](../../system/firstrun.sh) selbst. Kern: SSH-Host-Keys rotieren, WLAN-Funk entsperren + Land setzen, Git-Trust. **Kein** JWT-Secret-File und **kein** AP-PSK (siehe „Stand der Umsetzung" oben). Das JWT-Secret erzeugt der `AuthService` pro Gerät in der DB.
 
 ### 7.4 SSH im Image
 
@@ -444,12 +448,12 @@ sha256sum -c SHA256SUMS.txt
 
 Diese Files sind **neu zu schreiben**, nicht Teil dieses Architektur-Dokuments:
 
-| Datei | Zielgruppe | Inhalt |
+| Datei | Zielgruppe | Status |
 |-------|-----------|--------|
-| `docs/fuer-eltern/flashen.md` | Eltern, nicht-technisch | 3-Schritte-Anleitung mit Imager-Screenshots: 1) Imager öffnen, 2) Tonado-Image wählen, 3) SD-Karte flashen, 4) Pi einstecken |
-| `docs/fuer-entwickler/image-build.md` | Maintainer | pi-gen-Setup, CI-Workflow, Signatur-Prozess |
+| `docs/fuer-eltern/flashen.md` | Eltern, nicht-technisch | **Geschrieben** (Imager-Anleitung inkl. offenem Setup-WLAN + „kein Internet"-Hinweis) |
+| `docs/fuer-entwickler/pi-image-ci.md` | Maintainer | **Vorhanden** (pi-gen-Setup, CI-Workflow, Signatur) |
 
-`install-strategy.md` → **aktualisieren** auf den Stand „Image ist jetzt Default, SSH-Pfad ist Fallback für Bastler".
+`install-strategy.md` → noch **aktualisieren** auf den Stand „Image ist jetzt Default, SSH-Pfad ist Fallback für Bastler".
 
 ### 8.4 CI-Integration (später, nicht Welle-1-Scope)
 
@@ -461,9 +465,11 @@ pi-gen baut in QEMU — das läuft **nicht** auf GitHub Actions Standard-Runner 
 
 **Für Welle 1 (erste Image-Release):** manueller Build auf Entwickler-Maschine, SHA256 + Release manuell. CI kommt mit einer späteren Welle.
 
-## 9. Offene Product-Owner-Fragen
+## 9. Product-Owner-Fragen — entschieden
 
-Vor der Impl-Welle zu beantworten (Ja/Nein oder A/B/C):
+> Diese Fragen sind inzwischen alle beantwortet (Umsetzung in `v0.4.0-beta`): **Q1** beide Varianten (arm64 + armhf). **Q2** offenes Setup-WLAN (Option A). **Q3** SSH aktiv, `pi` passwortlos (Option A). **Q4** `.setup-complete` nach komplettem Wizard (Option B). **Q5** automatische WLAN-Rettung via `ConnectivityMonitor` (Recovery-AP) statt Hardware-Knopf; Knopf bleibt Backlog-Fallback. **Q6** SHA256 + cosign-keyless (Option A). Der ursprüngliche Fragenkatalog bleibt als Historie erhalten.
+
+Ursprünglich vor der Impl-Welle zu beantworten (Ja/Nein oder A/B/C):
 
 **Q1 — Varianten-Strategie:** Liefern wir **beide** Varianten (arm64 + armhf) aus, oder verlegen wir Pi Zero W auf den Bastler-Pfad (`curl | sudo bash`)?
 - A) Beide Varianten (empfohlen, BACKLOG-Beta-Matrix verlangt Zero-W-Support)

@@ -54,16 +54,22 @@ iw reg set DE 2>/dev/null || true
 # place would mean every flashed device shares the same SSH identity — a
 # trivial MITM vector. Regenerate unconditionally.
 #
-# Belt-and-braces: stop ssh.service during the rm/keygen window so no sshd
-# instance can accept a connection with the old (or a half-written new)
-# host key. Errors swallowed — on a dev box systemctl might be absent.
+# Do NOT call `systemctl start/stop ssh*` from inside this script. firstrun.service
+# is ordered Before=ssh.service ssh.socket, so those units implicitly gain
+# After=firstrun.service. A *synchronous* `systemctl start ssh.service` here then
+# deadlocks: the ssh start job blocks waiting for firstrun to finish, while
+# firstrun blocks waiting for that very job. That wedges the entire systemd
+# transaction — multi-user.target is never reached and tonado-ap.service (the
+# setup AP) never starts, leaving the box headless-unreachable. Observed on real
+# Pi 3B+ hardware once the exec bit let this script actually run.
+#
+# No systemctl call is needed anyway: the Before= ordering already guarantees
+# ssh.service / ssh.socket do not come up until these fresh keys exist, and
+# ssh.service is enabled so systemd starts it after firstrun on its own. Plain
+# regeneration is therefore both sufficient and deadlock-free.
 if [ -d /etc/ssh ]; then
-    systemctl stop ssh.service 2>/dev/null || true
-    systemctl stop sshd.service 2>/dev/null || true
     rm -f /etc/ssh/ssh_host_*
     ssh-keygen -A
-    # Bring ssh back up so the first boot still accepts logins.
-    systemctl start ssh.service 2>/dev/null || true
 fi
 
 # --- JWT secret: intentionally NOT handled here ---

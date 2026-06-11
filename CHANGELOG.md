@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.4.1-beta] — 2026-06-11
+
+Setup-Wizard-Umbau auf die Single-Radio-Realität plus die headless-Boot-Fixes, die das `v0.4.0-beta`-Image noch nicht enthielt. Der Wizard bekommt eine Offline-First-Gabelung, eine funktionierende WLAN-Liste (Boot-Scan-Cache + manuelle Eingabe) und echte Audio-Aktivierung; der Online-Abschluss schließt die Einrichtung jetzt wirklich ab. **Noch nicht auf echter Hardware re-validiert** — dieses Image ist die Grundlage für die nächste Headless-UAT.
+
 ### Hinzugefügt
 
 - **Setup-Wizard: Offline-First-Gabelung.** Der WLAN-Schritt beginnt jetzt mit zwei gleichwertigen Wegen — „Mit Heim-WLAN verbinden" (für Radio, Podcasts, Updates) und „Ohne Internet nutzen" (Musik und Figuren laufen komplett offline). Der Offline-Weg überspringt WLAN-Suche, -Probe und QR-Wiederfinden: die Box macht das gesicherte Notfall-WLAN „Tonado" zu ihrem dauerhaften Netz und spannt es nach jedem Neustart selbst wieder auf (`captive_portal` owner=`offline`, ohne Timeout). Damit ist der frühere „Endlossuche am Ende"-Sackgassen-Effekt aufgelöst — Eltern ohne Heimnetz kommen sauber bis zum Abschluss. Backend: `POST /api/setup/complete` nimmt `{mode: "online"|"offline"}`, der Offline-Pfad setzt `wifi.offline_mode` + deaktiviert den Auto-Fallback-Monitor.

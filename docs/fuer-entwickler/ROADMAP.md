@@ -94,6 +94,12 @@
 - **Product-Decisions** (Phase 6): Gyro Tilt-forward/back (Volume vs. play_pause). ✅ erledigt (K8-Kopplung an `card.remove_pauses`)
 - **WLAN-Rettung** (Post-Audit): `ConnectivityMonitor` startet das bestehende Captive Portal automatisch, wenn das Heim-WLAN anhaltend nicht erreichbar ist. Eltern-UI mit AP-Credentials + druckbarem QR-Code. ✅ erledigt (Live-Test auf Pi offen)
 
+## Meilenstein 1.6: Flashbares Pi-Image (v0.4.0-beta) ✓
+> Erstes flashbares Tonado-Image für nicht-technische Eltern. Referenz: [`pi-image-architecture.md`](pi-image-architecture.md).
+
+- **Flashbares Pi-Image (pi-gen)**: `tonado-*.img.xz` für arm64 (Pi 3B+/4/5/Zero 2 W) + armhf (Pi Zero W), per Raspberry Pi Imager flashbar, kein SSH/Terminal nötig. CI-Build aus `v*`-Tag, signiert (SHA256 + cosign keyless). ✅ erledigt (headless-Boot auf echter Hardware noch im Field-Test, bis dahin bleibt der SSH-Install-Pfad die erprobte Route)
+- **Setup-Wizard-Umbau (Single-Radio / Offline-first)**: Boot-Scan-Cache statt Live-Scan + manuelles SSID-Feld (CYW43455 kann nicht zugleich AP halten und scannen); Online-Abschluss hält den Setup-AP während der WLAN-Probe oben und reißt ihn erst bei `confirm-complete` ab (Handy reconnectet selbst, App re-findet per QR/mDNS); neue Gabelung „Mit Heim-WLAN verbinden" vs. „Ohne Internet nutzen" mit permanentem Recovery-AP; Audio-Overlay schreibt `config.txt` + Auto-Reboot am Setup-Ende. ✅ erledigt
+
 ## Meilenstein 2: Erweiterungen (Zukunft)
 
 > **Leitplanke:** Tonado bleibt eine Kinder-Musikbox, kein Smart-Home-Hub (siehe [VISION](../VISION.md#was-tonado-nicht-ist)). Erweiterungen, die das Kernerlebnis „Figur auflegen → Musik spielt" erweitern, nicht ersetzen.
@@ -107,7 +113,6 @@
 - Display-Support (E-Ink oder kleines LCD)
 - Community-Plugin-System
 - Englische Dokumentation
-- Pi-Image zum direkten Flashen (pi-gen) — **Kernziel für nicht-technische Eltern**
 
 ## Prinzipien für die Umsetzung
 

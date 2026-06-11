@@ -1,7 +1,7 @@
 # UI-Konsistenz-Audit — Tonado Frontend
 
 - Datum: 2026-04-22
-- Auditor: Code-Analyzer-Agent (Claude Opus 4.7)
+- Auditor: Code-Analyse
 - Scope: `web/src/**` — Settings, Setup-Wizard, Figuren-Management, Library, Player, Layout, Design-Tokens
 - Grundlagen: Nielsen 10 Heuristiken, Krug „Don't Make Me Think", Refactoring UI (Wathan/Schoger), UI/UX-Pro-Max (Token-Systeme)
 - Modus: Read-only. Keine Code-Änderungen.

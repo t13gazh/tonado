@@ -13,12 +13,12 @@ Du hörst keinen Startton und siehst nur eine kleine LED leuchten. Das ist norma
 Beim allerersten Mal kennt die Box dein WLAN noch nicht. Darum spannt sie selbst ein eigenes, kleines WLAN auf, in das du dich kurz einklinkst, um ihr dein Heim-WLAN mitzuteilen.
 
 1. Am Handy die WLAN-Einstellungen öffnen.
-2. Nach einem Netz namens **Tonado-Setup** (oder ähnlich) suchen und verbinden.
+2. Nach einem Netz namens **Tonado-Setup** (oder ähnlich) suchen und verbinden. Es ist **offen — kein Passwort nötig**. Dein Handy meldet meist „kein Internet" und fragt, ob es verbunden bleiben soll — antworte mit **Ja** bzw. **Verbindung behalten**. Das ist völlig normal: Die Box ist kein Internet-Router, sie öffnet nur ihre eigene Einrichtungs-Seite.
 3. Dein Handy öffnet automatisch eine kleine Einrichtungs-Seite (falls nicht: Browser auf und `http://192.168.4.1` aufrufen — mit `http`, nicht `https`).
 4. Dein Heim-WLAN aus der Liste wählen, das Passwort eingeben.
 5. Eine Eltern-PIN vergeben — vier Ziffern, die du dir merken kannst. Damit schützt du später die Einstellungen.
 
-Die Box verbindet sich jetzt mit deinem WLAN. Dein Handy springt dabei von selbst zurück ins Heim-WLAN. Nach etwa einer halben Minute ist die Box erreichbar — du landest automatisch auf der App.
+Die Box schaltet ihr Einrichtungs-WLAN ab und verbindet sich mit deinem Heim-WLAN. Verbinde dein Handy danach selbst wieder mit dem Heim-WLAN — die App findet die Box per QR-Code (oder über `tonado.local`) wieder.
 
 ## 3. Erste Musik hochladen
 

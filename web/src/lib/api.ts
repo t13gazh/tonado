@@ -571,7 +571,7 @@ export interface RecoveryWifiCredentials {
 export const setupApi = {
 	status: () => request<SetupStatus>('/setup/status'),
 	detectHardware: () => request<HardwareDetection>('/setup/detect-hardware', { method: 'POST' }),
-	// Lane B now routes /setup/wifi/connect through probe_home_wifi, so the
+	// /setup/wifi/connect routes through probe_home_wifi, so the
 	// response shape matches /setup/test-wifi: the AP stays up, credentials
 	// get stashed, and a single-use token is returned for /confirm-complete.
 	wifiConnect: (ssid: string, password: string = '') =>
@@ -610,9 +610,8 @@ export const setupApi = {
 	reset: () => request<{ status: string }>('/setup/reset', { method: 'POST' }),
 	portalCredentials: () =>
 		request<{ ssid: string; password: string }>('/setup/portal/credentials'),
-	// Lane B returns ok/error/ip plus an optional `token` that must be passed
-	// back to /setup/confirm-complete. Client timeout 25s = backend 20s + buffer.
-	// TODO: align with Lane B if final token transport differs (query vs body).
+	// /setup/test-wifi returns ok/error/ip plus an optional `token` that must be
+	// passed back to /setup/confirm-complete. Client timeout 25s = backend 20s + buffer.
 	testWifi: (ssid: string, password: string = '', timeoutMs = 25_000) =>
 		request<{ ok: boolean; error: string | null; ip: string | null; token?: string | null }>('/setup/test-wifi', {
 			method: 'POST',
@@ -624,9 +623,8 @@ export const setupApi = {
 	 * network and reached the box again. Returns 409 if `.setup-complete` was
 	 * already written — treat that as success.
 	 *
-	 * Lane B adds a one-shot token from /setup/test-wifi. We send it both as a
-	 * query param and in the body so we tolerate either transport choice.
-	 * TODO: drop whichever variant Lane B does not honour once finalised.
+	 * /setup/test-wifi issues a one-shot token. It is sent as both a query param
+	 * and a body field; the confirm-complete endpoint accepts either.
 	 */
 	confirmComplete: (token?: string | null) => {
 		const qs = token ? `?token=${encodeURIComponent(token)}` : '';

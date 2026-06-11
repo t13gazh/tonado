@@ -68,3 +68,6 @@ agents/
 
 # Review artifacts (screenshots/metrics produced by UX-review agents)
 .tmp-review-out/
+
+# Claude Code dev hook (lives in tonado-private, local-only here)
+scripts/hooks/claude-doc-reminder.sh

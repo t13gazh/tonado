@@ -183,7 +183,7 @@ export default {
 	'setup.complete_slow_title': "My phone can't find the box.",
 	'setup.complete_slow_body': 'Scan the QR code and open it in your browser to reach the box.',
 	'setup.complete_searching': 'Searching for the box on the new network …',
-	// New keys (Lane C fix-pass) — intro screen, progress hints, timeout, retry
+	// Wizard completion keys (intro, progress, timeout, retry)
 	'setup.complete_intro_title': 'Almost there!',
 	'setup.complete_intro_body': 'I will now finish setting up your box and connect to your WiFi. This can take up to a minute.',
 	'setup.complete_intro_start': 'Set up now',

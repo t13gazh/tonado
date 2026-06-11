@@ -182,7 +182,7 @@ export default {
 	'setup.complete_slow_title': 'Mein Handy findet die Box nicht.',
 	'setup.complete_slow_body': 'Scanne den QR-Code und öffne ihn im Browser, um zur Box zu kommen.',
 	'setup.complete_searching': 'Ich suche die Box im neuen Netz …',
-	// Neue Keys (Lane C Fix-Pass) — Intro-Screen, Fortschritts-Hinweise, Timeout, Retry
+	// Wizard-Abschluss-Keys (Intro, Fortschritt, Timeout, Retry)
 	'setup.complete_intro_title': 'Fast geschafft!',
 	'setup.complete_intro_body': 'Ich richte deine Box jetzt fertig ein und verbinde mich mit deinem WLAN. Das kann bis zu einer Minute dauern.',
 	'setup.complete_intro_start': 'Jetzt einrichten',

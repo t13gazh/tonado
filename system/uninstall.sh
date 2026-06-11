@@ -1,7 +1,7 @@
 #!/bin/bash
 # Tonado uninstall script — removes Tonado completely for re-testing the installer.
 # Usage: sudo bash /opt/tonado/system/uninstall.sh
-# Or:    ssh pi@tonado-dev.local "sudo bash /opt/tonado/system/uninstall.sh"
+# Or:    ssh pi@<hostname>.local "sudo bash /opt/tonado/system/uninstall.sh"
 
 set -euo pipefail
 

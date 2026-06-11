@@ -53,14 +53,19 @@ Sobald du mit „Tonado-Setup" verbunden bist, warnt dein Handy meist: „Dieses
 
 ## 6. Der Einrichtungs-Assistent
 
-Jetzt führt dich die Box Schritt für Schritt durch die Einrichtung. Sie fragt dich nach:
+Jetzt führt dich die Box Schritt für Schritt durch die Einrichtung. Gleich am Anfang fragt sie, wie du die Box nutzen willst:
 
-- **Deinem Heim-WLAN** — du wählst es aus der Liste und gibst das Passwort ein.
+- **„Mit Heim-WLAN verbinden"** — der übliche Weg. Die Box hängt sich in dein WLAN ein, dann funktionieren auch Radio, Podcasts und Updates.
+- **„Ohne Internet nutzen"** — wenn du kein Heim-WLAN hast (oder bewusst keins nutzen willst). Dann spannt die Box dauerhaft ihr eigenes, gesichertes WLAN auf und ist immer darüber erreichbar. Hochgeladene Musik und Figuren laufen vollständig auch ohne Internet — nur Radio, Podcasts und Updates brauchen eine Internet-Verbindung. **Schreib dir den Netzwerknamen und das Passwort gut auf** — darüber erreichst du die Box später jedes Mal.
+
+Je nach Wahl fragt sie dich dann nach:
+
+- **Deinem Heim-WLAN** (nur beim Online-Weg) — du wählst es aus der Liste oder tippst den Namen von Hand ein und gibst das Passwort ein.
 - **Dem Audio-Ausgang** — also wo der Ton herauskommt.
 - **Einer Eltern-PIN** — vier Ziffern, mit denen du später die Einstellungen schützt.
 - **Einem Notfall-WLAN** — ein Netzwerkname und ein Passwort (mindestens 10 Zeichen), das die Box später selbst aufspannt, falls sie dein Heim-WLAN einmal nicht findet. Die Box füllt beides schon mit einem sicheren Vorschlag aus — du kannst ihn übernehmen oder ändern. **Schreib dir beides gut auf** (z.B. an den Kühlschrank) — du brauchst es nur im Notfall, dann aber sofort griffbereit.
 
-Am Ende wechselt die Box von ihrem eigenen WLAN in dein Heim-WLAN. **Verbinde dann auch dein Handy wieder mit dem Heim-WLAN** — die Einrichtungs-Seite findet die Box danach von selbst wieder. Ein angezeigter QR-Code hilft dir, die Box jederzeit schnell aufzurufen.
+Hast du den Online-Weg gewählt, schaltet die Box am Ende ihr Einrichtungs-WLAN ab und verbindet sich mit deinem Heim-WLAN. **Verbinde dann auch dein Handy wieder selbst mit dem Heim-WLAN** — die App findet die Box danach per QR-Code (oder über `tonado.local`) wieder. Hast du „Ohne Internet" gewählt, bleibst du einfach mit dem WLAN der Box verbunden.
 
 Mehr zu den ersten Schritten mit der fertig eingerichteten Box findest du unter **[Erste Schritte](ERSTE-SCHRITTE.md)**.
 

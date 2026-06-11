@@ -4,7 +4,7 @@ Description=Tonado Imager WiFi Probe
 # network-online.target. When wlan0 is rfkill-soft-blocked (fresh image, no
 # WiFi seeded), NM-wait-online never reaches the "online" state and its
 # ~90-110s timeout stalls the whole boot before the setup AP can appear.
-# The probe polls connectivity itself (imager-wifi-probe.sh: 20s is_connected
+# The probe polls connectivity itself (imager-wifi-probe.sh: 30s is_connected
 # loop), so it does not need network-online — it just needs NM running.
 After=NetworkManager.service
 # Must complete before tonado-ap.service decides whether to fire up the AP.

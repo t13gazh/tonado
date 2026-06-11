@@ -566,6 +566,7 @@ export default {
 	'setup.recovery_ssid_too_long': 'Der Name darf höchstens 32 Zeichen lang sein.',
 	'setup.recovery_password_too_short': 'Das Passwort muss mindestens 10 Zeichen lang sein.',
 	'setup.recovery_save_failed': 'Notfall-WLAN konnte nicht gespeichert werden.',
+	'setup.recovery_suggest_failed': 'Vorschlag konnte nicht geladen werden. Bitte erneut versuchen.',
 
 	// Help (Setup-Wizard Troubleshooting)
 	'help.open_aria': 'Hilfe öffnen',

@@ -15,8 +15,9 @@
 
 	let { saved = $bindable(), error, onError, onSaved }: Props = $props();
 
-	// Same lower bound the backend enforces (MIN_PASSWORD_LENGTH).
+	// Same bounds the backend enforces (MIN_PASSWORD_LENGTH / WPA2 max).
 	const MIN_PASSWORD_LENGTH = 10;
+	const MAX_PASSWORD_LENGTH = 63;
 	const MAX_SSID_LENGTH = 32;
 
 	let ssid = $state('');
@@ -27,17 +28,21 @@
 	let localError = $state<string | null>(null);
 
 	const passwordTooShort = $derived(password.length > 0 && password.length < MIN_PASSWORD_LENGTH);
+	const ssidEmpty = $derived(ssid.trim().length === 0);
 
-	async function loadSuggestion() {
+	async function loadSuggestion(): Promise<boolean> {
 		loadingSuggestion = true;
+		localError = null;
 		try {
 			const creds = await setupApi.recoveryWifiSuggestion();
 			ssid = creds.ssid;
 			password = creds.password;
+			return true;
 		} catch {
 			// Fall back to a sensible default name; the parent can still type a
 			// password. The backend will reject an empty / short one on submit.
 			if (!ssid) ssid = 'Tonado';
+			return false;
 		} finally {
 			loadingSuggestion = false;
 		}
@@ -52,6 +57,7 @@
 	}
 
 	async function save() {
+		if (saving) return; // guard against a double-submit (page-level nav button)
 		localError = null;
 		const err = validate();
 		if (err) {
@@ -88,13 +94,18 @@
 		await save();
 	}
 
-	function regenerate() {
+	async function regenerate() {
 		// Re-pull a fresh suggestion (new generated password) without losing the
-		// SSID the parent may have already typed.
+		// SSID the parent may have already typed. Surface a failure instead of
+		// silently doing nothing — the parent explicitly asked for a new one.
 		const keptSsid = ssid;
-		loadSuggestion().then(() => {
-			if (keptSsid.trim()) ssid = keptSsid;
-		});
+		const ok = await loadSuggestion();
+		if (keptSsid.trim()) ssid = keptSsid;
+		if (!ok) {
+			const msg = t('setup.recovery_suggest_failed');
+			localError = msg;
+			onError(msg);
+		}
 	}
 
 	const visibleError = $derived(localError ?? (error ? error : null));
@@ -124,6 +135,7 @@
 				maxlength={MAX_SSID_LENGTH}
 				autocomplete="off"
 				aria-describedby={visibleError ? 'recovery-error' : undefined}
+				aria-invalid={ssidEmpty ? 'true' : undefined}
 				class="w-full px-3 py-2.5 bg-surface border-2 border-surface-lighter rounded-xl text-text focus:border-primary focus:ring-2 focus:ring-primary/40 focus:outline-none transition-colors"
 			/>
 		</fieldset>
@@ -135,6 +147,7 @@
 					id="recovery-password"
 					type={showPassword ? 'text' : 'password'}
 					bind:value={password}
+					maxlength={MAX_PASSWORD_LENGTH}
 					autocomplete="off"
 					aria-describedby={visibleError ? 'recovery-error' : undefined}
 					aria-invalid={passwordTooShort ? 'true' : undefined}

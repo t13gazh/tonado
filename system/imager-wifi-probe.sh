@@ -1,7 +1,7 @@
 #!/bin/bash
 # Tonado Imager WiFi probe.
 #
-# Runs on every boot before tonado-ap.service. Waits up to 20 seconds for
+# Runs on every boot before tonado-ap.service. Waits up to 30 seconds for
 # NetworkManager to bring up a home WiFi connection (typically the one
 # the Raspberry Pi Imager seeded into the image during flashing, but
 # works equally well for anything else the user configured).

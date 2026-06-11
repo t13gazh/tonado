@@ -566,6 +566,7 @@ export default {
 	'setup.recovery_ssid_too_long': 'The name may be at most 32 characters long.',
 	'setup.recovery_password_too_short': 'The password must be at least 10 characters long.',
 	'setup.recovery_save_failed': 'Could not save the backup WiFi.',
+	'setup.recovery_suggest_failed': 'Could not load a suggestion. Please try again.',
 
 	// Help (Setup-Wizard Troubleshooting)
 	'help.open_aria': 'Open help',

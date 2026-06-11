@@ -35,6 +35,8 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
   - **Fehlende Pakete:** `rfkill`, `iw`, `wireless-tools`, `spi-tools` ergänzt — die Boot-Skripte brauchen sie.
   - **Ausführbar-Bit:** Der Build setzt `+x` auf alle Stage- und `system/`-Skripte (Windows-Checkout verliert es, sonst überspringt pi-gen die Hooks stumm).
 - **Build-Schutz gegen versehentlich mitgepackte `tonado.db`.** Ein blockierender CI-Schritt (`scripts/ci/assert-no-baked-db.sh`) bricht den Image-Build ab, falls eine SQLite-DB ins Image geriete — sonst teilten alle Geräte denselben Auth-Zustand/JWT-Secret.
+- **Notfall-WLAN-Wizard-Härtung (aus Mehr-Perspektiven-Review).** Doppeltes Speichern beim Übernehmen verhindert; ein fehlgeschlagener „Neues Passwort vorschlagen"-Klick zeigt jetzt einen Hinweis statt still zu scheitern; Passwort-Obergrenze (63 Zeichen) auch im Frontend gespiegelt; SSID-Feld meldet Leereingabe an Screenreader. Der Wizard-Reset (`/api/setup/reset`) setzt jetzt auch die WLAN-Test-Sperre zurück — sonst blieb ein ausgesperrter Elternteil nach dem Reset bis zum Neustart gesperrt. `/api/setup/complete` stellt sicher, dass ein Recovery-Passwort existiert (Notfall-WLAN bleibt erreichbar, auch falls der Schritt umgangen wurde).
+- **Eltern-Doku präzisiert.** `flashen.md` nennt die Mindestlänge (10 Zeichen) des Notfall-WLAN-Passworts und den vorausgefüllten Vorschlag; `ERSTE-SCHRITTE.md` korrigiert die Einrichtungs-Adresse (`http://192.168.4.1` statt `tonado.local`) und die PIN-Länge (vier Ziffern).
 - **Gesundheits-Endpoint-Test auf aktuelle Version synchronisiert** (stand noch auf `0.2.1-alpha`).
 - **README-Versionsangabe korrigiert.** Badge und Status-Zeile standen noch auf `0.3.0-beta`, obwohl `0.3.1-beta` ausgeliefert ist.
 

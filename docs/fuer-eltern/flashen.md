@@ -58,7 +58,7 @@ Jetzt führt dich die Box Schritt für Schritt durch die Einrichtung. Sie fragt 
 - **Deinem Heim-WLAN** — du wählst es aus der Liste und gibst das Passwort ein.
 - **Dem Audio-Ausgang** — also wo der Ton herauskommt.
 - **Einer Eltern-PIN** — vier Ziffern, mit denen du später die Einstellungen schützt.
-- **Einem Notfall-WLAN** — ein Netzwerkname und ein Passwort, das die Box später selbst aufspannt, falls sie dein Heim-WLAN einmal nicht findet. **Schreib dir beides gut auf** (z.B. an den Kühlschrank) — du brauchst es nur im Notfall, dann aber sofort griffbereit.
+- **Einem Notfall-WLAN** — ein Netzwerkname und ein Passwort (mindestens 10 Zeichen), das die Box später selbst aufspannt, falls sie dein Heim-WLAN einmal nicht findet. Die Box füllt beides schon mit einem sicheren Vorschlag aus — du kannst ihn übernehmen oder ändern. **Schreib dir beides gut auf** (z.B. an den Kühlschrank) — du brauchst es nur im Notfall, dann aber sofort griffbereit.
 
 Am Ende wechselt die Box von ihrem eigenen WLAN in dein Heim-WLAN. **Verbinde dann auch dein Handy wieder mit dem Heim-WLAN** — die Einrichtungs-Seite findet die Box danach von selbst wieder. Ein angezeigter QR-Code hilft dir, die Box jederzeit schnell aufzurufen.
 

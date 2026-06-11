@@ -718,6 +718,17 @@ class WifiService(BaseService):
         await self._nmcli_delete_connection(self.PROBE_CONNECTION_NAME)
         return {"ok": True}
 
+    def reset_probe_lockout(self) -> None:
+        """Clear the probe-failure lockout counter.
+
+        Called from /api/setup/reset so a parent who locked themselves out of
+        the home-WiFi probe (PROBE_FAIL_LOCKOUT consecutive wrong PSKs) can
+        recover by restarting the wizard instead of being forced to reboot the
+        box — otherwise the lockout (which lives in this service, not the
+        wizard) would survive the reset.
+        """
+        self._probe_fail_count = 0
+
     # --- Helpers for probe_home_wifi / finalize_setup_ap_teardown ---
 
     async def _nmcli_delete_connection(self, name: str) -> None:

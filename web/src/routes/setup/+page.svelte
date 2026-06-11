@@ -59,10 +59,9 @@
 	// Kept in memory only — never persisted on the client.
 	let capturedWifiSsid = $state('');
 	let capturedWifiPassword = $state('');
-	// Lane C fix: If WifiStep already probed the home WiFi via Lane B's updated
-	// /setup/wifi/connect (which no longer tears down the AP), CompleteStep
+	// If WifiStep already probed the home WiFi via /setup/wifi/connect
+	// (which no longer tears down the AP), CompleteStep
 	// skips the redundant /setup/test-wifi call and jumps straight to polling.
-	// TODO: adjust schema once Lane B finalises — especially the optional token.
 	let capturedWifiProbe = $state<{ ok: boolean; error: string | null; ip: string | null; token?: string | null } | null>(null);
 
 	// Audio (hardware-detected outputs, not MPD outputs)

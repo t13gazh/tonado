@@ -56,4 +56,4 @@ Der Fallback zwischen heute und dem Image ist „jemand Technischer macht die Er
 
 - Features, die nur über SSH konfigurierbar sind, sind kein Produkt-Ende-Zustand, sondern höchstens Durchgangsetappe.
 - Jedes neue Einstellungs-Detail sollte in der Web-App abbildbar sein, nicht nur in config.txt / Umgebungsvariablen.
-- Install-Script muss idempotent bleiben, damit es auf dem Image bei jedem First-Boot neu laufen könnte ohne Schaden anzurichten.
+- Das Bastler-`install.sh` (SSH-Pfad) muss idempotent bleiben, damit ein Re-Run keinen Schaden anrichtet. **Nicht** für das Image: dort sind die Install-Schritte zur Bake-Time ins Image gebacken, beim ersten Boot läuft nur `firstrun.service` (Geräte-Init, einmalig markergated) — das Image führt die `install.sh`-Schritte nicht bei jedem First-Boot aus. Details: [`pi-image-architecture.md`](pi-image-architecture.md).

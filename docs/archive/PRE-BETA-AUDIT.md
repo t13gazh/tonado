@@ -63,9 +63,9 @@ AP "Tonado-Setup" ist offen. Angreifer im Funk-Umkreis kann während Setup WiFi-
 **Fix:** Watchdog aus `config.txt` entfernen ODER systemd-Ticker korrekt konfigurieren (`WatchdogSec=` in Unit-File).
 
 ### K8 — Gyro Tilt-forward/back Produkt-Diskrepanz ✅ BEHOBEN
-**Datei:** `core/services/gyro_service.py` GESTURE_ACTIONS vs. CLAUDE.md Produkt-Entscheidung
+**Datei:** `core/services/gyro_service.py` GESTURE_ACTIONS vs. Produkt-Entscheidung (Projekt-Doku)
 **Entscheidung:** Gyro-Tilt-Belegung an `card.remove_pauses` gekoppelt. Hintergrund: Ohne Magnet-Halterung fallen Figuren beim Kippen vom Lesefeld, Gyro ist in dem Modus ohnehin nur für diskrete Aktionen nutzbar. Mit Magnet-Figuren / Karten-Halter (`card.remove_pauses=False`, Default) spielt die Box weiter → Tilt = Volume-Kontrolle. Ohne (`card.remove_pauses=True`) → Tilt = Play/Pause + Stop.
-**Commit:** Siehe Gyro-K8-Commit. CLAUDE.md, ARCHITEKTUR.md und hardware.md entsprechend aktualisiert. Individuelle Gesten-Zuweisung als Post-Beta-Backlog-Eintrag (Prio 3).
+**Commit:** Siehe Gyro-K8-Commit. Produkt-Spezifikation, ARCHITEKTUR.md und hardware.md entsprechend aktualisiert. Individuelle Gesten-Zuweisung als Post-Beta-Backlog-Eintrag (Prio 3).
 
 ---
 
@@ -175,7 +175,7 @@ Hostname, IP, SSID, RAM, OverlayFS-Status. Im Familien-LAN akzeptabel. Inkonsist
 Wenn AuthService-Start fehlschlägt, läuft Server weiter OHNE Auth. `get_auth_service` liest `app.state.auth_service` → Exception statt Service → Attribute-Error beim ersten Request. Defensive-Check nötig.
 
 ### M9 — Card-Cooldown 2s ungetestet
-Kern-Produkt-Verhalten (CLAUDE.md), kein Test. `test_card_scanned_event` nutzt 0.1s-Cooldown. Realistischer Test mit 2s-Cooldown erforderlich.
+Kern-Produkt-Verhalten (Produkt-Spezifikation), kein Test. `test_card_scanned_event` nutzt 0.1s-Cooldown. Realistischer Test mit 2s-Cooldown erforderlich.
 
 ### M10 — Auth-Middleware-Matrix ungetestet
 `test_routers.py` testet 1 EXPERT-Endpoint (restart) und wenige PARENT. 40+ `require_tier`-Aufrufe ohne Test — wenn jemand einen Call vergisst, bleibt es unbemerkt.

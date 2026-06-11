@@ -8,6 +8,28 @@ Markdown-Formatierungen wie **fett** oder *kursiv* — nur Klartext,
 Die ausführliche Änderungs-Historie für Entwickler steht in
 [CHANGELOG.md](CHANGELOG.md).
 
+## [0.4.0-beta] — 2026-06-11
+
+### Tonado zum Aufspielen — ohne Technik-Kenntnisse
+
+Ab jetzt gibt es eine fertige Tonado-Datei, die du mit dem „Raspberry Pi Imager" direkt auf eine SD-Karte spielst. Kein SSH, kein Terminal, keine Befehle. SD-Karte rein, Strom an, mit dem WLAN „Tonado-Setup" verbinden — und die Box führt dich durch den Rest. Die Anleitung dazu findest du unter „Tonado auf eine SD-Karte spielen".
+
+### Mit oder ohne Internet — du entscheidest
+
+Gleich am Anfang der Einrichtung fragt die Box, wie du sie nutzen willst:
+
+- Mit Heim-WLAN verbinden — dann laufen auch Radio, Podcasts und Updates.
+- Ohne Internet nutzen — die Box spannt dauerhaft ihr eigenes, gesichertes WLAN auf und ist immer darüber erreichbar. Deine hochgeladene Musik und deine Figuren funktionieren vollständig auch ohne Internet.
+
+### Was du sonst merkst
+
+- Notfall-WLAN: Die Box schlägt dir im Setup ein eigenes Ersatz-Netz mit Namen und Passwort vor. Schreib dir beides auf — falls dein Heim-WLAN mal ausfällt, erreichst du die Box darüber wieder.
+- Nach dem Einrichten verbindest du dein Handy einmal selbst wieder mit dem Heim-WLAN — die App findet die Box per QR-Code sofort wieder.
+
+Hinweis: Der neue Aufspiel-Weg ist frisch und wird gerade auf echter Hardware getestet. Wer mag, kann weiterhin den bewährten Weg über die Bastler-Anleitung nutzen.
+
+Deine Figuren, Einstellungen und Musik bleiben beim Update erhalten.
+
 ## [0.3.1-beta] — 2026-04-23
 
 ### Auto-Update wird zuverlässig

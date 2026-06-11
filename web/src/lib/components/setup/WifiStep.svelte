@@ -12,12 +12,11 @@
 		onError: (msg: string) => void;
 		onWifiStatusChange: (status: WifiStatus | null) => void;
 		/** Lifted to the page so CompleteStep can re-verify the credentials
-		 *  against Lane B's /setup/test-wifi before switching the phone. */
+		 *  against /setup/test-wifi before switching the phone. */
 		onCredentialsCaptured?: (ssid: string, password: string) => void;
-		/** Lane B's fix #5: /setup/wifi/connect now uses probe_home_wifi
+		/** /setup/wifi/connect now uses probe_home_wifi
 		 *  internally (AP stays up). We stash the successful connect result so
-		 *  CompleteStep can skip the redundant /setup/test-wifi round-trip.
-		 *  TODO: align with Lane B if the response grows a `token` field here. */
+		 *  CompleteStep can skip the redundant /setup/test-wifi round-trip. */
 		onWifiProbeCaptured?: (probe: { ok: boolean; error: string | null; ip: string | null; token?: string | null }) => void;
 	}
 
@@ -107,7 +106,7 @@
 		try {
 			const result = await setupApi.wifiConnect(ssid, wifiPassword);
 			if (result.ok) {
-				// Lane B now uses probe_home_wifi — AP stays up, so we keep the
+				// /setup/wifi/connect now uses probe_home_wifi — AP stays up, so we keep the
 				// existing wifiStatus snapshot and capture credentials/token for
 				// the final confirm-complete handshake after the phone switches
 				// networks.

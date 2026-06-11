@@ -14,11 +14,11 @@
 	interface Props {
 		/** Data to encode. Typically a URL like `http://tonado.local/`. */
 		value: string;
-		/** Pixel size for the rendered canvas (square). Default: 200 (Lane C:
-		 *  raised from 176/192 to improve scan tolerance on phones held at arm's
+		/** Pixel size for the rendered canvas (square). Default: 200
+		 *  (raised from 176/192 to improve scan tolerance on phones held at arm's
 		 *  length). */
 		size?: number;
-		/** Error correction level. `Q` is Lane C's new default — better scan
+		/** Error correction level. `Q` is the default — better scan
 		 *  tolerance in imperfect lighting / angles than the previous `M`. */
 		level?: 'L' | 'M' | 'Q' | 'H';
 		/** Accessible label for screen readers. */

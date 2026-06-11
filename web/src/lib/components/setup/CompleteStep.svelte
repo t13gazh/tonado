@@ -2,7 +2,7 @@
 	/**
 	 * Exported so the parent wizard can branch on CompleteStep's internal state.
 	 * `intro`    → informed-consent screen, waits for primary button click
-	 * `testing`  → verifying WiFi credentials against Lane B
+	 * `testing`  → verifying WiFi credentials against /setup/test-wifi
 	 * `failed`   → test failed, user may retry or go back to WiFi step
 	 * `switching`→ WiFi OK, waiting for the phone to reach the box on the new net
 	 * `timeout`  → 5 min of polling without the phone finding the box
@@ -19,7 +19,7 @@
 	import InlineError from '$lib/components/InlineError.svelte';
 	import QRCode from '$lib/components/setup/QRCode.svelte';
 
-	/** Shape of the test-wifi result Lane B produces. Re-declared here so the
+	/** Shape of the /setup/test-wifi result. Re-declared here so the
 	 *  parent can stash it in +page.svelte without pulling the whole setupApi
 	 *  namespace. Mirror of `setupApi.testWifi`'s return type. */
 	export interface WifiProbeResult {
@@ -43,12 +43,12 @@
 		buttonLabels: string[];
 		error: string;
 		/** Credentials captured by WifiStep — needed for the final test-wifi call.
-		 *  If unavailable, CompleteStep tests with password='' (Lane B may still
+		 *  If unavailable, CompleteStep tests with password='' (the backend may still
 		 *  validate against cached credentials). */
 		wifiSsid?: string;
 		wifiPassword?: string;
 		/** If WifiStep already probed the home WiFi via the same internal helper
-		 *  Lane B uses for /setup/test-wifi, the parent can pass the result here
+		 *  /setup/test-wifi uses, the parent can pass the result here
 		 *  so CompleteStep skips re-testing and jumps straight to switching. */
 		wifiProbeResult?: WifiProbeResult | null;
 		/** Recovery-WLAN credentials (offline mode only). These become the box's
@@ -83,7 +83,7 @@
 	let status = $state<CompleteStepStatus>('intro');
 	let testError = $state<string>('');
 	let testedIp = $state<string>('');
-	/** Token handed over by Lane B from /setup/test-wifi; forwarded to
+	/** Token handed over from /setup/test-wifi; forwarded to
 	 *  /setup/confirm-complete. Falsy = no token available. */
 	let confirmToken = $state<string | null>(null);
 
@@ -146,8 +146,8 @@
 
 	// ─── Error mapping (Backend → User text) ───────────────────────────────
 	/**
-	 * Map Lane B's deutsche Error-Strings auf SSID-aware Texte.
-	 * Lane B liefert bereits Klartext; wir verfeinern nur, wenn wir die SSID
+	 * Map the backend's deutsche Error-Strings auf SSID-aware Texte.
+	 * Das Backend liefert bereits Klartext; wir verfeinern nur, wenn wir die SSID
 	 * einblenden können. Bei Unbekanntem wird der Originalfehler 1:1 gezeigt.
 	 */
 	function mapBackendError(raw: string | null | undefined, ssid: string): string {
@@ -194,7 +194,7 @@
 
 		const ssid = wifiSsid || wifiStatus?.ssid || '';
 		if (!ssid) {
-			// No credentials at all → skip to switching; Lane B's confirm-complete
+			// No credentials at all → skip to switching; the confirm-complete call
 			// will still happen when the client reaches the box on new IP.
 			status = 'switching';
 			startPolling();
@@ -331,12 +331,11 @@
 		const base = reachedBaseHealthUrl.replace(/api\/health$/, '');
 
 		// Fire-and-forget the confirm-complete. We can't read the response body
-		// under `no-cors`, but that's fine — Lane B writes .setup-complete either
+		// under `no-cors`, but that's fine — the backend writes .setup-complete either
 		// way. 409 is treated as success (already complete).
 		//
-		// Lane B's token (if any) is appended as query param AND body field so
-		// either transport works until the contract is fully locked in.
-		// TODO: drop whichever variant Lane B does not honour once finalised.
+		// The token (if any) is appended as both a query param and a body field;
+		// the confirm-complete endpoint accepts either transport.
 		try {
 			const qs = confirmToken ? `?token=${encodeURIComponent(confirmToken)}` : '';
 			await fetch(`${base}api/setup/confirm-complete${qs}`, {

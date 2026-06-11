@@ -23,6 +23,15 @@ Es gibt **genau einen** privilegierten AP-Mechanismus: [`system/setup-ap.sh`](..
 - Teardown nach Setup: `wifi_service.finalize_setup_ap_teardown` stoppt+disabled `tonado-ap.service`; dessen `ExecStop` (`setup-ap.sh stop`) gibt `wlan0` an NetworkManager zurück.
 - **Boot-Entscheidung Setup-AP vs. Heim-WLAN:** `imager-wifi-probe.service` läuft `Before=tonado-ap.service`, pollt bis zu 30 s, ob bereits ein Heim-WLAN trägt (z.B. vom Imager geseedet), und schreibt ggf. `/run/tonado/home-wifi-active`. `tonado-ap.service` trägt `ConditionPathExists=!/run/tonado/home-wifi-active` (zusätzlich zu `!/opt/tonado/config/.setup-complete`) — ein bereits verbundenes Heim-WLAN unterdrückt also den Setup-AP. Bewusst ohne `network-online.target` (das würde bei rfkill-Sperre den Boot ~90-110 s stallen).
 
+### Setup-Wizard-Umbau (Single-Radio-Realität)
+
+Der Wizard wurde an die Hardware-Grenze des CYW43455-Chips (Pi 3B+/4/5/Zero 2 W) angepasst: **ein einziges WLAN-Radio**. Die Box kann **nicht gleichzeitig** einen AP halten und WLANs scannen/joinen. Daraus folgen vier konkrete Design-Entscheidungen:
+
+- **WLAN-Liste aus Boot-Scan-Cache, kein Live-Scan im Wizard.** `imager-wifi-probe.service` (bzw. ein Boot-Scan vor dem AP-Start) schreibt die Umgebungsnetze **vor** dem Hochfahren des Setup-APs nach `/run/tonado/wifi-scan.json`. Der Wizard liest diesen Cache. Zusätzlich gibt es **immer** ein manuelles SSID-Eingabefeld — ein Live-Scan während der AP läuft ist physikalisch ausgeschlossen.
+- **Online-Abschluss ohne Aussperr-Risiko.** Beim Online-Weg bleibt der Setup-AP **während der Heim-WLAN-Passwort-Probe oben** (ein falsches Passwort sperrt die Eltern also nicht aus). Erst `confirm-complete` reißt den AP per `wifi_service.finalize_setup_ap_teardown` aktiv ab → das Handy fällt vom AP, die Eltern **verbinden ihr Handy selbst** wieder mit dem Heim-WLAN, und die App re-findet die Box per **QR-Code / `tonado.local`** (mDNS). Es ist **kein** automatischer Handy-Reconnect.
+- **Offline-first-Gabelung.** Direkt am Wizard-Anfang wählen die Eltern „**Mit Heim-WLAN verbinden**" vs. „**Ohne Internet nutzen**". Offline macht das gesicherte „Tonado"-Recovery-WLAN **permanent**: Die Box hostet diesen WPA2-AP bei **jedem** Boot selbst. Lokale Musik + Figuren laufen vollständig offline; Streams/Podcasts/Updates brauchen Internet.
+- **Audio-Overlay + Auto-Reboot.** Wählen die Eltern einen I2S-DAC, schreibt `apply-audio-overlay.sh` das `dtoverlay` in `config.txt`. Die Box **rebootet am Setup-Ende automatisch**, wenn sich das Overlay geändert hat (sonst greift es nicht).
+
 ### Reale Stage-Struktur (`scripts/pi-gen-stage/stage-tonado/`)
 
 Die Config-Schritte werden zur **Bake-Time im Stage-Skript geschrieben**, nicht über `files/` abgelegt — pi-gen kopiert `files/` nicht automatisch (nur `config.txt.append` wird in `01-sys-tweaks` explizit ins ROOTFS kopiert).
@@ -67,7 +76,7 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 | 3 | SD-Karte rein, Strom an | 30–60 s | First-Boot-Expand, `firstrun.service` (SSH-Keys, rfkill-Unblock, Git-Trust), `tonado-ap.service` startet den **offenen** Setup-AP |
 | 4 | Handy → WLAN „Tonado-Setup" verbinden (**offen, kein Passwort** — siehe „Stand der Umsetzung") | 30 s | Captive-Portal-Redirect öffnet Setup-Wizard im Browser (`http://192.168.4.1`) |
 | 5 | Wizard durchklicken (Heim-WLAN, Audio-Output, Eltern-PIN, Notfall-WLAN, ggf. Figuren) | 3–5 min | Setup-Wizard, am Ende `touch /opt/tonado/config/.setup-complete` |
-| 6 | Pi wechselt ins Heim-WLAN, Handy mit Heim-WLAN verbinden, Box via `tonado.local` erreichen | 30 s | `tonado-ap.service` überspringt sich wegen `ConditionPathExists=!` |
+| 6 | Pi wechselt ins Heim-WLAN, Handy **selbst** wieder mit Heim-WLAN verbinden, Box via QR-Code / `tonado.local` erreichen | 30 s | `confirm-complete` stoppt+disabled den Setup-AP aktiv → Handy fällt vom AP, App re-findet die Box per QR/mDNS; das `.setup-complete`-Flag unterdrückt den AP zusätzlich beim nächsten Boot |
 
 **Was im Image vorbereitet ist (Bake-Time):**
 - Komplettes `/opt/tonado/` inkl. Git-History, `.venv` und `web/build/`
@@ -86,8 +95,8 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 
 **Was beim ersten Setup-Wizard passiert:**
 - WLAN-Credentials via `nmcli` in NetworkManager schreiben
-- Heim-WLAN verbinden, AP-Service beim nächsten Reboot inaktiv (Flag-Datei gesetzt)
-- Hardware-Detection läuft, Audio-Overlay wird ggf. nachträglich in `config.txt` geschrieben → Reboot-Prompt
+- Heim-WLAN-Probe läuft, **während der Setup-AP noch steht** (falsches Passwort sperrt die Eltern nicht aus); erst `confirm-complete` stoppt+disabled den Setup-AP **aktiv** (`wifi_service.finalize_setup_ap_teardown`) → Handy fällt vom AP, App re-findet die Box per QR/mDNS. Das `.setup-complete`-Flag unterdrückt den AP zusätzlich beim nächsten Boot (`ConditionPathExists=!`) — der AP „überspringt sich" also **nicht** von allein, er wird zur Laufzeit beendet.
+- Hardware-Detection läuft, Audio-Overlay wird ggf. nachträglich in `config.txt` geschrieben (`apply-audio-overlay.sh`) → die Box rebootet am Setup-Ende automatisch, wenn sich das Overlay geändert hat
 - Alles Weitere wie heute in [`core/api/`](../../core/api/) + Svelte-Wizard
 
 ### Widerspruch zu `install-strategy.md`
@@ -144,8 +153,9 @@ stage-tonado/
 > Hinweis: Die Config-Dateien (nginx-Site, mpd.conf, sudoers …) werden in
 > `03-tonado-config/00-run.sh` zur Bake-Time **geschrieben**, nicht über `files/`
 > abgelegt — pi-gen kopiert `files/` nicht automatisch (nur `config.txt.append`
-> wird in `01-sys-tweaks` explizit ins ROOTFS kopiert). Diese Architektur-Doku
-> wird in WP6 vollständig auf den aktuellen Stand (AP-Konsolidierung) gebracht.
+> wird in `01-sys-tweaks` explizit ins ROOTFS kopiert). Die AP-Konsolidierung und
+> der Wizard-Umbau sind im Abschnitt **„Stand der Umsetzung"** oben dokumentiert
+> (maßgeblich); die Entwurfs-Abschnitte hier bleiben als Begründungs-Historie.
 
 ### 2.3 Package-Liste (`00-packages`)
 

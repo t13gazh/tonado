@@ -9,7 +9,8 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ### Für Entwickler
 
-- **Pi-Image-Build: BuildKit für den pi-gen-Container deaktiviert (`DOCKER_BUILDKIT=0`).** Der GitHub-Runner aktivierte BuildKit als Default, das die Plattform-Konsistenz von pi-gens `FROM i386/debian:bookworm` strikt prüft und den Build mit `InvalidBaseImagePlatform` abbrach. Der klassische Builder erzwingt das nicht — der `v0.4.0-beta`-Tag-Build (Run 27330026900) scheiterte daran, derselbe Workflow lief am Vortag noch durch.
+- **Pi-Image-Build: BuildKit für den pi-gen-Container deaktiviert (`DOCKER_BUILDKIT=0`).** Der GitHub-Runner aktivierte BuildKit als Default, das die Plattform-Konsistenz von pi-gens `FROM i386/debian:bookworm` strikt prüft und den Build (armhf) mit `InvalidBaseImagePlatform` abbrach. Der klassische Builder erzwingt das nicht — der `v0.4.0-beta`-Tag-Build (Run 27330026900) scheiterte daran, derselbe Workflow lief am Vortag noch durch.
+- **Pi-Image-Build: zufälliges `FIRST_USER_PASS` gesetzt.** pi-gen bricht ab, wenn `DISABLE_FIRST_BOOT_USER_RENAME=1` (nötig gegen den headless-Konsolen-Prompt) ohne gesetztes Passwort läuft (arm64-Build-Abbruch). Der Workflow generiert jetzt ein zufälliges, pro-Build verworfenes Passwort (nie geloggt) — niemandem bekannt, also weder Konsolen- noch SSH-Passwort-Login nutzbar. (Backlog: SSH explizit Key-Only baken + `userconf.txt`-Pfad unter diesem Flag prüfen.)
 
 ## [0.4.0-beta] — 2026-06-11
 

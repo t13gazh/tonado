@@ -39,7 +39,9 @@ Die Config-Schritte werden zur **Bake-Time im Stage-Skript geschrieben**, nicht 
 Einmalig, Marker-gated: SSH-Host-Keys regenerieren (Image liefert leere `/etc/ssh`), **WLAN-Funk entsperren** (`rfkill unblock wifi` + `iw reg set DE`, vor dem AP-Start), Git-Trust für den `pi`-User einrichten. **Kein** JWT-Secret und **kein** Setup-AP-PSK — der Setup-AP ist offen, und das JWT-Secret erzeugt der `AuthService` selbst pro Gerät in der SQLite-DB (deshalb darf die DB nicht ins Image gebacken werden; ein blockierender CI-Schritt `scripts/ci/assert-no-baked-db.sh` erzwingt das).
 
 ### Build & Verifikation
-[`.github/workflows/pi-image.yml`](../../.github/workflows/pi-image.yml) setzt `DISABLE_FIRST_BOOT_USER_RENAME=1` (sonst headless-Konsolen-Hang), `chmod +x` auf alle Stage- und `system/`-Skripte (Windows-Checkout verliert das Bit), und ruft den DB-Guard. [`scripts/ci/qemu-smoke.sh`](../../scripts/ci/qemu-smoke.sh) prüft die Bake-Outputs offline (nginx-Site, sudoers, i2c-dev, cmdline einzeilig, dnsmasq maskiert, machine-id leer).
+[`.github/workflows/pi-image.yml`](../../.github/workflows/pi-image.yml) setzt `DISABLE_FIRST_BOOT_USER_RENAME=1` (sonst headless-Konsolen-Hang), `chmod +x` auf alle Stage- und `system/`-Skripte (Windows-Checkout verliert das Bit), und ruft den DB-Guard. [`scripts/ci/qemu-smoke.sh`](../../scripts/ci/qemu-smoke.sh) prüft die Bake-Outputs offline (nginx-Site, sudoers, i2c-dev, cmdline einzeilig, dnsmasq maskiert, machine-id leer). BuildKit ist für den pi-gen-Container abgeschaltet (`DOCKER_BUILDKIT=0`), sonst bricht pi-gens i386-Build-Container am Plattform-Check ab.
+
+**`pi`-User-Passwort:** Mit `DISABLE_FIRST_BOOT_USER_RENAME=1` verlangt pi-gen zwingend ein `FIRST_USER_PASS`. Der Workflow setzt ein **zufälliges, pro-Build verworfenes** Passwort (nie geloggt) — der `pi`-User ist damit NICHT passwortlos, das Passwort ist aber niemandem bekannt, also weder per Konsole noch per SSH-Passwort nutzbar. (Frühere Doku-Aussagen „pi bleibt passwortlos" sind überholt; Backlog: SSH explizit Key-Only baken + `userconf.txt`-Pfad unter diesem Flag verifizieren — mit dem Flag konsumiert Bookworm `userconf.txt` evtl. nicht mehr.)
 
 ## 0. Abgrenzung zum heutigen Stand
 
@@ -468,7 +470,7 @@ pi-gen baut in QEMU — das läuft **nicht** auf GitHub Actions Standard-Runner 
 
 ## 9. Product-Owner-Fragen — entschieden
 
-> Diese Fragen sind inzwischen alle beantwortet (Umsetzung in `v0.4.0-beta`): **Q1** beide Varianten (arm64 + armhf). **Q2** offenes Setup-WLAN (Option A). **Q3** SSH aktiv, `pi` passwortlos (Option A). **Q4** `.setup-complete` nach komplettem Wizard (Option B). **Q5** automatische WLAN-Rettung via `ConnectivityMonitor` (Recovery-AP) statt Hardware-Knopf; Knopf bleibt Backlog-Fallback. **Q6** SHA256 + cosign-keyless (Option A). Der ursprüngliche Fragenkatalog bleibt als Historie erhalten.
+> Diese Fragen sind inzwischen alle beantwortet (Umsetzung in `v0.4.0-beta`): **Q1** beide Varianten (arm64 + armhf). **Q2** offenes Setup-WLAN (Option A). **Q3** SSH aktiv; `pi` hat ein zufälliges, verworfenes Passwort (pi-gen verlangt eins bei `DISABLE_FIRST_BOOT_USER_RENAME=1`) — unbekannt, daher kein nutzbarer Passwort-Login (siehe „Stand der Umsetzung"). **Q4** `.setup-complete` nach komplettem Wizard (Option B). **Q5** automatische WLAN-Rettung via `ConnectivityMonitor` (Recovery-AP) statt Hardware-Knopf; Knopf bleibt Backlog-Fallback. **Q6** SHA256 + cosign-keyless (Option A). Der ursprüngliche Fragenkatalog bleibt als Historie erhalten.
 
 Ursprünglich vor der Impl-Welle zu beantworten (Ja/Nein oder A/B/C):
 

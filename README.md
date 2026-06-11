@@ -3,7 +3,7 @@
 > Die Musikbox, die dir gehört.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.3.1--beta-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.4.0--beta-blue.svg)](CHANGELOG.md)
 [![Platform](https://img.shields.io/badge/platform-Raspberry%20Pi-c51a4a.svg)](docs/fuer-bastler/hardware.md)
 [![Made with Svelte](https://img.shields.io/badge/made%20with-Svelte%205-ff3e00.svg)](https://svelte.dev)
 [![Made with Python](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
@@ -102,7 +102,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 ## Status
 
-> **Beta (v0.3.1)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Die Ersteinrichtung ist aktuell nur für technik-affine Eltern (SSH + `curl | sudo bash`). Ein Pi-Image zum direkten Flashen, das auch nicht-technische Eltern bedienen können, ist das nächste Ziel nach Beta. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
+> **Beta (v0.4.0)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Neu in v0.4.0-beta: ein **flashbares Pi-Image** samt [Eltern-Anleitung](docs/fuer-eltern/flashen.md) — SD-Karte flashen, Box starten, über das offene WLAN „Tonado-Setup" im Browser einrichten, kein SSH nötig. Dieser headless-Image-Pfad ist frisch gebaut und wird gerade auf echter Hardware mit nicht-technischen Eltern validiert; der bewährte SSH-Pfad (`curl | sudo bash`) bleibt als Fallback. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
 **Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
@@ -119,9 +119,9 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 **Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, 1.3 MB Frontend.
 
 **Known Issues:**
-- **Captive-Portal-Setup noch nicht mit nicht-technischer Zielgruppe getestet.** Pi aus dem Karton → AP → WLAN einrichten läuft lokal, wurde aber nicht mit einem „frischen" Anwender validiert.
+- **Headless-Image-Erstboot noch nicht auf echter Hardware mit nicht-technischer Zielgruppe validiert.** Das flashbare Image baut in CI und die Setup-WLAN-/Captive-Portal-/Wizard-Kette ist code-reviewt + per Offline-Checks abgesichert, aber der „aus dem Karton flashen → booten → einrichten"-Pfad wird gerade erst auf Pi 3B+ field-getestet. Bis dahin ist der SSH-Install-Pfad die erprobte Route.
 
-**Was noch fehlt:** Fertiges Image zum Flashen (aktuell Install-Script), PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).
+**Was noch fehlt:** Feld-Validierung des Image-Erstboots mit echten Eltern, PN532- und USB-RFID-Reader-Tests, Performance-Optimierung (Health-Endpoint, CPU-Idle-Last), Mehrsprachigkeit (Englisch vorbereitet).
 
 ## Dokumentation
 

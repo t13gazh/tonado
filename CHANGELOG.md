@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+## [0.4.0-beta] — 2026-06-11
+
+Pi-Image-Welle: erstes flashbares Tonado-Image für nicht-technische Eltern. Build-Pipeline (pi-gen + signierte Release-Images), kompletter headless-Boot-Fix (Access-Point-Konsolidierung auf einen Mechanismus, fehlende Image-Config-Schritte nachgezogen, dnsmasq-Konflikt behoben, WLAN-Funk entsperrt), neuer Wizard-Schritt fürs Notfall-WLAN und eine Eltern-Flash-Anleitung. Der headless-Image-Pfad ist frisch gebaut und wird auf echter Hardware field-getestet — bis dahin bleibt der SSH-Install-Pfad die erprobte Route.
+
 ### Hinzugefügt
 
 - **GitHub-Actions-Workflow `.github/workflows/pi-image.yml`.** Baut aus einem `v*`-Tag (oder per `workflow_dispatch`) automatisch flashbare Pi-Images mit pi-gen, signiert sie (SHA256 + cosign keyless + Build-Provenance) und hängt sie ans Release. Matrix arm64 (Pi 3B+/4/5) + armhf (Pi Zero W), `fail-fast: false`. Docht an die reale `stage-tonado` an: git-clone-im-Chroot via `TONADO_VERSION`/`TONADO_EXPECTED_SHA`, pi-gen auf Commit-SHA gepinnt. PR-Trigger baut den letzten Release-Tag als Stage-Regressionstest. Helper: `scripts/ci/qemu-smoke.sh` (Offline-Rootfs-Checks + best-effort QEMU-Boot) und `scripts/ci/release-notes.sh` (Flash-Anleitung + Prüfsummen idempotent ans Release). Noch nicht durch echten CI-Run verifiziert.

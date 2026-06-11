@@ -6,7 +6,7 @@ ConditionPathExists=!/var/lib/tonado/firstrun.done
 # hit the stale pi-gen host keys. Also before the WLAN probe, AP service
 # and the main app so all three see freshly generated SSH keys and a
 # device-specific JWT secret on the very first start.
-Before=ssh.service sshd.service tonado-ap.service tonado.service imager-wifi-probe.service
+Before=ssh.service sshd.service ssh.socket tonado-ap.service tonado.service imager-wifi-probe.service
 After=systemd-remount-fs.service
 # NOTE: DefaultDependencies stays at its default (yes). With
 # DefaultDependencies=no, systemd would drop the implicit ordering

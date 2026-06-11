@@ -348,6 +348,12 @@ async def complete_setup(
     except ValueError as e:
         # ValueError carries a curated German user message (see setup_wizard.complete_setup)
         raise HTTPException(400, str(e))
+    # Safety net: guarantee a recovery-AP password exists so the runtime
+    # recovery AP is functional + retrievable via /portal/credentials even
+    # if the recovery-WiFi wizard step was somehow bypassed (e.g. a direct
+    # API caller). credentials() generates + persists one only if missing,
+    # so a parent-chosen password set earlier is left untouched.
+    await portal.credentials()
     # Stop captive portal if active
     if portal.active:
         await portal.stop()
@@ -364,6 +370,7 @@ async def reset_setup(
     request: Request,
     auth: AuthService = Depends(get_auth_service),
     wizard: SetupWizard = Depends(get_setup_wizard),
+    wifi: WifiService = Depends(get_wifi_service),
 ) -> dict:
     """Restart the setup wizard.
 
@@ -382,6 +389,9 @@ async def reset_setup(
     # Any pending confirm-tokens are now stale — the wizard will have
     # to probe fresh after reset.
     clear_confirm_tokens()
+    # Clear the probe-failure lockout too — it lives in WifiService, so a
+    # reset would otherwise leave a locked-out parent stuck until reboot.
+    wifi.reset_probe_lockout()
     return {"status": "ok"}
 
 

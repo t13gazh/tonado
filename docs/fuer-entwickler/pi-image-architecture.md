@@ -21,6 +21,7 @@ Es gibt **genau einen** privilegierten AP-Mechanismus: [`system/setup-ap.sh`](..
 - `CaptivePortalService` (läuft als unprivilegierter `pi`-User) hält nur noch die State-Machine (Owner/Timeout/Credentials) und delegiert jede `wlan0`-Operation per `sudo -n setup-ap.sh` — kein privilegierter Netzwerk-Code mehr im App-Prozess. Die passenden NOPASSWD-Grants stehen in [`system/sudoers.d/tonado`](../../system/sudoers.d/tonado).
 - Recovery-Zugangsdaten (`captive_portal.ap_ssid` / `captive_portal.ap_password`) setzen die Eltern im Wizard-Schritt „Notfall-WLAN" (vorausgefüllt, editierbar).
 - Teardown nach Setup: `wifi_service.finalize_setup_ap_teardown` stoppt+disabled `tonado-ap.service`; dessen `ExecStop` (`setup-ap.sh stop`) gibt `wlan0` an NetworkManager zurück.
+- **Boot-Entscheidung Setup-AP vs. Heim-WLAN:** `imager-wifi-probe.service` läuft `Before=tonado-ap.service`, pollt bis zu 30 s, ob bereits ein Heim-WLAN trägt (z.B. vom Imager geseedet), und schreibt ggf. `/run/tonado/home-wifi-active`. `tonado-ap.service` trägt `ConditionPathExists=!/run/tonado/home-wifi-active` (zusätzlich zu `!/opt/tonado/config/.setup-complete`) — ein bereits verbundenes Heim-WLAN unterdrückt also den Setup-AP. Bewusst ohne `network-online.target` (das würde bei rfkill-Sperre den Boot ~90-110 s stallen).
 
 ### Reale Stage-Struktur (`scripts/pi-gen-stage/stage-tonado/`)
 

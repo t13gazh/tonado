@@ -7,6 +7,10 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Für Entwickler
+
+- **Pi-Image-Build: BuildKit für den pi-gen-Container deaktiviert (`DOCKER_BUILDKIT=0`).** Der GitHub-Runner aktivierte BuildKit als Default, das die Plattform-Konsistenz von pi-gens `FROM i386/debian:bookworm` strikt prüft und den Build mit `InvalidBaseImagePlatform` abbrach. Der klassische Builder erzwingt das nicht — der `v0.4.0-beta`-Tag-Build (Run 27330026900) scheiterte daran, derselbe Workflow lief am Vortag noch durch.
+
 ## [0.4.0-beta] — 2026-06-11
 
 Pi-Image-Welle: erstes flashbares Tonado-Image für nicht-technische Eltern. Build-Pipeline (pi-gen + signierte Release-Images), kompletter headless-Boot-Fix (Access-Point-Konsolidierung auf einen Mechanismus, fehlende Image-Config-Schritte nachgezogen, dnsmasq-Konflikt behoben, WLAN-Funk entsperrt), neuer Wizard-Schritt fürs Notfall-WLAN und eine Eltern-Flash-Anleitung. Der headless-Image-Pfad ist frisch gebaut und wird auf echter Hardware field-getestet — bis dahin bleibt der SSH-Install-Pfad die erprobte Route.

@@ -214,9 +214,15 @@ jobs:
             # on tty1. With no keyboard/monitor attached the box hangs at that
             # prompt forever and never reaches the setup AP — fatal for the
             # parent flow. Setting it to 1 bakes the `pi` user in directly.
-            # The pi user stays passwordless (no default password is set
-            # above), so password-based SSH login remains impossible
-            # (PermitEmptyPasswords no) — the security posture is unchanged.
+            #
+            # pi-gen REQUIRES a FIRST_USER_PASS when this flag is 1 (build.sh
+            # aborts otherwise: "To disable user rename ... FIRST_USER_PASS
+            # needs to be set"). We append a RANDOM, per-build throwaway
+            # password below (after the debug cat, so it never hits the log).
+            # It is never recorded anywhere, so nobody can console- or
+            # SSH-password-login with it; SSH password auth is disabled anyway.
+            # Tinkerers use SSH keys. (Backlog: bake PasswordAuthentication no
+            # + revisit the userconf.txt path under this flag.)
             echo "DISABLE_FIRST_BOOT_USER_RENAME=1"
             # Tonado-specific. MUST be exported so sub-shells (our
             # 00-run-chroot.sh, 04-tonado-finalize/00-run.sh) inherit
@@ -229,8 +235,14 @@ jobs:
               echo "ARCH='armhf'"
             fi
           } > pi-gen/config
-          echo "--- pi-gen/config ---"
+          echo "--- pi-gen/config (FIRST_USER_PASS appended after this, not shown) ---"
           cat pi-gen/config
+          # Random throwaway pi password — required by pi-gen when
+          # DISABLE_FIRST_BOOT_USER_RENAME=1. Appended AFTER the cat so it is
+          # never printed to the build log. base64 alphabet is safe inside the
+          # single-quoted config value.
+          printf "FIRST_USER_PASS='%s'\n" "$(openssl rand -base64 24)" >> pi-gen/config
+          echo "FIRST_USER_PASS set (random per-build, not logged)"
 
       - name: Build image
         working-directory: pi-gen

@@ -66,9 +66,13 @@ check "pyproject.toml present" \
 check "install marker (source=pi-gen)" \
   "grep -q 'source=pi-gen' '$R/var/lib/tonado/install.done' 2>/dev/null"
 
+# The stage installs the unit as an ABSOLUTE symlink
+# (/etc/systemd/system/<unit> -> /opt/tonado/system/<unit>). Test with -L,
+# NOT -e: from the mounted rootfs, -e follows the absolute target onto the CI
+# host (where /opt/tonado does not exist) and reports a false FAIL.
 for unit in tonado tonado-ap firstrun imager-wifi-probe; do
   check "unit linked: $unit.service" \
-    "[ -e '$R/etc/systemd/system/$unit.service' ]"
+    "[ -L '$R/etc/systemd/system/$unit.service' ]"
   check "unit enabled: $unit.service" \
     "ls $R/etc/systemd/system/*.wants/$unit.service >/dev/null 2>&1"
 done
@@ -87,9 +91,11 @@ for s in setup-ap firstrun imager-wifi-probe; do
     "[ -x '$R/opt/tonado/system/$s.sh' ]"
 done
 
-# Build-only packages must be gone (04-tonado-finalize purges them).
-check "build-essential purged" \
-  "[ ! -e '$R/usr/bin/gcc' ]"
+# Build-only packages must be gone (04-tonado-finalize purges them). Match a
+# real gcc binary with `find -type f` (NOT `[ -e gcc ]`): /usr/bin/gcc is a
+# symlink whose target may resolve onto the CI host, giving a false FAIL.
+check "build-essential purged (no real gcc binary)" \
+  "! find '$R/usr/bin' -maxdepth 1 -type f -name 'gcc*' 2>/dev/null | grep -q ."
 
 # --- 03-tonado-config outputs (network-free config baked at image time) ---
 # nginx site is written + enabled, and the stock default site removed, so the
@@ -103,11 +109,12 @@ check "nginx default site removed" \
 
 # The distro dnsmasq.service must be MASKED — it would otherwise grab :53 on
 # boot and starve setup-ap.sh's own dnsmasq instance (no DHCP on the setup AP).
-# Masking yields a symlink to /dev/null in /etc/systemd/system.
+# Masking yields a symlink to /dev/null in /etc/systemd/system. A leftover
+# *.wants/dnsmasq.service from the package's default enable is harmless — a
+# masked unit never starts regardless — so we assert the mask, not the absence
+# of a wants symlink (that earlier "not enabled" check was a false positive).
 check "distro dnsmasq.service masked" \
   "[ \"\$(readlink '$R/etc/systemd/system/dnsmasq.service' 2>/dev/null)\" = '/dev/null' ]"
-check "distro dnsmasq.service not enabled" \
-  "! ls $R/etc/systemd/system/*.wants/dnsmasq.service >/dev/null 2>&1"
 
 # i2c-dev must be auto-loaded on boot (Bookworm does not by default) or the
 # MPU6050 gyro + PN532 RFID are dead. modules-load.d entry wires it up.
@@ -134,8 +141,13 @@ check "machine-id blanked (0 bytes)" \
 # every parameter after the first line -> init=/resize/root params lost and
 # the box fails to boot. Assert exactly one line AND that ipv6.disable=1 plus
 # the resize init hook survived on that single line.
+# cmdline.txt lives on the BOOT partition (p1), NOT in the root-fs /boot
+# mountpoint (empty while p1 is unmounted). Mount p1, run the checks, then
+# unmount so the QEMU layer below can remount it cleanly.
+mkdir -p "$WORK/boot"
+sudo mount "${LOOP}p1" "$WORK/boot"
 CMDLINE=""
-for c in "$R/boot/firmware/cmdline.txt" "$R/boot/cmdline.txt"; do
+for c in "$WORK/boot/cmdline.txt" "$WORK/boot/firmware/cmdline.txt"; do
   [ -f "$c" ] && { CMDLINE="$c"; break; }
 done
 check "cmdline.txt present" \
@@ -149,6 +161,7 @@ if [ -n "$CMDLINE" ]; then
   check "cmdline.txt keeps init= resize hook" \
     "grep -q 'init=' '$CMDLINE'"
 fi
+sudo umount "$WORK/boot"
 
 # --- Supply-chain: no baked SQLite DB (shared JWT secret guard) ---
 # Mirrors the BLOCKING assert-no-baked-db.sh build step; harmless redundancy.

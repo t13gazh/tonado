@@ -47,7 +47,7 @@
 | Fix | Impact |
 |-----|--------|
 | MPD httpd always_on=no | CPU -24%, RAM -11 MB |
-| Gyro-Polling 50Hz → 20Hz | CPU-Last halbiert |
+| Gyro-Polling 50Hz → 20Hz (inzwischen 10 Hz) | CPU-Last halbiert |
 | elapsed_loop nur bei Playing | CPU ~2% gespart |
 | Playlist nur bei Längenänderung laden | Weniger MPD-Queries |
 | RSS-Feed Size-Limit 5MB | OOM-Schutz |

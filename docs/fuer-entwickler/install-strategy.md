@@ -2,7 +2,7 @@
 
 Wie installieren Eltern Tonado auf ihrem Pi? Dieser Text beschreibt den aktuellen Stand und den Zielzustand, damit die Lücke zwischen Vision („auch für nicht-technische Eltern") und Realität („SSH + curl | sudo bash") explizit ist und nicht schleichend vergessen wird.
 
-## Heute (Alpha)
+## Der SSH-Weg (für Bastler, erprobt)
 
 **Zielgruppe:** technik-affine Eltern. In der [Vision](../VISION.md#zielgruppe) ist das die primäre Zielgruppe — sie haben einen Pi, trauen sich, einen zu kaufen, kennen SSH zumindest oberflächlich.
 
@@ -21,11 +21,11 @@ Dokumentiert in [`../fuer-bastler/installation.md`](../fuer-bastler/installation
 
 **Was daran nicht passt:** Eine nicht-technische Mutter bricht spätestens bei „SSH" ab. Die UX-Vision („Zielgruppe sekundär: datenschutz-bewusste Eltern") wird vom Install-Schritt gefiltert — wer hierher kommt, muss sich erstmal durch technische Grundlagen arbeiten.
 
-## Morgen (Beta, Meilenstein Richtung „für alle Eltern")
+## Der Image-Weg (seit v0.4.0-beta, im Feldtest)
 
-**Ziel:** Pi-Image, das per Raspberry Pi Imager oder `dd` auf die SD-Karte geflasht wird. Erster Boot geht direkt in den Captive-Portal-Wizard, der Rest läuft im Browser.
+**Stand:** Das Pi-Image ist gebaut und wird mit jedem `v*`-Tag als Release veröffentlicht. Es wird per Raspberry Pi Imager („Eigenes Image") auf die SD-Karte geflasht; der erste Boot geht direkt in den Captive-Portal-Wizard, der Rest läuft im Browser. Der Pfad ist noch nicht mit nicht-technischen Eltern auf echter Hardware validiert.
 
-**Flow (Ziel):**
+**Flow:**
 
 1. Raspberry Pi Imager installieren.
 2. „Tonado"-Image (aus unseren Releases) auf SD-Karte schreiben.
@@ -33,18 +33,18 @@ Dokumentiert in [`../fuer-bastler/installation.md`](../fuer-bastler/installation
 4. Handy mit dem AP „Tonado-Setup" verbinden, Browser öffnet sich automatisch.
 5. Hardware-Wizard läuft durch, Eltern klicken sich durch, Box ist einsatzbereit.
 
-**Was gebraucht wird:**
+**Was dafür gebaut wurde:**
 
-- `pi-gen`-basierter Build unserer eigenen Image-Variante.
-- Automatischer CI-Build, der bei jedem Tag ein neues Image erzeugt.
-- Optional: Checksum + signiertes Image, damit Eltern ein gefälschtes Image erkennen können.
-- Dokumentation auf [`../fuer-eltern/`](../fuer-eltern/), die den Flash-Prozess erklärt, ohne SSH zu erwähnen.
+- `pi-gen`-basierter Build unserer eigenen Image-Variante (zwei Images: Pi 3B+/4/5/Zero 2 W und Pi Zero W).
+- Automatischer CI-Build, der bei jedem Tag ein neues Image erzeugt ([`pi-image-ci.md`](pi-image-ci.md)).
+- Prüfsumme (SHA256) und Signatur (cosign keyless), damit Eltern ein gefälschtes Image erkennen können.
+- Dokumentation für Eltern, die den Flash-Prozess erklärt, ohne SSH zu erwähnen: [`flashen.md`](../fuer-eltern/flashen.md).
 
 ## Die Lücke ehrlich benennen
 
-Die Vision spricht von der „Freundin, die sagt: Kann ich auch so eine haben?". Die Alpha-Installation kann diese Freundin nicht bedienen. Das ist kein Bug, sondern der aktuelle Stand — aber er muss beim Beta-Meilenstein weg, sonst halten wir ein UX-Versprechen, das bei Schritt 1 bricht.
+Die Vision spricht von der „Freundin, die sagt: Kann ich auch so eine haben?". Der SSH-Weg kann diese Freundin nicht bedienen. Der Image-Weg soll sie bedienen können — bewiesen ist das erst, wenn nicht-technische Eltern ihn auf echter Hardware ohne Hilfe schaffen.
 
-Der Fallback zwischen heute und dem Image ist „jemand Technischer macht die Ersteinrichtung". Das funktioniert für Maker und technik-affine Eltern (Zielgruppe 1 und 3 der Vision), nicht aber für Zielgruppe 2 (datenschutz-bewusste, nicht notwendigerweise technische Eltern). Diese Lücke gehört in den aktiven Backlog als Prio 3 / Beta-Ziel.
+Der Fallback, solange diese Validierung aussteht, ist „jemand Technischer macht die Ersteinrichtung" (SSH-Weg). Das funktioniert für Maker und technik-affine Eltern (Zielgruppe 1 und 3 der Vision), nicht aber für Zielgruppe 2 (datenschutz-bewusste, nicht notwendigerweise technische Eltern).
 
 ## Entscheidungen
 

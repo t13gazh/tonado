@@ -3,7 +3,7 @@
 - Datum: 2026-04-22
 - Auditor: Code-Analyse
 - Scope: `web/src/**` — Settings, Setup-Wizard, Figuren-Management, Library, Player, Layout, Design-Tokens
-- Grundlagen: Nielsen 10 Heuristiken, Krug „Don't Make Me Think", Refactoring UI (Wathan/Schoger), UI/UX-Pro-Max (Token-Systeme)
+- Grundlagen: Nielsen 10 Heuristiken, Krug „Don't Make Me Think", Refactoring UI (Wathan/Schoger), Token-Systeme
 - Modus: Read-only. Keine Code-Änderungen.
 
 ---
@@ -347,7 +347,7 @@ Im Tailwind-Theme als Aliasse definieren. Migration: nur dort anfassen, wo es of
 
 **Betroffene Stellen:** `cards/+page.svelte:178-224` — Figuren werden als 2-Spalten-Grid mit Cover+Name+Type dargestellt, Actions erscheinen als Overlay-Icons oben rechts („Edit"/"Delete").
 
-**Warum es Nutzer verwirrt:** Keine direkte Verwirrung — die Figuren-Wand IST das Konsum-Muster (Fotos großflächig anzeigen). Aber: der Löschen-Flow geht über ein separates Modal, während die Library-Ordner Löschen direkt im aufgeklappten Detail haben. Das ist eine andere Mental-Model-Ebene und verletzt die Memory-Regel „Löschen nur im aufgeklappten Detail, nie auf oberster Ebene".
+**Warum es Nutzer verwirrt:** Keine direkte Verwirrung — die Figuren-Wand IST das Konsum-Muster (Fotos großflächig anzeigen). Aber: der Löschen-Flow geht über ein separates Modal, während die Library-Ordner Löschen direkt im aufgeklappten Detail haben. Das ist eine andere Mental-Model-Ebene und verletzt die Projektregel „Löschen nur im aufgeklappten Detail, nie auf oberster Ebene".
 
 **Fix-Empfehlung:** Delete-Icon im Overlay-Hover ist **technisch eine Oberflächen-Action** — entspricht dem User-Prinzip, dass Löschen nur im Detail passieren darf. Vorschlag: Overlay-Icons entfernen, stattdessen Klick auf die Card öffnet ein Edit-Panel (Sheet von unten), darin ist Löschen die sekundäre Aktion. Das ist aber eine Produkt-Entscheidung des POs.
 
@@ -647,6 +647,6 @@ Der Kontext: Beta-Release kurz vor Abschluss. Schwere Refactorings sollen _nach_
 - `<Sheet>` extrahieren, Radius-Scale formell festschreiben.
 - Icon-Konsolidierung auf `<Icon>` überall.
 
-**Eine offene Produktfrage an dich:** F-10 — Soll das Löschen einer Figur aus dem Overlay-Icon in der Card-Grid verschwinden (und nur im aufgeklappten Edit-Panel auftauchen, analog zur Library)? Das ist deine Regel aus Memory — die Card-Wall verletzt sie aktuell. Meine Empfehlung: ja, aber das ist deine Entscheidung.
+**Offene Produktfrage:** F-10 — Soll das Löschen einer Figur aus dem Overlay-Icon in der Card-Grid verschwinden (und nur im aufgeklappten Edit-Panel auftauchen, analog zur Library)? Das ist eine Projektregel — die Card-Wall verletzt sie aktuell. Empfehlung: ja (Produktentscheidung).
 
-**Soll ich die Beta-Must-Liste jetzt umsetzen — oder zuerst die Post-Beta-Komponenten skizzieren?**
+**Nächster Schritt:** Beta-Must-Liste umsetzen, danach die Post-Beta-Komponenten skizzieren.

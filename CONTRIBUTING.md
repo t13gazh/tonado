@@ -22,7 +22,7 @@ Schön, dass du mithelfen willst. Tonado ist ein Open-Source-Projekt, das eine K
 
 1. Fork + Feature-Branch (`feat/meine-änderung` oder `fix/bug-xyz`).
 2. Änderung mit Tests absichern. Backend-Tests laufen mit `.venv/Scripts/pytest` (Windows) bzw. `.venv/bin/pytest` (Unix). Frontend-Build mit `cd web && npm run build`.
-3. Falls UI berührt wurde: `web/build/` committen (siehe README für Begründung — auf dem Pi wird nicht gebuildet).
+3. Falls UI berührt wurde: `web/build/` committen (auf dem Pi ist kein Node installiert, das Frontend wird lokal gebaut — siehe [Entwicklung](docs/fuer-entwickler/entwicklung.md#frontend-auf-den-pi-deployen)).
 4. Commit-Message im Conventional-Commits-Format:
    ```
    feat(player): add shuffle gesture handler
@@ -44,7 +44,7 @@ Vor einem PR mit Security-Impact bitte erst [SECURITY.md](SECURITY.md) lesen. Vu
 
 ## Hardware
 
-Wir supporten offiziell Pi 3B+ (getestet). Pi Zero W / Zero 2 W / Pi 4 / 5 laufen experimentell — wer sie testet: Bitte Ergebnisse im Issue-Tracker dokumentieren (Backlog unter "Pi-Kompatibilitätsmatrix").
+Getestet sind Pi 3B+ (Referenz) und Pi Zero W. Pi Zero 2 W, Pi 4 und Pi 5 sind ungetestet — wer sie testet: Bitte Ergebnisse im Issue-Tracker dokumentieren (Stand siehe Pi-Kompatibilitätsmatrix in der [README](README.md#status)).
 
 ## Fragen
 

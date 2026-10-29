@@ -7,7 +7,8 @@ Tonado läuft auf Geräten, die Kinder bedienen. Security-Bugs sind uns deshalb 
 | Version | Status |
 |---------|--------|
 | `main` (Entwicklungsstand) | ✅ aktive Security-Fixes |
-| `v0.3.x` (Beta) | ✅ aktive Security-Fixes |
+| `v0.4.x` (Beta, aktuell `v0.4.1-beta`) | ✅ aktive Security-Fixes |
+| `v0.3.x` (Beta) | ⚠️ bitte auf `v0.4.x` updaten |
 | ältere Alpha-Tags (`v0.2.x` und früher) | ⚠️ bitte auf Beta updaten |
 
 ## Einen Security-Bug melden
@@ -46,7 +47,7 @@ Wir bestätigen den Eingang innerhalb von **72 Stunden** und planen einen Fix in
 
 | Datum | Finding | Status |
 |-------|---------|--------|
-| 2026-04-16 | Pre-Beta-Audit (8 KRITISCH + 12 HOCH + 10 MITTEL) | K1/K2/K3/K5/K6/K7 + H1–H4, H6/H7, H10–H12 + M1–M10 behoben (Commits 5366ebe → 2d9bddc). Offen: K4 (Captive-Portal-First-Boot E2E), K8 (Gyro Tilt-Produktentscheidung), H5 (Install-Script-Idempotenz), H8 (Pi-Kompat Live-Tests), H9 (Hardware-Detection-Härtung). |
+| 2026-04-16 | Pre-Beta-Audit (8 KRITISCH + 12 HOCH + 10 MITTEL) | Alle Findings außer den unten genannten behoben (K1–K3, K5–K8, H1–H12, M1–M10). Offen: K4 (Captive-Portal-First-Boot E2E auf echter Hardware — der Pi-Image-Pfad ist im Feldtest) und die Live-E2E-Prüfung von K5. Bewusst akzeptiert: Das Setup-WLAN „Tonado-Setup" ist offen (die Eltern haben vor der Einrichtung noch keine Zugangsdaten) und schließt sich erst mit dem Ende der Einrichtung; ein Inaktivitäts-Timeout dafür steht im Backlog. |
 
 Details: [`docs/archive/PRE-BETA-AUDIT.md`](docs/archive/PRE-BETA-AUDIT.md).
 

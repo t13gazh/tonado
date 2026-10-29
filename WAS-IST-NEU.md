@@ -8,6 +8,25 @@ Markdown-Formatierungen wie **fett** oder *kursiv* — nur Klartext,
 Die ausführliche Änderungs-Historie für Entwickler steht in
 [CHANGELOG.md](CHANGELOG.md).
 
+## [0.4.1-beta] — 2026-06-11
+
+### Einrichtung ohne Stolpersteine
+
+Die Einrichtung einer frisch aufgespielten Box ist überarbeitet. Das WLAN „Tonado-Setup" taucht jetzt zuverlässig auf, und die Liste deiner WLAN-Netze ist wieder gefüllt. Dein Netz nicht dabei? Dann gibst du den Namen einfach von Hand ein.
+
+### Ton direkt beim Einrichten
+
+Wenn du einen Verstärker-Aufsatz (z. B. HifiBerry) nutzt, wird der Audio-Ausgang beim Einrichten wirklich eingeschaltet. Der Testton ist hörbar; dafür startet die Box am Ende der Einrichtung einmal von selbst neu.
+
+### Was du sonst merkst
+
+- Die Einrichtung schließt sich sauber ab: Ohne Eltern-PIN geht es nicht weiter, danach ist die Box wirklich fertig.
+- Ohne Internet nutzen: Die Box spannt ihr gesichertes Netz nach jedem Neustart selbst wieder auf.
+
+Hinweis: Der Aufspiel-Weg wird weiter auf echter Hardware getestet.
+
+Deine Figuren, Einstellungen und Musik bleiben beim Update erhalten.
+
 ## [0.4.0-beta] — 2026-06-11
 
 ### Tonado zum Aufspielen — ohne Technik-Kenntnisse

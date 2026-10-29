@@ -2,7 +2,7 @@
 
 Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächlich leistet, was bald dazu kommt und was in fernerer Zukunft vielleicht möglich wird. Kein Fachjargon, keine Code-Referenzen.
 
-## Was Tonado heute kann (Stand: Frühjahr 2026, Alpha-Version)
+## Was Tonado heute kann (Stand: Version 0.4, Beta)
 
 ### Musik abspielen
 
@@ -23,7 +23,7 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 
 - **Smartphone als Fernbedienung:** Musik abspielen, pausieren, skippen, Lautstärke regeln, alles vom Handy aus.
 - **PIN-Schutz für Eltern-Bereiche:** Bibliothek, Figur-Zuordnung und Einstellungen sind vor neugierigen Kinderfingern geschützt.
-- **Experten-PIN** für System-Seiten (Hardware neu erkennen lassen, Box neu starten, WLAN wechseln) als zweite Schutzstufe.
+- **Experten-PIN** für System-Seiten (Hardware neu erkennen lassen, Box neu starten, Updates installieren, Backup einspielen) als zweite Schutzstufe.
 
 ### Figuren verwalten
 
@@ -48,9 +48,9 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 
 ### Updates und Sicherheit
 
-- **Updates aus der App:** „Nach Updates suchen" in den System-Einstellungen, ein Klick, Box aktualisiert sich selbst.
+- **Updates aus der App:** „Nach Updates suchen" in den System-Einstellungen, ein Klick, Box aktualisiert sich selbst. Vorher siehst du in normaler Sprache, was neu ist. Schlägt die Installation von Abhängigkeiten fehl, kehrt die Box automatisch zur vorherigen Version zurück.
 - **Backup exportieren:** Alle Figur-Zuordnungen, Radio-Listen, Einstellungen als einzelne Datei herunterladen. Sicher aufbewahren.
-- **Backup einspielen:** Bei einem Neuaufbau oder Umzug auf einen anderen Pi dieselbe Datei zurückspielen.
+- **Backup wiederherstellen:** Bei einem Neuaufbau oder Umzug auf einen anderen Pi dieselbe Datei zurückspielen.
 - **WLAN-Notfall:** Wenn das Heim-WLAN länger ausfällt, spannt die Box automatisch ein eigenes Setup-Netz auf, damit du sie wieder einrichten kannst, ohne den Pi auseinanderzubauen.
 
 ### Für unterwegs und offline
@@ -58,19 +58,17 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 - **Komplett lokal:** Kein Abo, keine Cloud, kein Tracking. Die Musik bleibt bei dir.
 - **App zum Homescreen:** Die Web-App lässt sich wie eine richtige App aufs Handy legen (PWA).
 - **Offline nutzbar:** Lokale Musik-Dateien spielen auch ohne Internet. Nur Radio und Podcasts brauchen das WLAN.
+- **Einrichtung ohne Internet:** Im Einrichtungs-Assistenten „Ohne Internet nutzen" wählen — die Box spannt dann dauerhaft ihr eigenes, gesichertes WLAN auf.
 
 ## Was bald dazu kommt
 
-Diese Features sind geplant, die nächsten Schritte Richtung Beta.
+Diese Features sind für die nächsten Versionen geplant.
 
-- **Einschlaftimer verlängern mit einem Tipp:** Wenn das Kind noch wach ist, Timer per „+5 Min"-Tipper im Player verlängern statt in die Einstellungen zu wechseln.
 - **Sprachaufnahme direkt in der App:** Figur auflegen → aufnehmen — fertig. Besonders schön für eigene Gute-Nacht-Geschichten oder Grüße von Großeltern.
-- **Offline-Modus als bewusste Einstellung:** Box komplett vom Internet trennen, Streaming-Features werden klar als „aus" markiert, lokale Musik läuft weiter.
+- **Offline-Schalter in der App:** Streaming-Features werden klar als „aus" markiert, lokale Musik läuft weiter. (Die Einrichtung „Ohne Internet" gibt es schon.)
 - **WLAN in der App wechseln:** Neues WLAN hinzufügen, zwischen gespeicherten Netzen umschalten, ohne SSH oder Kabel.
 - **Dateien von der Box herunterladen:** Wenn du Musik auf die Box geladen hast und sie auf dem Handy nicht mehr hast, ziehst du sie dir wieder runter.
-- **Figur verloren ist kein Drama:** Neue Karte beschreiben, gleichen Inhalt zuordnen, weiter geht's.
-- **Update mit Änderungsübersicht:** Vor der Installation siehst du in normaler Sprache, was neu ist, nicht nur kryptische Versions-Nummern.
-- **Update-Rollback:** Wenn ein Update Probleme macht, kehrt die Box automatisch zur vorherigen Version zurück.
+- **Update-Rollback beim Start:** Wenn die Box nach einem Update nicht mehr hochfährt, kehrt sie automatisch zur vorherigen Version zurück.
 - **Offline-Update per USB-Stick:** Update-Paket auf einen USB-Stick ziehen, in die Box stecken — fertig. Praktisch, wenn die Box woanders steht als dein Computer.
 
 ## Was in Zukunft denkbar ist

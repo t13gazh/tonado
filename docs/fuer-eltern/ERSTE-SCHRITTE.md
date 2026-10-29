@@ -4,7 +4,7 @@ Die Box ist zusammengebaut und steht vor dir. Was jetzt? Keine Sorge — du brau
 
 ## 1. Box einschalten
 
-Stecker rein. Die Box braucht beim allerersten Start eine knappe Minute, bis sie vollständig bereit ist — sie muss einmal alles für sich einrichten. Bei späteren Starts geht es deutlich schneller.
+Stecker rein. Die Box braucht beim allerersten Start ein bis zwei Minuten, bis sie vollständig bereit ist — sie muss einmal alles für sich einrichten. Bei späteren Starts geht es deutlich schneller.
 
 Du hörst keinen Startton und siehst nur eine kleine LED leuchten. Das ist normal. Während die Box hochfährt, geh weiter zu Schritt 2.
 

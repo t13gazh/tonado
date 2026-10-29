@@ -33,8 +33,8 @@ cd pi-gen
 # unserer Image-Builds. Fuer die armhf-Variante (Pi Zero W) entsprechend den
 # master-HEAD pinnen.
 #
-# Aktueller arm64-HEAD (Stand 2026-04-23):
-git checkout 4ad56cc850fa60adcc7f07dc15879bc95cc1d281
+# Aktueller bookworm-arm64-Pin (Stand 2026-06-02, wie im Workflow):
+git checkout 67262a4ad0959aab2a9d84a6392b1967999e8f50
 # Refresh vor jedem Release-Build:
 #   git fetch origin && git ls-remote https://github.com/RPi-Distro/pi-gen arm64
 # Dann den README-Eintrag hier aktualisieren und committen.
@@ -64,11 +64,11 @@ ENABLE_SSH=1
 
 # Tonado-spezifisch: Git-Tag, der im Image ausgecheckt wird.
 # Reproduzierbarkeit: immer ein Tag, niemals 'main'.
-TONADO_VERSION='v0.3.1-beta'
+TONADO_VERSION='v0.4.1-beta'
 
 # Commit-SHA-Pin fuer Supply-Chain-Integritaet (Security-Review F7).
 # Ermittlung:
-#   git -C ~/Repos/tonado rev-parse v0.3.1-beta
+#   git -C ~/Repos/tonado rev-parse v0.4.1-beta
 # Solange Release-Tags nicht GPG-signiert sind, ist dieser Pin die einzige
 # Absicherung gegen ein nachtraeglich force-gepushtes Tag. Wenn leer gelassen,
 # laeuft der Build mit Warning durch (Uebergangszeit).
@@ -77,13 +77,15 @@ TONADO_EXPECTED_SHA='7659797988...'   # volle 40-Zeichen-SHA eintragen
 # Optional: eigenen Repo-Fork verwenden.
 # TONADO_REPO='https://github.com/deinuser/tonado.git'
 
-# Kein Default-Passwort im Image. Achtung: Der Raspberry Pi Imager zeigt
-# seinen Customization-Dialog (User/Passwort/SSH/WLAN) nur fuer die offiziellen
-# Pi-OS-Images, NICHT fuer ein eigenes .img.xz. Eltern setzen also kein
-# Passwort -- der pi-User bleibt passwortlos, SSH-Passwort-Login ist damit
-# unmoeglich. So gewollt: Eltern kommen ueber den Setup-AP rein, nie ueber eine
-# Shell. Bastler legen fuer SSH manuell userconf.txt auf die bootfs-Partition.
-DISABLE_FIRST_BOOT_USER_RENAME=0
+# Wie im Workflow: =1 ist Pflicht fuer headless Boot (mit =0 haengt der
+# Konsolen-Prompt zur User-Umbenennung). pi-gen verlangt dann ein
+# FIRST_USER_PASS -- der Workflow setzt ein zufaelliges, verworfenes Passwort.
+# Der Raspberry Pi Imager zeigt seinen Customization-Dialog bei einem eigenen
+# .img.xz nicht; Eltern kommen ueber den Setup-AP rein, nie ueber eine Shell.
+DISABLE_FIRST_BOOT_USER_RENAME=1
+FIRST_USER_PASS='<zufaelliges-Passwort>'
+# Benutzerdefinierte Variablen muessen exportiert werden (siehe Workflow).
+export TONADO_VERSION TONADO_EXPECTED_SHA
 ```
 
 Fuer die 32-bit-Variante (Pi Zero W Original): `IMG_NAME='tonado-0.3.1-beta-armhf'`
@@ -100,9 +102,9 @@ Ergebnis:
 
 ```
 ~/Repos/pi-gen/deploy/
-├── tonado-0.3.1-beta-arm64.img.xz          # Flashbar (z.B. mit Raspberry Pi Imager)
+├── tonado-0.4.1-beta-arm64.img.xz          # Flashbar (z.B. mit Raspberry Pi Imager)
 ├── tonado-0.3.1-beta-arm64.info            # Paketliste des Builds
-└── tonado-0.3.1-beta-arm64.img.sha256      # Wird NICHT von pi-gen erzeugt -- manuell per 'sha256sum > ...'
+└── tonado-0.4.1-beta-arm64.img.sha256      # Wird NICHT von pi-gen erzeugt -- manuell per 'sha256sum > ...'
 ```
 
 ## Nach dem Build

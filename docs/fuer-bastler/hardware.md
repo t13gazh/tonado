@@ -4,7 +4,7 @@
 
 ## Raspberry Pi
 
-Tonado läuft auf allen Raspberry Pi Modellen mit WLAN:
+Tonado läuft auf Raspberry Pi Modellen mit WLAN. Getestet sind Pi 3B+ und Pi Zero W; Zero 2 W, Pi 4 und Pi 5 sind ungetestet (siehe [README](../../README.md#status)):
 
 | Modell | RAM | Bewertung | Hinweis |
 |---|---|---|---|
@@ -36,7 +36,7 @@ Der HifiBerry MiniAmp ist ein kleiner Verstärker, der direkt auf die GPIO-Leist
 
 **Kompatible Lautsprecher:** Jeder kleine Lautsprecher mit 4–8 Ohm und 3–5 Watt. Gibt es ab 3 € bei den üblichen Shops.
 
-> **Hinweis:** Der HifiBerry MiniAmp belegt GPIO 18, 19 und 25. GPIO 25 wird als Amp-Enable verwendet — das funktioniert auch zusammen mit dem RC522 RFID-Reader (getestet).
+> **Hinweis:** Der HifiBerry MiniAmp belegt für die I2S-Audiodaten GPIO 18, 19 und 21; GPIO 25 wird als Amp-Enable verwendet — das funktioniert auch zusammen mit dem RC522 RFID-Reader (getestet).
 
 ### Option 2: 3.5mm Klinkenausgang
 
@@ -47,7 +47,7 @@ Der eingebaute Klinkenausgang des Pi. Einfach, aber schlechtere Klangqualität.
 - Standard-Kopfhörer oder Aktivlautsprecher anschließbar
 
 **Einschränkungen:**
-- Nur Pi 3B+ und größer (Pi Zero W hat keinen Klinkenausgang)
+- Nur Pi 3B+ und größer (Pi Zero W und Zero 2 W haben keinen Klinkenausgang)
 - Analog-Ausgang — hörbares Rauschen bei geringer Lautstärke
 - Externer Verstärker oder Aktivlautsprecher nötig
 
@@ -180,7 +180,7 @@ Drei Profile, einstellbar über die App unter **Einstellungen > Gesten**:
 | Normal | Standard — für die meisten Kinder |
 | Wild | Kräftiges Kippen/Schütteln nötig — für wilde Kinder |
 
-> **Kalibrierung:** Die Achsen-Zuordnung hängt von der Einbau-Orientierung ab. Nach dem Einbau über **Einstellungen > System > Gyro-Kalibrierung** kalibrieren.
+> **Kalibrierung:** Die Achsen-Zuordnung hängt von der Einbau-Orientierung ab. Nach dem Einbau über **Einstellungen > System > Gesten kalibrieren** kalibrieren.
 
 ## OnOff SHIM (optional)
 
@@ -218,7 +218,7 @@ dtoverlay=gpio-poweroff,gpiopin=4,active_low=1
 
 - Pi Zero W
 - USB-RFID-Reader
-- USB-Lautsprecher oder 3.5mm Aktivlautsprecher (Pi 3B+ nötig)
+- HifiBerry MiniAmp + kleiner Lautsprecher (oder USB-Lautsprecher über einen USB-Hub — der Pi Zero W hat nur einen USB-Port, den der USB-Reader belegt)
 - Kein Gyro
 
 ### Standard (ca. 80 €)
@@ -260,7 +260,7 @@ Pin 22 (GPIO25) ← RC522 RST (+ HifiBerry Amp-Enable, Doppelnutzung OK — s. u
 Pin 23 (SCLK)   ← RC522 SCK
 Pin 24 (CE0)    ← RC522 SDA
 
-HifiBerry MiniAmp belegt zusätzlich: GPIO 18, 19 (I2S)
+HifiBerry MiniAmp belegt zusätzlich: GPIO 18, 19, 21 (I2S)
 ```
 
 > **Doppelnutzung GPIO 25 (RC522 RST + HifiBerry Amp-Enable):** Der HifiBerry MiniAmp nutzt GPIO 25 nur als statisches „Amp einschalten"-Signal (high = Verstärker an). Der RC522-Reset ist bei Tonado im Normalbetrieb ebenfalls permanent high — Resets werden nur beim Start und nach Fehlern gepulst, und diese Pulse sind so kurz, dass der Verstärker nicht hörbar abfällt. Die Kombination ist auf Pi 3B+ verifiziert.

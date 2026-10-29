@@ -21,7 +21,7 @@ Definiert in `web/src/app.css` unter `@theme`.
 | `surface-light` | `#2a2a3e` | Karten/Sektionen, Nav-Bar |
 | `surface-lighter` | `#363650` | Borders, Divider, deaktivierte Elemente |
 | `text` | `#e2e2f0` | Primärer Text |
-| `text-muted` | `#9393a8` | Sekundärer Text, Labels, Platzhalter |
+| `text-muted` | `#a0a0b8` | Sekundärer Text, Labels, Platzhalter |
 | `accent` | `#f59e0b` | Warnhinweise, Update-Badges, Amber-Akzent |
 
 ### Semantische Farben (Tailwind-Defaults)
@@ -36,7 +36,7 @@ Definiert in `web/src/app.css` unter `@theme`.
 ### Schrift
 
 - **Familie:** `Inter, system-ui, -apple-system, sans-serif`
-- **Größen:** `text-xs` (10px), `text-sm` (14px), `text-lg` (18px), `text-xl` (20px)
+- **Größen:** `text-xs` (12px; 10px nur als `text-[10px]` für Mini-Labels), `text-sm` (14px), `text-lg` (18px), `text-xl` (20px)
 - **Gewichte:** `font-medium` (500), `font-semibold` (600), `font-bold` (700)
 
 ### Radien
@@ -80,7 +80,7 @@ class="w-full py-3 bg-primary hover:bg-primary-light disabled:opacity-40 disable
 
 **Variante: Play-Button (Player, rund)**
 ```
-class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-colors active:scale-95 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+class="p-5 bg-primary hover:bg-primary-light rounded-full text-white transition-colors active:scale-[0.97] shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
 ```
 
 ### Secondary Action (Nebenaktionen)
@@ -159,10 +159,10 @@ class="px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition
 
 **Player Steuerung (Skip, Shuffle, Repeat):**
 ```
-class="p-2 transition-colors active:scale-95 text-text-muted hover:text-text"
+class="p-2 transition-colors active:scale-[0.97] text-text-muted hover:text-text"
 
 // Aktiv (z.B. Shuffle an):
-class="p-2 transition-colors active:scale-95 text-primary"
+class="p-2 transition-colors active:scale-[0.97] text-primary"
 ```
 
 **Overlay-Icon (auf Karten, Edit/Delete):**
@@ -327,9 +327,9 @@ class="w-full h-2 bg-surface-lighter rounded-full appearance-none cursor-pointer
 
 ## 6. Toast / Banner / Feedback
 
-### Toast (Erfolgs-Meldung, Fixed)
+### Toast (Fixed)
 
-Schwebt oben, verschiebt kein Layout.
+Schwebt oben, verschiebt kein Layout. Umgesetzt als Komponente `ToastContainer.svelte` mit Store (Typen success/error/info); das folgende Beispiel zeigt das ursprüngliche Grundmuster der Erfolgs-Meldung.
 
 ```html
 <div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-green-500/90 text-white text-sm rounded-xl shadow-lg transition-all duration-300 pointer-events-none
@@ -526,7 +526,7 @@ class="w-2 h-2 rounded-full bg-red-500"
 
 ## 13. Bekannte Inkonsistenzen (zu beheben)
 
-Keine bekannten Inkonsistenzen. Stand: 2026-03-29.
+Stand 2026-04-22 (siehe [UI-Konsistenz-Audit](../archive/ui-consistency-audit-2026-04-22.md) und Backlog „UX-Polish"): systemisch offen sind verschiedene Auswahl-Stile, drei Toggle-Varianten, mehrere Fehlerdarstellungen (teils rohe `text-red-400`-Zeilen statt `InlineError`) und unterschiedliche Button-Höhen. Es gibt noch kein gemeinsames Komponenten-Set (`components/ui/`). Vorhanden und hier bisher nicht ausführlich beschrieben: `ToastContainer` (Toasts mit den Typen success/error/info), `InlineError`, `Icon`, iOS-Style-Switch (WLAN-Rettung), Segmented-Container (Bibliothek), PIN-Zellen (`setup/PinStep.svelte`) und die Safe-Area-Tokens `--spacing-safe-*` in `app.css`.
 
 ### Allgemeine Regeln
 
@@ -534,5 +534,5 @@ Keine bekannten Inkonsistenzen. Stand: 2026-03-29.
 2. **Full-width Buttons sind zentriert** (`text-center` ist Default, kein `text-left`).
 3. **Jeder Button hat einen Hover-State.** Mindestens `hover:bg-*` oder `hover:text-*`.
 4. **Disabled-State:** `disabled:opacity-50 disabled:cursor-not-allowed` (oder `disabled:opacity-40` für primäre Buttons).
-5. **Touch-Feedback:** `active:scale-95` für Player-Controls. Für andere Buttons reicht `transition-colors`.
+5. **Touch-Feedback:** `active:scale-[0.97]` für Player-Controls. Für andere Buttons reicht `transition-colors`.
 6. **Konsistente Padding-Höhe:** `py-2` bis `py-2.5` für inline Buttons, `py-3` für full-width Wizard/Setup Buttons.

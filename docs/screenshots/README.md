@@ -8,11 +8,11 @@ In diesem Ordner liegen die Screenshots für die README und Doku.
 - **Breite:** 1080px (Mobile-Shots) / 1920px (Desktop-Shots)
 - **Namensschema:** `NN-kurzname.webp` — numerische Reihenfolge, kebab-case
 - **Keine Credentials:** Vor dem Committen prüfen, dass Passwörter, IPs, Netzwerk-Namen, SSH-Keys o.ä. nicht im Shot sichtbar sind. WLAN-Rettung beim Schießen auf „Aus" stellen
-- **Originale:** Roh-PNGs/JPGs außerhalb des Repos aufbewahren (z.B. `tonado-private/assets/screenshots-raw/`)
+- **Originale:** Roh-PNGs/JPGs außerhalb des Repos aufbewahren (z.B. in einem privaten Ordner)
 
 ## Aktuelle Screenshots
 
-Wird ergänzt, sobald die ersten Shots da sind.
+`01-player` bis `07-wizard-buttons` (Player, Bibliothek, Figur einrichten, Eltern-Einstellungen, drei Wizard-Schritte) und `social-preview.png` (Vorschaubild für README und Link-Vorschau).
 
 ## Tools für Screenshots
 

@@ -52,7 +52,7 @@ coverage/
 *.whl
 *.tar.gz
 
-# Claude tooling
+# Local tooling (not part of the repo)
 CLAUDE.md
 .claude-flow/
 .claude/
@@ -66,8 +66,8 @@ agents/
 # Cleaned by junk-file-detector hook at session start
 .carl/
 
-# Review artifacts (screenshots/metrics produced by UX-review agents)
+# Local review artifacts (screenshots/metrics)
 .tmp-review-out/
 
-# Claude Code dev hook (lives in tonado-private, local-only here)
+# Local dev hook (not part of the repo)
 scripts/hooks/claude-doc-reminder.sh

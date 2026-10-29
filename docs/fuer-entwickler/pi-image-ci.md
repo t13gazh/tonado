@@ -2,9 +2,11 @@
 
 Entwurf für die GitHub-Actions-Pipeline, die aus einem `v*`-Release-Tag ein fertiges Tonado-Pi-Image baut, signiert und als Release-Asset hochlädt. Ziel: Flash-first statt SSH-first (siehe [`install-strategy.md`](install-strategy.md)).
 
-Status: **Implementiert** in [`.github/workflows/pi-image.yml`](../../.github/workflows/pi-image.yml) (2026-05-29), noch nicht durch einen echten CI-Run verifiziert — der erste Lauf erfolgt mit dem `v0.4.0-beta`-Tag oder per `workflow_dispatch`.
+Status: **Implementiert** in [`.github/workflows/pi-image.yml`](../../.github/workflows/pi-image.yml) (2026-05-29), produktiv im Einsatz (erster Lauf mit dem Tag `v0.4.0-beta`, aktueller Release `v0.4.1-beta`).
 
-> **Abweichung zu diesem RFC:** Abschnitt 3 unten beschreibt einen **verworfenen** Tarball-Ansatz mit npm-Build im Runner. Die reale Stage ([`scripts/pi-gen-stage/stage-tonado/02-tonado-code`](../../scripts/pi-gen-stage/stage-tonado/02-tonado-code/00-run.sh)) holt den Code per `git clone --branch <tag>` **im Chroot** und installiert `.[pi]` dort; `web/build/` ist im Repo committed, der Workflow baut kein Frontend. Der Workflow übergibt nur `TONADO_VERSION` + `TONADO_EXPECTED_SHA` via pi-gen-`config`. Weitere bewusste Abweichungen: kein `pi-gen/work`-Cache (Korrektheit vor Geschwindigkeit beim Bring-up); QEMU-Smoke-Test ist `continue-on-error` und primär eine Offline-Rootfs-Inspektion (siehe [`scripts/ci/qemu-smoke.sh`](../../scripts/ci/qemu-smoke.sh)); armhf-`pi-gen`-Ref ist noch `master` statt SHA-gepinnt (TODO vor erstem armhf-Release).
+> **Abweichung zu diesem RFC:** Abschnitt 3 unten beschreibt einen **verworfenen** Tarball-Ansatz mit npm-Build im Runner. Die reale Stage ([`scripts/pi-gen-stage/stage-tonado/02-tonado-code`](../../scripts/pi-gen-stage/stage-tonado/02-tonado-code/00-run.sh)) holt den Code per `git clone --branch <tag>` **im Chroot** und installiert `.[pi]` dort; `web/build/` ist im Repo committed, der Workflow baut kein Frontend. Der Workflow übergibt nur `TONADO_VERSION` + `TONADO_EXPECTED_SHA` via pi-gen-`config`. Weitere bewusste Abweichungen: kein `pi-gen/work`-Cache (Korrektheit vor Geschwindigkeit beim Bring-up); QEMU-Smoke-Test ist `continue-on-error` und primär eine Offline-Rootfs-Inspektion (siehe [`scripts/ci/qemu-smoke.sh`](../../scripts/ci/qemu-smoke.sh)); beide `pi-gen`-Refs (arm64 und armhf) sind per Commit-SHA auf die Bookworm-Branches gepinnt (`PI_GEN_REF_ARM64`/`PI_GEN_REF_ARMHF` im Workflow; `master` wäre Trixie).
+>
+> **Ebenfalls Entwurfsstand:** Die Abschnitte 2, 4, 6, 7 und 9 sowie die YAML-Skelette beschreiben den ursprünglichen Plan. Maßgeblich ist der Workflow: `workflow_dispatch` hat die Inputs `tag` (Pflicht) und `upload`; der Pull-Request-Trigger baut beide Targets von `main` und hat keinen Branch-Filter; der Release wird mit `gh release create --prerelease` und `GH_REPO` angelegt; ein blockierender Guard (`scripts/ci/assert-no-baked-db.sh`) verhindert eine eingebackene Datenbank; der Job `update-release-notes` ruft `scripts/ci/release-notes.sh` auf; `FIRST_USER_PASS` wird zufällig pro Build gesetzt.
 
 ---
 
@@ -30,15 +32,18 @@ on:
         description: 'Upload to release?'
         type: boolean
         default: false
-      ref:
-        description: 'Branch/Tag (leer = aktueller)'
+      tag:
+        description: 'Release-Tag, der gebaut wird (muss auf dem Remote existieren)'
         type: string
-        default: ''
+        required: true
   pull_request:
-    branches: [main]
     paths:
       - 'scripts/pi-gen-stage/**'
+      - 'system/**'
       - '.github/workflows/pi-image.yml'
+      - 'scripts/ci/qemu-smoke.sh'
+      - 'scripts/ci/release-notes.sh'
+      - 'scripts/ci/assert-no-baked-db.sh'
 ```
 
 ---
@@ -182,11 +187,11 @@ jobs:
         include:
           - arch: armhf
             target: pi-zero-w
-            pi_gen_ref: master
+            pi_gen_ref: bookworm   # real: SHA-Pin PI_GEN_REF_ARMHF
             release: bookworm
           - arch: arm64
             target: pi-3plus-4-5
-            pi_gen_ref: arm64
+            pi_gen_ref: bookworm-arm64   # real: SHA-Pin PI_GEN_REF_ARM64
             release: bookworm
     runs-on: ubuntu-24.04
     name: Build ${{ matrix.target }}
@@ -307,7 +312,7 @@ qemu-system-aarch64 \
 ```
 
 - Boot-Zeit in QEMU: ~60-90 s bis SSH-ready
-- Tonado-Service-Startup: +15 s (siehe Memory)
+- Tonado-Service-Startup: +15 s
 - Smoke-Test: `curl -f http://localhost:8080/api/health` mit `timeout 180` + Retry-Loop
 - **Insgesamt: ~5 min pro Variante**
 
@@ -338,14 +343,14 @@ Alle Smoke-Test-Details in `scripts/ci/qemu-smoke.sh` (eigenes Script, damit Con
 
 ### Re-Run ohne neues Tag
 
-`workflow_dispatch` mit `inputs.ref` — baut vom angegebenen Branch/Tag, überschreibt Release-Assets via `gh release upload --clobber`. Häufige Fälle:
+`workflow_dispatch` mit `inputs.tag` — baut vom angegebenen Tag (muss auf dem Remote existieren), überschreibt Release-Assets via `gh release upload --clobber`. Häufige Fälle:
 
-- Image kaputt, Code okay -> `workflow_dispatch(ref=v0.4.0-beta, upload=true)` macht denselben Build nochmal
-- Stage-Script kaputt -> fix auf main, dann `workflow_dispatch(ref=main, upload=false)` als Trockenlauf, danach neuer Patch-Tag
+- Image kaputt, Code okay -> `workflow_dispatch(tag=v0.4.1-beta, upload=true)` macht denselben Build nochmal
+- Stage-Script kaputt -> fix auf main, dann per Pull-Request den Dry-Run (baut `main`) abwarten, danach neuer Patch-Tag
 
 ### Update-Pfad: Image vs. git pull
 
-**Das ist eine Architektur-Entscheidung, die NICHT in dieser CI-Doku fällt.** Siehe bestehende Memory-Einträge „Update-Strategie" und „Update-Mechanismus" — Tonado nutzt aktuell `git pull` + CHANGELOG-basierte Update-UI. Das bleibt.
+**Das ist eine Architektur-Entscheidung, die NICHT in dieser CI-Doku fällt.** Siehe [`update-details.md`](../fuer-bastler/update-details.md) und den Backlog (Abschnitt „Prio 2.5") — Tonado nutzt aktuell `git pull` + CHANGELOG-basierte Update-UI. Das bleibt.
 
 Implikationen für CI:
 - **Jedes Release bekommt trotzdem ein Image**, weil Erstinstallation darüber läuft
@@ -370,8 +375,8 @@ Implikationen für CI:
 
 | Image | Roh | xz-komprimiert |
 |-------|-----|----------------|
-| Pi Zero W (armhf, Lite + Tonado) | ~1.8 GB | ~600-800 MB |
-| Pi 3/4/5 (arm64, Lite + Tonado) | ~2.2 GB | ~750-950 MB |
+| Pi Zero W (armhf, Lite + Tonado) | ~1.8 GB | ~720 MB (gemessen v0.4.1-beta) |
+| Pi 3/4/5 (arm64, Lite + Tonado) | ~2.2 GB | ~620 MB (gemessen v0.4.1-beta) |
 
 **Komprimierte Images passen komfortabel unter 2 GB.** Unkomprimierte `.img` wären Grenzfall bei arm64 — wir laden nur `.img.xz` hoch, alles gut. Release-Größe gesamt pro Tag: ~1.5-2 GB. 10 Tags = 20 GB, absolut vertretbar für öffentliches OSS-Projekt.
 
@@ -413,10 +418,10 @@ jobs:
         include:
           - arch: armhf
             target: pi-zero-w
-            pi_gen_ref: master
+            pi_gen_ref: bookworm   # real: SHA-Pin PI_GEN_REF_ARMHF
           - arch: arm64
             target: pi-3plus-4-5
-            pi_gen_ref: arm64
+            pi_gen_ref: bookworm-arm64   # real: SHA-Pin PI_GEN_REF_ARM64
     runs-on: ubuntu-24.04
     name: Build ${{ matrix.target }}
     steps:

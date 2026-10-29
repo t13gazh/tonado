@@ -16,7 +16,7 @@ Deine lokale Musik spielt weiter. Nur Internetradio und Podcasts brauchen Netz �
 
 ## Geht das auch komplett ohne Internet?
 
-Teilweise, ja. Eigene Musik-Dateien und die Figuren-Funktion laufen auch ohne aktive Internet-Verbindung, weil sie direkt von der SD-Karte der Box kommen. Internetradio und Podcast-Folgen brauchen eine Verbindung, genauso wie Updates. Einen eigenen **Offline-Modus mit App-Schalter** (Streaming-Features sichtbar deaktivieren, Box bewusst offline halten) planen wir — siehe [Was bald dazu kommt](features.md#was-bald-dazu-kommt) und die [Roadmap](../ROADMAP.md).
+Ja. Bei der Einrichtung kannst du **„Ohne Internet nutzen"** wählen: Die Box spannt dann dauerhaft ihr eigenes, gesichertes WLAN auf. Eigene Musik-Dateien und die Figuren-Funktion laufen komplett ohne Internet, weil sie direkt von der SD-Karte der Box kommen. Internetradio, Podcast-Folgen und Updates brauchen eine Verbindung. Einen **Offline-Schalter in der App** (Streaming-Features sichtbar deaktivieren) planen wir noch — siehe [Was bald dazu kommt](features.md#was-bald-dazu-kommt) und die [Roadmap](../fuer-entwickler/ROADMAP.md).
 
 ## Wie lade ich neue Musik hoch?
 

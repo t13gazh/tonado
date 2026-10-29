@@ -4,7 +4,7 @@ Tonado bekommt regelmäßig neue Funktionen und Fehlerbehebungen. Du musst nicht
 
 ## In 2 Minuten aktualisieren
 
-1. In der App die **Einstellungen** öffnen (Experten-Login, falls PIN gesetzt).
+1. In der App die **Einstellungen** öffnen. Nach Updates suchen darfst du mit der Eltern-PIN; das Installieren braucht die Experten-PIN.
 2. **System → Update → Nach Updates suchen** antippen.
 3. Wenn ein Update da ist: die Änderungsübersicht kurz anschauen und **Update installieren** tippen.
 4. Die Box startet sich am Ende selbst neu. Kurz warten, dann läuft sie wieder.
@@ -29,6 +29,6 @@ Starte die Box einmal neu (Stecker ziehen, kurz warten, wieder einstecken — od
 
 ## Für Technik-Profis
 
-Tonado ist ab `v0.3.0-beta` in der Beta-Phase. Eine Update-Suche zieht aktuell den letzten Stand vom `main`-Branch. Eine Umstellung auf getaggte GitHub-Releases mit Freigabe pro Update ist für eine kommende Beta-Iteration geplant.
+Tonado ist seit `v0.3.0-beta` in der Beta-Phase. Eine Update-Suche zieht aktuell den letzten Stand vom `main`-Branch. Eine Umstellung auf getaggte GitHub-Releases mit Freigabe pro Update ist für eine kommende Beta-Iteration geplant.
 
 Für das manuelle Update via SSH, Rollback auf einen bestimmten Commit und Fehlersuche im Log: siehe **[Update-Details für Bastler](../fuer-bastler/update-details.md)**.

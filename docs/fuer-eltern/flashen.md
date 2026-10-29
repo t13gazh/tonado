@@ -36,7 +36,7 @@ Falls auf der Seite eine kleine Prüfsumme angegeben ist, kannst du sie vergleic
 
 1. Stecke die fertige SD-Karte in den Raspberry Pi.
 2. Schließe den Strom an.
-3. Beim **allerersten Start** richtet sich die Box ein paar Minuten lang selbst ein — rechne mit ein bis zwei Minuten. Es kann sein, dass sie sich dabei einmal von selbst neu startet. Das ist normal, einfach abwarten.
+3. Beim **allerersten Start** richtet sich die Box selbst ein — rechne mit ein bis zwei Minuten. Es kann sein, dass sie sich dabei einmal von selbst neu startet. Das ist normal, einfach abwarten.
 
 Du hörst keinen Startton und siehst höchstens eine kleine Leuchte. Sobald die Box bereit ist, geht es am Handy weiter.
 

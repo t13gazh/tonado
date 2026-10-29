@@ -16,7 +16,7 @@ Für den Export fragt die Box nach der Eltern-PIN.
 
 ## Backup einspielen
 
-1. In der App unter **Einstellungen → System → Backup** die Option **Backup einspielen** wählen.
+1. In der App unter **Einstellungen → System → Backup** die Option **Backup wiederherstellen** wählen.
 2. Die gespeicherte Datei auswählen.
 3. Bestätigen, dass die bestehenden Einstellungen überschrieben werden dürfen.
 4. Die Box übernimmt deine Figuren-Zuordnungen, Einstellungen und gespeicherten Streams.

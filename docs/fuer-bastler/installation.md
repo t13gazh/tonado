@@ -2,12 +2,12 @@
 
 Vollständige Anleitung zur Installation von Tonado auf einem Raspberry Pi.
 
-> **Schnellstart:** Die Kurzversion findest du in der [README](../../README.md#schnellstart).
+> **Schnellstart:** Die Kurzversion findest du in der [README](../../README.md#schnellstart). Ohne SSH geht es mit dem fertigen Image: [Tonado auf eine SD-Karte spielen](../fuer-eltern/flashen.md).
 
 ## Voraussetzungen
 
 - Raspberry Pi (Zero W, 3B+, 4 oder 5) mit Netzteil
-- microSD-Karte, mind. 16 GB, Class 10
+- microSD-Karte, mind. 8 GB (16 GB empfohlen), Class 10
 - WLAN-Zugang (der Pi muss ins Heimnetzwerk)
 - Ein Computer mit [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 - Ein Smartphone oder Computer im selben Netzwerk
@@ -89,24 +89,23 @@ Siehe auch [SECURITY.md](../../SECURITY.md) für unser Sicherheitsmodell.
 
 | Schritt | Beschreibung |
 |---|---|
-| 1/12 | System-Pakete installieren (MPD, Python, Nginx, Git) |
-| 2/12 | Verzeichnisse erstellen (Musik, Konfiguration) |
-| 3/12 | Tonado von GitHub klonen und Python-Umgebung einrichten |
-| 4/12 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
-| 5/12 | MPD (Music Player Daemon) konfigurieren |
-| 6/12 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C, OnOff SHIM falls vorhanden) |
-| 7/12 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
-| 8/12 | Frontend prüfen (ist im Repository enthalten) |
-| 9/12 | Nginx als Webserver einrichten (Port 80, Upload-Limit 500 MB) |
-| 10/12 | Kernel-Overlays für OnOff SHIM schreiben (GPIO 17 Shutdown-Button, GPIO 4 Power-Off) |
-| 11/12 | Berechtigungen setzen |
-| 12/12 | Hardware-Erkennung ausführen |
+| 1/11 | System-Pakete installieren (MPD, Python, Nginx, Git) |
+| 2/11 | Verzeichnisse erstellen (Musik, Konfiguration) |
+| 3/11 | Tonado von GitHub klonen und Python-Umgebung einrichten |
+| 4/11 | Audio konfigurieren (HifiBerry erkennen oder Onboard-Audio) |
+| 5/11 | MPD (Music Player Daemon) konfigurieren |
+| 6/11 | Hardware-Interfaces prüfen und aktivieren (SPI, I2C, OnOff SHIM falls vorhanden) |
+| 7/11 | systemd-Service einrichten (Tonado startet automatisch beim Booten) |
+| 8/11 | Frontend prüfen (ist im Repository enthalten) |
+| 9/11 | Nginx als Webserver einrichten (Port 80, Upload-Limit 500 MB) |
+| 10/11 | Kernel-Overlays für OnOff SHIM schreiben (GPIO 17 Shutdown-Button, GPIO 4 Power-Off) |
+| 11/11 | Berechtigungen setzen und Hardware-Erkennung ausführen |
 
 ### Dauer
 
 | Pi-Modell | ca. Dauer |
 |---|---|
-| Pi Zero W | 10–15 Minuten |
+| Pi Zero W | 20–30 Minuten (erster Build, ARMv6-Kompilierung) |
 | Pi 3B+ | 5–8 Minuten |
 | Pi 4/5 | 3–5 Minuten |
 
@@ -147,7 +146,7 @@ Tonado prüft ob eine neue Version verfügbar ist und aktualisiert sich selbst.
 ### Per SSH
 
 ```bash
-cd /opt/tonado && sudo -u pi git pull && sudo systemctl restart tonado
+cd /opt/tonado && sudo -u pi git pull && sudo -u pi .venv/bin/pip install -e ".[pi]" -q && sudo systemctl restart tonado
 ```
 
 ## Deinstallation

@@ -57,7 +57,7 @@ Jeder sieht nur, was er braucht.
 
 ### 4. Fehler verzeihen
 - Figur falsch zugewiesen? Ein Tipp zum Ändern.
-- Upload abgebrochen? Wird beim nächsten Mal fortgesetzt.
+- Upload abgebrochen? Einfach erneut hochladen (ein Resume ist geplant).
 - WiFi weg? Lokale Musik spielt weiter.
 
 ### 5. Mobile First
@@ -93,7 +93,7 @@ Das ist der Moment. Dafür bauen wir.
 ## Zukunft
 
 - Spotify Connect / AirPlay / Chromecast — **nur als Empfänger** (Tonado taucht in Apps als Abspielziel auf, hat aber keine eigene Abo-Logik). Erwogen, wenn es das Kind-legt-Figur-auf-Erlebnis nicht verdrängt.
-- Pi-Image zum Flashen (Ersteinrichtung ohne SSH) — Kernziel Richtung „auch für nicht-technische Eltern".
+- Pi-Image zum Flashen (Ersteinrichtung ohne SSH): gibt es seit v0.4.0-beta; die Validierung mit nicht-technischen Eltern auf echter Hardware läuft noch.
 - BLE-Provisioning (Setup via App statt Captive Portal)
 - 3D-Druck-Gehäuse-Vorlagen
 - Community-Plugins (LED-Ring, Display, NFC-Figuren)

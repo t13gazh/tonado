@@ -44,7 +44,7 @@ Die App läuft im Browser auf deinem Smartphone, Tablet oder Laptop — kein App
 | Komponente | Beispiel | ca. Preis |
 |---|---|---|
 | Raspberry Pi | Zero W, 3B+, 4 oder 5 | 15–50 € |
-| microSD-Karte | mind. 16 GB, Class 10 | 8 € |
+| microSD-Karte | mind. 8 GB (16 GB empfohlen), Class 10 | 8 € |
 | Lautsprecher | HifiBerry MiniAmp + kleiner Lautsprecher | 15–25 € |
 | RFID-Reader | RC522 (SPI) oder USB-RFID-Reader | 5–10 € |
 | Figuren oder Karten | 13.56 MHz RFID-Chips (MIFARE Classic o.ä.) | 5 € / 10 Stk |
@@ -59,6 +59,8 @@ Die App läuft im Browser auf deinem Smartphone, Tablet oder Laptop — kein App
 Alle Details zu Modellen, Optionen und Verkabelung: **[Hardware-Anleitung](docs/fuer-bastler/hardware.md)**
 
 ## Schnellstart
+
+> **Ohne SSH und Terminal:** Es gibt ein fertiges Image zum Flashen — siehe [Tonado auf eine SD-Karte spielen](docs/fuer-eltern/flashen.md). Die folgenden Schritte beschreiben den SSH-Weg für Bastler.
 
 ### 1. SD-Karte vorbereiten
 
@@ -76,7 +78,7 @@ ssh pi@<hostname>.local
 curl -sSL https://raw.githubusercontent.com/t13gazh/tonado/main/system/install.sh | sudo bash
 ```
 
-Das Script erledigt alles automatisch — Pakete, Audio, RFID, Webserver. Dauert 5–15 Minuten je nach Pi-Modell. Falls ein Neustart nötig ist: `sudo reboot`
+Das Script erledigt alles automatisch — Pakete, Audio, RFID, Webserver. Dauert 5–30 Minuten je nach Pi-Modell (Pi Zero W am längsten). Falls ein Neustart nötig ist: `sudo reboot`
 
 ### 3. Loslegen
 
@@ -91,7 +93,7 @@ Ausführliche Anleitung mit Troubleshooting: **[Installationsanleitung](docs/fue
 Oder per SSH:
 
 ```bash
-cd /opt/tonado && sudo -u pi git pull && sudo systemctl restart tonado
+cd /opt/tonado && sudo -u pi git pull && sudo -u pi .venv/bin/pip install -e ".[pi]" -q && sudo systemctl restart tonado
 ```
 
 ## Für Entwickler
@@ -104,9 +106,9 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 
 > **Beta (v0.4.1)** — Installierbar und funktionsfähig auf Pi 3B+ und Pi Zero W. Das **flashbare Pi-Image** samt [Eltern-Anleitung](docs/fuer-eltern/flashen.md) — SD-Karte flashen, Box starten, im Browser einrichten, kein SSH nötig. v0.4.1-beta bringt den headless-Boot-Fix und den überarbeiteten Setup-Wizard (Wahl zwischen Heim-WLAN und reinem Offline-Betrieb, funktionierende WLAN-Liste, echte Audio-Aktivierung). Dieser headless-Image-Pfad wird gerade auf echter Hardware mit nicht-technischen Eltern validiert; der bewährte SSH-Pfad (`curl | sudo bash`) bleibt als Fallback. [Changelog](CHANGELOG.md) · [Install-Strategie](docs/fuer-entwickler/install-strategy.md)
 
-**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (6 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
+**Implementiert:** Player, Bibliothek mit Ordnern/Radio/Podcasts/Playlisten, Figuren-Wizard, Eltern-Einstellungen (PIN, Lautstärkelimit, Sleep-Timer mit Fade-Out), PIN-geschützter Bibliothek-Zugriff, Hardware-Erkennung (RC522/PN532/USB), Gesten-Steuerung, interaktive GPIO-Button-Erkennung, Setup-Wizard (7 Schritte, Re-Run-sicher), Error-Boundaries mit globalem Toast-System, Audio-Testton im Wizard, Hardware Graceful Degradation, Browser-Audio, automatische Updates, Backup/Restore.
 
-**Pi-Kompatibilitätsmatrix (Stand 2026-04-17):**
+**Pi-Kompatibilitätsmatrix (Stand v0.4.1-beta):**
 
 | Modell | Status | Hinweise |
 |--------|--------|----------|
@@ -116,7 +118,7 @@ Entwicklungsumgebung, Tests, Deployment: **[Entwickler-Anleitung](docs/fuer-entw
 | Raspberry Pi 4 | ❓ Ungetestet | Sollte funktionieren — Rückmeldungen willkommen. |
 | Raspberry Pi 5 | ❓ Ungetestet | Neuer GPIO-Controller (RP1); gpiod v2 sollte abstrahieren, nicht verifiziert. |
 
-**Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, 1.3 MB Frontend.
+**Performance (Pi 3B+):** API-Responses 15–25 ms, 50 MB RAM, 10s Startup, Frontend ca. 1,1 MB (ca. 160 KB gzipped).
 
 **Known Issues:**
 - **Headless-Image-Erstboot noch nicht auf echter Hardware mit nicht-technischer Zielgruppe validiert.** Das flashbare Image baut in CI und die Setup-WLAN-/Captive-Portal-/Wizard-Kette ist code-reviewt + per Offline-Checks abgesichert, aber der „aus dem Karton flashen → booten → einrichten"-Pfad wird gerade erst auf Pi 3B+ field-getestet. Bis dahin ist der SSH-Install-Pfad die erprobte Route.

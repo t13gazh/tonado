@@ -4,14 +4,14 @@
 
 > Der Pre-Beta-Audit (April 2026) ist abgearbeitet. Findings-Historie: [`docs/archive/pre-beta-audit-findings.md`](docs/archive/pre-beta-audit-findings.md). Offene Punkte sind unten in die aktiven Listen überführt.
 
-## Offene Beta-Blocker (aus Pre-Beta-Audit)
+## Beta-Blocker (aus Pre-Beta-Audit, erledigt)
 
 Scope für `v0.3.0-beta` (ausgeliefert 2026-04-22): die physisch vorhandene Hardware — Pi 3B+ und Pi Zero W. Pi 4 / Pi 5 werden in einer kommenden Beta-Iteration nachgezogen, sobald ein Gerät verfügbar ist.
 
 - [x] Install-Script End-to-End auf echter SD-Karte (2026-04-22 auf Zero W mit 4 GB Bookworm-Lite durchgespielt, Service startet sauber).
 - [x] Pi-Kompatibilitätsmatrix Live-Tests auf Pi 3B+ und Zero W (H8) — Zero W 0.2.1-alpha: Install sauber, CPU 40 °C idle, RAM 160/427 MB, keine Errors in 10 min. 3B+ ebenfalls live.
 - [x] Performance-Optimierung Pi Zero W — Idle-Werte entspannt, keine Optimierung für Beta nötig (siehe Zahlen oben).
-- [x] Hardcoded UI-Strings → i18n (bereits umgesetzt — 559 `t()`-Aufrufe, 0 hardcoded Strings in allen 29 Svelte-Komponenten, Audit 2026-04-19).
+- [x] Hardcoded UI-Strings → i18n (umgesetzt — Stand Audit 2026-04-19: 559 `t()`-Aufrufe, 0 hardcoded Strings in 29 Svelte-Komponenten).
 
 **Captive-Portal-First-Boot E2E** ist an das Pi-Image gebunden und rückt daher mit in Post-Beta: mit dem heutigen Install-Script muss der Pi ohnehin vorher per WLAN oder LAN erreichbar sein, weil das Script via `curl | sudo bash` über SSH läuft. Erst das Pi-Image zum Flashen (Prio-3 unten) macht das AP-First-Boot-Szenario realistisch — siehe [`docs/fuer-entwickler/install-strategy.md`](docs/fuer-entwickler/install-strategy.md).
 
@@ -22,7 +22,7 @@ Scope für `v0.3.0-beta` (ausgeliefert 2026-04-22): die physisch vorhandene Hard
 
 ## Update-Mechanismus (Folgearbeit)
 
-Die 0.3.0-beta-Live-Test-Findings sind in der Welle „Update-Pfad hardenen" (2026-04-23) abgearbeitet: Apply-Bug mit pip-Timeout behoben, Progress-UI inline, `Cache-Control: no-store` auf `/api/system/update/*` + `/info` + `/health`, Rate-Limit-Bucket für Update-Check, sudoers-Minimalregel statt Pauschal-NOPASSWD, Uvicorn auf Localhost. Details im CHANGELOG unter `Unreleased`. Offene Punkte für künftige Wellen:
+Die 0.3.0-beta-Live-Test-Findings sind in der Welle „Update-Pfad hardenen" (2026-04-23) abgearbeitet: Apply-Bug mit pip-Timeout behoben, Progress-UI inline, `Cache-Control: no-store` auf `/api/system/update/*` + `/info` + `/health`, Rate-Limit-Bucket für Update-Check, sudoers-Minimalregel statt Pauschal-NOPASSWD, Uvicorn auf Localhost. Details im CHANGELOG unter `[0.3.1-beta]`. Offene Punkte für künftige Wellen:
 
 - [ ] **Frontend-Asset-Hash-Konsistenz bei Rebuilds.** Rebuild-Commits pro Source-Welle decken das im normalen Workflow ab; fragil bleibt der Fall „manueller `git reset --hard` + `git clean -fdx`". Entweder `prestart`-Hook im Service, der `index.html`-Assets gegen `_app/immutable/` prüft und bei Diskrepanz einen `npm run build` triggert — oder Build-Strategie so, dass das gar nicht passieren kann.
 - [ ] **Restart-Success-Check serverseitig (F6 aus Audit).** Aktuell: `_fire_and_forget` feuert `systemctl restart`, Response geht raus bevor Restart greift. Frontend pollt `/info` und verifiziert die neue Version — reicht für Welle 1. Langfristig: Server-seitiger Post-Start-Healthcheck, der „success"-Response erst liefert, wenn der neue Stand läuft.
@@ -43,10 +43,10 @@ Die Welle 1 schließt die HIGH-Findings F1 (Rate-Limit), F2 (sudoers), F5 (Local
 
 Die erste Image-Welle (`scripts/pi-gen-stage/stage-tonado/` + First-Boot-Logik + Wizard-Abschluss) ist bewusst auf „lokal baubar" beschnitten. Diese Items ziehen das Bild zum automatisierten, signierten Release-Image:
 
-- [ ] **GitHub Action für Image-Build (`.github/workflows/pi-image.yml`).** x86-Runner + QEMU, Matrix arm64 + armhf, Trigger auf `v*`-Tags und `workflow_dispatch`. Caching für pi-gen-Stages und apt. Upload als Release-Asset via `gh release upload --clobber`. Struktur und YAML-Skeleton in [`docs/fuer-entwickler/pi-image-ci.md`](docs/fuer-entwickler/pi-image-ci.md).
-- [ ] **QEMU-Smoke-Test in CI.** Nach dem Image-Build arm64-Variante in qemu-system-aarch64 booten, `curl -f http://localhost:8080/api/health` prüfen. Armhf in QEMU ist fragiler, nur arm64 testen. ~5 min pro Run.
-- [ ] **Cosign keyless Signing + `actions/attest-build-provenance`.** Null-Aufwand-Signatur via GitHub OIDC, User kann mit `cosign verify-blob` prüfen. SHA256 bleibt zusätzlich. GPG-Schlüsselverwaltung vermeiden.
-- [ ] **Eltern-Doku `docs/fuer-eltern/flashen.md`.** 3-Schritte-Anleitung mit Screenshots des Raspberry Pi Imager. Teil der ersten Release-Kandidat-Welle (`v0.4.0-beta`). Heute noch nicht geschrieben, weil der Image-Build-Pfad erst mit der CI-Welle stabil wird.
+- [x] **GitHub Action für Image-Build (`.github/workflows/pi-image.yml`).** Umgesetzt mit v0.4.0-beta. x86-Runner + QEMU, Matrix arm64 + armhf, Trigger auf `v*`-Tags und `workflow_dispatch`. Caching für pi-gen-Stages und apt. Upload als Release-Asset via `gh release upload --clobber`. Struktur und YAML-Skeleton in [`docs/fuer-entwickler/pi-image-ci.md`](docs/fuer-entwickler/pi-image-ci.md).
+- [x] **QEMU-Smoke-Test in CI** (`scripts/ci/qemu-smoke.sh`). Umgesetzt: primär Offline-Inspektion des Rootfs mit harten Asserts, der QEMU-Boot-Teil ist best-effort (`continue-on-error`).
+- [x] **Cosign keyless Signing + `actions/attest-build-provenance`.** Umgesetzt. Null-Aufwand-Signatur via GitHub OIDC, User kann mit `cosign verify-blob` prüfen. SHA256 bleibt zusätzlich. GPG-Schlüsselverwaltung vermeiden.
+- [x] **Eltern-Doku `docs/fuer-eltern/flashen.md`.** Geschrieben (v0.4.0-beta). Offen bleibt nur, Screenshots des Raspberry Pi Imager zu ergänzen.
 - [ ] **Release-Tag GPG-Signieren.** Aktuell ist der Tonado-Image-Build auf Commit-SHA-Pinning (`TONADO_EXPECTED_SHA`) angewiesen, weil Tags unsigniert sind. Sobald der Release-Prozess signierte Tags produziert, im pi-gen Chroot-Script `git verify-tag "${TONADO_TAG}"` aktivieren und den SHA-Pin optional machen.
 - [ ] **Custom-Repository-Eintrag im Raspberry Pi Imager (post-Beta).** Schema V4-JSON (siehe Research-Report), Eltern wählen Tonado direkt im Imager-OS-Picker. Erst lohnend, wenn Antrag auf Upstream-Aufnahme in `raspberrypi/rpi-imager` läuft.
 - [ ] **SSH-Hardening: Default Key-Only (Security F10).** Heute ist SSH an und akzeptiert sowohl Passwort (wenn vom Imager gesetzt) als auch Key. Nach Pre-Beta-Audit empfohlen: `PasswordAuthentication no` als Toggle im Setup-Wizard (nach Heim-WLAN-Connect). Bastler können es an lassen, Standard-Eltern sind Key-Only.
@@ -55,7 +55,7 @@ Die erste Image-Welle (`scripts/pi-gen-stage/stage-tonado/` + First-Boot-Logik +
 
 ## Pi-Image Härtung (aus AP-Konsolidierungs-Welle 2026-06-10)
 
-Findings aus dem 4-Brillen-Review der Boot-Fix-Welle, bewusst auf Post-Beta verschoben (kein Release-Blocker; die Welle macht das Image boot- und setup-fähig):
+Findings aus dem Review der Boot-Fix-Welle, bewusst auf Post-Beta verschoben (kein Release-Blocker; die Welle macht das Image boot- und setup-fähig):
 
 - [ ] **Inaktivitäts-Timeout für den offenen Setup-AP.** Der Setup-AP ist offen (Henne-Ei: Eltern haben noch keine Creds) und systemd-owned ohne Zeitlimit — er bleibt offen, bis `.setup-complete` geschrieben ist. Bei nie abgeschlossenem Setup bleibt das Funk-Fenster dauerhaft offen; ein Nachbar in Reichweite könnte den Wizard bedienen (Heim-PSK-Bruteforce ist via `PROBE_FAIL_LOCKOUT=10` gedeckelt, das Hijack-Fenster aber nicht). Lösungsidee: Watchdog/`RuntimeMaxSec`, der nach N Stunden ohne Setup-Fortschritt rebootet. Security-Review-MEDIUM.
 - [ ] **PSK-Übergabe an setup-ap.sh härten (argv → stdin).** `captive_portal.py` ruft `sudo -n setup-ap.sh start secured <ssid> <psk>` — das Recovery-AP-PSK ist kurz in `/proc/*/cmdline` + `auth.log` sichtbar (nur root/pi lokal). Akzeptabel für einen LAN-Recovery-AP, aber sauberer wäre PSK über stdin/Datei in `/run` statt argv. Security-Review-LOW.
@@ -63,17 +63,17 @@ Findings aus dem 4-Brillen-Review der Boot-Fix-Welle, bewusst auf Post-Beta vers
 
 ## Pi-Image Headless-UAT (v0.4.0-beta, 2026-06-11)
 
-Erste echte Headless-UAT des geflashten arm64-Images auf Pi 3B+ (kein Monitor/Tastatur, [[feedback_test_as_shipped_artifact]]). Zwei Boot-Blocker gefunden **und gefixt** (Code committet, **noch nicht gepusht** — 3 Commits vor origin: `7bfdbea` Release-vor-Upload, `a6b6aca` Exec-Bit, `32e38b2` Deadlock). Danach drei nachgelagerte Wizard-Befunde (schichtweise aufgetaucht, [[feedback_blocker_maskiert_latente_bugs]]).
+Erste echte Headless-UAT des geflashten arm64-Images auf Pi 3B+ (kein Monitor/Tastatur — getestet wird das Image so, wie es ausgeliefert wird). Zwei Boot-Blocker gefunden **und gefixt** (Code committet und mit v0.4.1-beta ausgeliefert: `7bfdbea` Release-vor-Upload, `a6b6aca` Exec-Bit, `32e38b2` Deadlock). Danach drei nachgelagerte Wizard-Befunde (schichtweise aufgetaucht — ein Blocker hatte die dahinterliegenden Fehler maskiert).
 
 ### Gefixt (Boot — auf echter HW validiert)
 
 - [x] **Exec-Bit auf `system/*.sh`** (`a6b6aca`). Windows-Git committete die Runtime-Skripte `100644` → systemd `ExecStart` scheiterte `203/EXEC`, firstrun + Setup-AP starteten nie, Box headless-unerreichbar. Fix 3-schichtig (git +x, Stage-02-`chmod`, qemu-Smoke-Assert).
 - [x] **systemd-Deadlock in `firstrun.sh`** (`32e38b2`). `Before=ssh.service`, rief aber synchron `systemctl start ssh.service` von innen → zirkulärer Deadlock, wedgte die ganze systemd-Job-Queue, `multi-user.target` nie erreicht. War hinter dem Exec-Bit-Bug maskiert. Fix: firstrun fasst `ssh*` nicht mehr per systemctl an; `Before=` (jetzt inkl. `ssh.socket`) regelt die Reihenfolge ohnehin.
-- **Folge:** Tag `v0.4.0-beta` (@ `c05fef1`) enthält diese Fixes **nicht** → vor Release-Publish muss das Image neu gebaut werden (Beta-Tag neu schneiden oder `v0.4.1-beta`). Headless-Boot bis „Tonado-Setup"-AP + Captive-Portal-Auto-Open ist auf Pi 3B+ jetzt bewiesen.
+- **Folge:** Tag `v0.4.0-beta` (@ `c05fef1`) enthielt diese Fixes **nicht**; sie sind mit `v0.4.1-beta` ausgeliefert. Headless-Boot bis „Tonado-Setup"-AP + Captive-Portal-Auto-Open ist auf Pi 3B+ jetzt bewiesen.
 
-### Umgesetzt (Wizard-Rework, 2026-06-11 — code-komplett, UNGEPUSHT, echte-HW-Re-UAT offen)
+### Umgesetzt (Wizard-Rework, 2026-06-11 — mit v0.4.1-beta ausgeliefert, echte-HW-Re-UAT offen)
 
-PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 Schicht-Impl parallel → 4 Brillen-Review → 3 Schicht-Fixes parallel), 489 Tests grün, Frontend baut. Querverweis: Prio-2-Items „Offline-Modus" + „WLAN-Verwaltung in Einstellungen" gehen hierin auf ([[feedback_validate_backlog_use_case]]). Der Review deckte zusätzlich einen **latenten Online-Abschluss-Blocker** auf (Online-Pfad rief nie `complete_setup()` → Box nie „fertig", Monitor nie gearmt, PIN-Gate umgangen — mitgefixt, [[feedback_blocker_maskiert_latente_bugs]]).
+Produktentscheidung 2026-06-11: **Offline-First-Fork.** Tests grün, Frontend baut. Querverweis: Der Wizard-Pfad „Ohne Internet nutzen" deckt den Kern des Prio-2-Items „Offline-Modus" ab; der App-Schalter (Streaming-Features sichtbar deaktivieren) und die „WLAN-Verwaltung in Einstellungen" bleiben offen. Der Review deckte zusätzlich einen **latenten Online-Abschluss-Blocker** auf (Online-Pfad rief nie `complete_setup()` → Box nie „fertig", Monitor nie gearmt, PIN-Gate umgangen — mitgefixt).
 
 - [x] **Offline-Modus als erstklassiger Wizard-Pfad.** Umgesetzt: Fork „Mit Heim-WLAN" / „Ohne Internet", `/api/setup/complete {mode}`, Offline-Box self-hostet das gesicherte „Tonado"-Netz nach jedem Boot (`captive_portal` owner=`offline`, kein Timeout), Auto-Fallback-Monitor deaktiviert.
 - [x] **WLAN-Scan Boot-Scan-Cache + manuelle Eingabe.** Umgesetzt: `imager-wifi-probe.sh` cacht den Boot-Scan nach `/run/tonado/wifi-scan.json`, Wizard zeigt Liste + immer sichtbare manuelle SSID-Eingabe. (Review-Fix: Colon-SSID-Parsing korrigiert, sonst hätte eine `:`-SSID die ganze Liste gekillt.)
@@ -84,7 +84,7 @@ PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 S
 **Offen nach dem Rework (kein Beta-Blocker):**
 
 - [x] **QEMU-Smoke-Test (`scripts/ci/qemu-smoke.sh`) Check-Bugs gefixt — CI-Validierung beim nächsten Build ausstehend.** Der Job ist `continue-on-error: true` und war bei JEDEM Build rot (auch dem ersten grünen), lieferte also kein echtes Gate — alle FAILs waren Check-Fehler, nicht Image-Fehler. Gefixt: (a) **Unit-Check** `[ -e … ]` → `[ -L … ]` (die Stage legt ABSOLUTE Symlinks, denen `-e` vom Mount auf den CI-Host folgt). (b) **cmdline.txt-Checks** lesen jetzt von der gemounteten Boot-Partition `p1` (vorher leerer `/boot`-Mountpoint im Rootfs). (c) **dnsmasq „not enabled"**-Check entfernt (redundant — `mask` überstimmt einen `*.wants`-Überrest, war False-Positive; der „masked"-Check bleibt). (d) **build-essential**-Check auf `find -type f -name 'gcc*'` umgestellt (folgt keinen Symlinks auf den Host mehr; fängt aber ein echtes gcc-Binary). **Offen:** beim nächsten Image-Build prüfen, ob der Smoke-Test grün wird; falls `build-essential purged` dann noch failt, ist gcc real im Image (autoremove unvollständig) — echtes Finding, separat behandeln. `bash -n` clean, lokal nicht ausführbar (braucht Linux+root+losetup).
-- [ ] **DAC-Overlay-Aktivierung von der Wizard-UI aus unerreichbar (MEDIUM).** `setup_audio` kann ein noch-inaktives I2S-Overlay aktivieren, aber die UI sendet immer `hw:N` aus den **erkannten** (= bereits aktiven) Outputs, nie einen logischen DAC-Token. Real geringe Auswirkung, weil das Image `dtoverlay=hifiberry-dac` vorbäckt (DAC normalerweise schon live → no-op korrekt). Sauber wäre: Frontend bietet eine synthetische „HifiBerry DAC"-Option, die `"i2s"` postet, wenn keine I2S-Karte erkannt ist — ODER den toten Heuristik-Zweig entfernen. ([[feedback_validate_backlog_use_case]])
+- [ ] **DAC-Overlay-Aktivierung von der Wizard-UI aus unerreichbar (MEDIUM).** `setup_audio` kann ein noch-inaktives I2S-Overlay aktivieren, aber die UI sendet immer `hw:N` aus den **erkannten** (= bereits aktiven) Outputs, nie einen logischen DAC-Token. Das Image bäckt **kein** `dtoverlay=hifiberry-dac` vor (in `scripts/pi-gen-stage/` nicht vorhanden) — Auswirkung für Boxen mit HifiBerry neu bewerten. Sauber wäre: Frontend bietet eine synthetische „HifiBerry DAC"-Option, die `"i2s"` postet, wenn keine I2S-Karte erkannt ist — ODER den toten Heuristik-Zweig entfernen.
 
 ## UX-Polish (Post-Beta)
 
@@ -94,7 +94,7 @@ PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 S
 
 ## Doku-Pflege
 
-- [ ] **Hardware-Claims breit prüfen.** Punktuelle Reviews wurden gemacht (HifiBerry-Ausrichtung, GPIO-25-Doppelnutzung, PN532-I2C-Adresse). Rest von `docs/fuer-bastler/hardware.md` noch durch einen Bastler mit echtem Pi/HAT gegenlesen lassen, bevor die Doku in Beta geht.
+- [ ] **Hardware-Claims breit prüfen.** Punktuelle Reviews wurden gemacht (HifiBerry-Ausrichtung, GPIO-25-Doppelnutzung, PN532-I2C-Adresse). Rest von `docs/fuer-bastler/hardware.md` noch durch einen Bastler mit echtem Pi/HAT gegenlesen lassen.
 
 ## Prio 2 — Differenzierung
 
@@ -115,7 +115,7 @@ PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 S
 
 ## Prio 3 — Wertvolle Erweiterungen
 
-- [ ] **Pi-Image zum Flashen** (pi-gen): Fertiges Image für nicht-technische Eltern — einmal flashen, einmal im Browser öffnen, fertig. Schließt die Install-Lücke zwischen „technik-affin (SSH)" und „Zielgruppe der Vision". Details in [`docs/fuer-entwickler/install-strategy.md`](docs/fuer-entwickler/install-strategy.md).
+- [x] **Pi-Image zum Flashen** (pi-gen): Ausgeliefert ab v0.4.0-beta (Feld-Validierung mit echten Eltern offen). Details in [`docs/fuer-entwickler/install-strategy.md`](docs/fuer-entwickler/install-strategy.md).
 - [ ] **Box-Name:** Im Setup Wizard festlegen, in Einstellungen nachträglich änderbar. Default "Tonado". Ändert mDNS-Hostname (z.B. `meinebox.local`) und Netzwerk-Discovery-Name.
 - [ ] **Farbschema:** Farbthema der Web-App in den Einstellungen änderbar. Personalisierung der Box-Oberfläche (z.B. Lieblingsfarbe des Kindes).
 - [ ] **Radio/Podcast-Katalog:** Durchsuchbarer Katalog öffentlich-rechtlicher Sender und Podcasts (ARD Audiothek, Deutschlandfunk etc.). Direkt in der App browsen und hinzufügen statt URLs manuell recherchieren und einfügen.
@@ -144,6 +144,7 @@ PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 S
 
 ## Architektur-Refactorings (aus Senior-Review 2026-04-17, Post-Beta)
 
+- [ ] **Hardware-Watchdog mit systemd-notify-Integration** (ehemals Audit-Punkt K7). Der Watchdog ist deaktiviert, bis ein systemd-Ticker im Service existiert (`system_service.py`); bei Hängern startet der Dienst heute nicht von selbst neu.
 - [ ] **InputRouter extrahieren** — GyroService kennt aktuell `card.remove_pauses` (K8-Kopplung) und mappt Gesten auf Playback-Actions selbst. Sobald Buttons, Doppeltipp-RFID oder zukünftige Eingaben dieselbe Kontext-Logik brauchen, duplizierts sich. Sauberer: Gyro emittiert neutrale Gesten (`tilt_forward`, `shake`), ein `InputRouter`/`PlaybackDispatcher` konsumiert alle Input-Quellen und entscheidet kontextabhängig. Macht außerdem das Prio-3-Item "Gyro-Gesten individuell zuweisbar" trivial — nur Dispatcher-Config.
 - [ ] **ConfigKeyRegistry als Single Source of Truth** — Heute gibt es drei Orte, die über Config-Keys entscheiden: `config_whitelist.py` (public writable), `backup_service._RESTORE_CONFIG_SKIP_PREFIXES` (backup-ignore), `gyro_service._on_config_changed` (watcher). Keine Stelle kennt die anderen. Vorschlag: Ein zentrales Registry pro Key mit Metadaten (public-writable, backup-policy, watchers, type, range). Whitelist/Skip/Subscription leiten sich daraus ab, Compiler hilft beim Hinzufügen neuer Keys.
 - [ ] **Response-Schema-Policy statt Feld-Blanking** — M5 maskiert LAN-Metadaten heute händisch (`d["hostname"] = ""`). Skaliert nicht. Sauberer: Zwei Pydantic-Modelle (`SystemInfoPublic` vs. `SystemInfoFull`), Router wählt Modell per Tier. Grenze dokumentiert sich im Schema statt im Handler. Gilt auch für `/system/hardware` und künftige Diagnose-Endpoints.
@@ -154,7 +155,7 @@ PO-Entscheidung 2026-06-11: **Offline-First-Fork.** Welle-Workflow (Plan → 3 S
 - [ ] Phoniebox v2/v3 Daten und Karten-Zuordnungen zu Tonado migrieren.
 - [ ] Audio-Dateien (Symlinks), Karten-Mapping, Hardware-Config, Playlisten.
 - [ ] Erkennung: /home/pi/RPi-Jukebox-RFID/ vorhanden? Version?
-- [ ] Zeitpunkt: Nach `v0.3.0-beta` (frühestens in einer 0.3.x-Iteration).
+- [ ] Zeitpunkt: offen (nach `v0.4.x`).
 
 ## Prio 4 — Zukunft / Hardware-abhängig
 

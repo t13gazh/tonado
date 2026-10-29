@@ -1,42 +1,14 @@
-# sv
+# Tonado Web-App
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
-
-## Creating a project
-
-If you're seeing this, you've probably already done this step. Congrats!
+Frontend von Tonado: Svelte 5 + SvelteKit (`adapter-static`) + Tailwind CSS v4, als PWA ausgeliefert.
 
 ```sh
-# create a new project
-npx sv create my-app
+npm install
+npm run dev      # Dev-Server mit Hot-Reload (Backend auf 127.0.0.1:8080)
+npm run check    # svelte-check
+npm run build    # statischer Build nach web/build/
 ```
 
-To recreate this project with the same configuration:
+`web/build/` ist im Repository eingecheckt, weil auf dem Pi kein Node installiert ist. Nach UI-Änderungen also lokal bauen und den Build mit committen.
 
-```sh
-# recreate this project
-npx sv@0.13.0 create --template minimal --types ts --no-install web
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Mehr dazu: [Entwicklung](../docs/fuer-entwickler/entwicklung.md) · [UI-Guidelines](../docs/fuer-entwickler/UI-GUIDELINES.md)

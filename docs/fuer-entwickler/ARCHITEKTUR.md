@@ -52,9 +52,9 @@ Tonado folgt einer **Service-Architektur**: Unabhängige Python-Services kommuni
                   :6600  SPI   Pins  Bus    WAL
 ```
 
-## Services im Überblick (Stand 2026-04-17)
+## Services im Überblick (Stand v0.4.1-beta)
 
-Tonado hat aktuell 20 Python-Services/Layer. Die wichtigsten acht sind unten detailliert, der Rest folgt in der Kurzübersicht.
+Tonado hat aktuell 21 Python-Services/Layer. Die wichtigsten neun sind unten detailliert, die komplette Liste steht in der Tabelle.
 
 | Service | LOC | Zweck |
 |---------|-----|-------|
@@ -80,7 +80,7 @@ Tonado hat aktuell 20 Python-Services/Layer. Die wichtigsten acht sind unten det
 | `playback_dispatcher` | ~150 | Mappt Karten/Gesten/Buttons auf konkrete Player-Aktionen |
 | `base_service` | ~25 | Start/Stop-Lifecycle-Mixin für alle oben genannten |
 
-Tests: 221 grün (Stand 2026-04-17). Hardware-Services laufen auf Windows/Mac im Mock-Modus, damit die Suite auch ohne Pi grün bleibt.
+Tests: 490 (Stand v0.4.1-beta, `pytest --co`). Hardware-Services laufen auf Windows/Mac im Mock-Modus, damit die Suite auch ohne Pi grün bleibt.
 
 ## Services im Detail
 
@@ -99,8 +99,8 @@ Tests: 221 grün (Stand 2026-04-17). Hardware-Services laufen auf Windows/Mac im
 ### Library Service
 - **Aufgabe:** Audio-Bibliothek verwalten (Browse, Search, Upload)
 - **Storage:** `~/tonado/media/` — Ordner = Album, `cover.jpg` pro Ordner
-- **Upload:** Chunked Upload via tus-Protokoll (resumierbar)
-- **Metadata:** Ordnername ist Titel. Kein ID3-Parsing (bewusste Entscheidung).
+- **Upload:** Streaming-Upload per `POST /api/library/upload/{ordner}` (max. 500 MB pro Datei, kein Resume)
+- **Metadata:** Ordnername ist Titel. Dauer und eingebettete Cover liest `mutagen` aus den Audio-Dateien; ein Cover-Bild im Ordner (`cover.jpg`) hat Vorrang.
 
 ### Stream Service
 - **Aufgabe:** Internetradio, Podcasts (RSS), ARD Audiothek Streams
@@ -216,7 +216,7 @@ CREATE TABLE podcasts (
 - **Input-Validierung** an jeder API-Grenze
 - **PIN-Hashing** mit PBKDF2 (stdlib, kein C-Compiler nötig)
 - **JWT-Tokens** mit kurzer Laufzeit
-- **Read-Only Root-Filesystem** im Produktivbetrieb (OverlayFS)
+- **Read-Only Root-Filesystem** (OverlayFS) — optional, hinter Config-Flag `system.overlayfs_experimental`
 
 ## Performance-Ziele
 

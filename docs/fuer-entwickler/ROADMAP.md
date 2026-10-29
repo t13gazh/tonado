@@ -46,7 +46,7 @@
 ### Phase 5: Content & Streams ✓
 > Nach dieser Phase: Musik-Upload via Browser, Podcast-Feeds, Internetradio, ARD Audiothek-Streams nutzbar.
 
-- File-Upload (Chunked, resumierbar, mit Fortschritt)
+- File-Upload (mit Fortschritt; Resume bei Abbruch steht aus)
 - Ordner-/Playlist-Verwaltung
 - Cover-Art Zuweisung
 - Stream Service (Internetradio URLs)
@@ -72,7 +72,7 @@
 - OverlayFS (Read-Only Root) — opt-in hinter Config-Flag
 - System-Info, Restart, Shutdown im Experten-Bereich
 
-> **Verschoben auf Post-Beta:** Hardware-Watchdog mit systemd-notify-Integration (siehe BACKLOG K7).
+> **Verschoben auf Post-Beta:** Hardware-Watchdog mit systemd-notify-Integration (siehe [Backlog](../../BACKLOG.md), Abschnitt „Architektur-Refactorings").
 
 ### Phase 8: PWA & Polish ✓
 > Nach dieser Phase: App zum Homescreen hinzufügen, Offline-fähig, Performance optimiert.
@@ -83,7 +83,7 @@
 - Accessibility-Audit (Basis-A11y: ARIA, Focus, Kontrast — "Leichte Sprache" bleibt im Backlog für Post-Beta)
 - Dokumentation für Endanwender
 
-## Meilenstein 1.5: Beta-Readiness (v0.2.x → v0.2.0-beta)
+## Meilenstein 1.5: Beta-Readiness (vor v0.3.0-beta)
 > Pre-Beta-Härtung. Referenz: [`PRE-BETA-AUDIT.md`](../archive/PRE-BETA-AUDIT.md). Kein neues Feature, nur Qualität.
 
 - **Security-Härtung** (Phase 1): Auth-Lockdown nach Setup, X-Real-IP hinter nginx, Path-Traversal auf `/play-folder`, Captive-Portal WPA2 + Timeout, Watchdog entschärft, Tier-Checks, globales Rate-Limit, sanitized Error-Responses. ✅ erledigt

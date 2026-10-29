@@ -1,10 +1,10 @@
 # Pi-Image-Architektur
 
-> **Status:** Umgesetzt für `v0.4.0-beta`. Die ursprüngliche Entwurfs-Fassung (Abschnitte 1–8) ist als Begründungs-Historie erhalten; wo sich die reale Umsetzung davon unterscheidet, gilt der **Abschnitt „Stand der Umsetzung"** direkt unten — er ist die maßgebliche Quelle.
+> **Status:** Umgesetzt mit `v0.4.0-beta`, headless-fähig ab `v0.4.1-beta`. Die ursprüngliche Entwurfs-Fassung (Abschnitte 1–8) ist als Begründungs-Historie erhalten; wo sich die reale Umsetzung davon unterscheidet, gilt der **Abschnitt „Stand der Umsetzung"** direkt unten — er ist die maßgebliche Quelle.
 >
 > **Vorarbeit:** [`install-strategy.md`](install-strategy.md) beschreibt die UX-Lücke zwischen SSH-Installation (Alpha) und flashbarem Image (Beta-Ziel).
 
-## Stand der Umsetzung (v0.4.0-beta, maßgeblich)
+## Stand der Umsetzung (v0.4.1-beta, maßgeblich)
 
 Die Boot-Fix-Welle vom 2026-06-10/11 hat das Image vom „bootet headless nicht" zum funktionsfähigen Setup-Pfad gebracht. Wo die Entwurfs-Abschnitte unten abweichen, gilt das hier.
 
@@ -71,11 +71,11 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 
 | # | Aktion Eltern | Dauer | Was im Hintergrund passiert |
 |---|---------------|-------|-----------------------------|
-| 1 | Raspberry Pi Imager öffnen, „Tonado" im Custom-Image-Feld wählen | 1 min | Imager lädt `tonado-<version>-<arch>.img.xz` + prüft SHA256 |
+| 1 | Raspberry Pi Imager öffnen, „Tonado" im Custom-Image-Feld wählen | 1 min | Imager lädt `tonado-<tag>-<target>.img.xz` (`pi-3plus-4-5` oder `pi-zero-w`); die Prüfsumme steht im Release (`SHA256SUMS-<target>.txt`) |
 | 2 | SD-Karte flashen | 2–4 min | Imager schreibt Image, erweitert Root-Partition beim ersten Boot nicht nötig (siehe 2.4) |
 | 3 | SD-Karte rein, Strom an | 30–60 s | First-Boot-Expand, `firstrun.service` (SSH-Keys, rfkill-Unblock, Git-Trust), `tonado-ap.service` startet den **offenen** Setup-AP |
 | 4 | Handy → WLAN „Tonado-Setup" verbinden (**offen, kein Passwort** — siehe „Stand der Umsetzung") | 30 s | Captive-Portal-Redirect öffnet Setup-Wizard im Browser (`http://192.168.4.1`) |
-| 5 | Wizard durchklicken (Heim-WLAN, Audio-Output, Eltern-PIN, Notfall-WLAN, ggf. Figuren) | 3–5 min | Setup-Wizard, am Ende `touch /opt/tonado/config/.setup-complete` |
+| 5 | Wizard durchklicken (Hardware, Heim-WLAN oder „Ohne Internet", Audio, Tasten, Figur, Eltern-PIN, Notfall-WLAN) | 3–5 min | Setup-Wizard, am Ende `touch /opt/tonado/config/.setup-complete` |
 | 6 | Pi wechselt ins Heim-WLAN, Handy **selbst** wieder mit Heim-WLAN verbinden, Box via QR-Code / `tonado.local` erreichen | 30 s | `confirm-complete` stoppt+disabled den Setup-AP aktiv → Handy fällt vom AP, App re-findet die Box per QR/mDNS; das `.setup-complete`-Flag unterdrückt den AP zusätzlich beim nächsten Boot |
 
 **Was im Image vorbereitet ist (Bake-Time):**
@@ -97,7 +97,7 @@ Heutige Referenzen, die dieses Dokument voraussetzt:
 - WLAN-Credentials via `nmcli` in NetworkManager schreiben
 - Heim-WLAN-Probe läuft, **während der Setup-AP noch steht** (falsches Passwort sperrt die Eltern nicht aus); erst `confirm-complete` stoppt+disabled den Setup-AP **aktiv** (`wifi_service.finalize_setup_ap_teardown`) → Handy fällt vom AP, App re-findet die Box per QR/mDNS. Das `.setup-complete`-Flag unterdrückt den AP zusätzlich beim nächsten Boot (`ConditionPathExists=!`) — der AP „überspringt sich" also **nicht** von allein, er wird zur Laufzeit beendet.
 - Hardware-Detection läuft, Audio-Overlay wird ggf. nachträglich in `config.txt` geschrieben (`apply-audio-overlay.sh`) → die Box rebootet am Setup-Ende automatisch, wenn sich das Overlay geändert hat
-- Alles Weitere wie heute in [`core/api/`](../../core/api/) + Svelte-Wizard
+- Alles Weitere wie heute in [`core/routers/`](../../core/routers/) + Svelte-Wizard
 
 ### Widerspruch zu `install-strategy.md`
 
@@ -179,7 +179,7 @@ python3-dev build-essential libffi-dev
 **Begründung `network-manager`:** Pi OS Lite Bookworm nutzt per Default NetworkManager. Wir brauchen ihn für `nmcli` im Wizard (WLAN-Credentials persistent speichern).
 
 **Nicht im Image (Ressourcen-Ersparnis):**
-- ~~`nodejs` / `npm`~~ — Frontend wird **im Build-Container** gebaut, nicht auf dem Pi. Entspricht `feedback_cross_compile.md`.
+- ~~`nodejs` / `npm`~~ — Frontend wird **im Build-Container** gebaut, nicht auf dem Pi. Entspricht der Projektregel: Frontend lokal bauen, `web/build/` committen.
 - ~~`curl`/`wget` zum Laufzeit-Download~~ — alles liegt schon im Image.
 - ~~Python-Compile-Toolchain zur Laufzeit~~ — nur zur Bake-Time, dann `apt-get purge`.
 
@@ -269,7 +269,7 @@ EOF
 
 ## 3. Frontend im Image
 
-**Problem:** `web/build/` ist im Repo committed ([`feedback_prebuilt_frontend.md`](#)), aber bei Zwischen-Commits kann es zu Main passen und der Tag-Commit hat die richtige Version oder nicht.
+**Problem:** `web/build/` ist im Repo committed (Projektregel: Frontend-Build im Repo), aber bei Zwischen-Commits kann es zu Main passen und der Tag-Commit hat die richtige Version oder nicht.
 
 **Entscheidung: Tag-Commit ist Single Source of Truth.**
 
@@ -277,7 +277,7 @@ EOF
 2. Image-Build-CI checkt **den Tag aus**, nicht `main`. Wenn `web/build/index.html` fehlt oder der Hash nicht passt: **Fail Fast**, kein Image.
 3. Zusätzliche Sicherung: Build-CI kann optional `npm install && npm run build` im Docker-Container laufen lassen und das Ergebnis gegen das committete `web/build/` byte-für-byte vergleichen. Wenn Abweichung → Fail Fast. Das deckt den Fall „Release vergessen Frontend zu bauen" ab.
 
-**Node im Image: nein.** Bleibt aus ([`feedback_cross_compile.md`](#)). Build passiert im CI-Container, Pi sieht nie Node.
+**Node im Image: nein.** Bleibt aus (Projektregel: Frontend lokal bauen). Build passiert im CI-Container, Pi sieht nie Node.
 
 **Konsistenz zu system_service.apply_update:** Das heutige Update macht `git pull --ff-only` + `git clean -fd web/build/` — der Clean-Schritt löscht Pi-lokale Build-Artefakte und holt die Repo-Version wieder. Das ist kompatibel zum Image, weil der Image-initiale Zustand exakt der Tag-State ist. Also: kein Fallstrick.
 
@@ -335,8 +335,8 @@ Die Logik (`ConditionPathExists=!/opt/tonado/config/.setup-complete`) bleibt. Si
 
 | Variante | Hardware | pi-gen-Flag | Geschätzte Größe (uncompressed / xz) |
 |----------|----------|-------------|---------------------------------------|
-| `tonado-<version>-arm64.img.xz` | Pi 3B+, 4, 5, Zero 2 W | `RELEASE=bookworm ARCH=arm64` (= Standard) | 2.2 GB / 620 MB |
-| `tonado-<version>-armhf.img.xz` | Pi Zero W (original) | `RELEASE=bookworm ARCH=armhf` (siehe [pi-gen docs](https://github.com/RPi-Distro/pi-gen#pi-gen-on-armhf-aka-32-bit)) | 2.0 GB / 560 MB |
+| `tonado-<tag>-pi-3plus-4-5.img.xz` | Pi 3B+, 4, 5, Zero 2 W (arm64) | `RELEASE=bookworm ARCH=arm64` (= Standard) | 2.2 GB / 620 MB |
+| `tonado-<tag>-pi-zero-w.img.xz` | Pi Zero W (original, armhf) | `RELEASE=bookworm ARCH=armhf` (siehe [pi-gen docs](https://github.com/RPi-Distro/pi-gen#pi-gen-on-armhf-aka-32-bit)) | 2.0 GB / ca. 720 MB (gemessen v0.4.1-beta) |
 
 **Warum zwei Varianten?** Pi Zero W hat BCM2835 (ARMv6) — läuft **nur** auf 32-bit. Alle anderen Pi laufen auf 64-bit. Eine „universal"-32-bit-Variante auf Pi 4/5 wäre ein Performance-Witz.
 
@@ -354,7 +354,7 @@ Tonado-Addon:
 - Tonado Source + web/build: ~15 MB
 - OnOff-SHIM / Captive-Portal-Assets: <1 MB
 
-**Summe uncompressed:** ~1.6 GB. Auf 2 GB padded (pi-gen macht das). `xz -9` komprimiert auf ~580–650 MB. Download-Erfahrung für Eltern: akzeptabel, 2–5 min Download je nach Verbindung.
+**Summe uncompressed:** ~1.6 GB. Auf 2 GB padded (pi-gen macht das). `xz -9` komprimiert auf ~620–720 MB (gemessen v0.4.1-beta). Download-Erfahrung für Eltern: akzeptabel, 2–5 min Download je nach Verbindung.
 
 ### 5.3 Alternative: nur 64-bit, Pi Zero W per Bastler-Script
 
@@ -381,8 +381,8 @@ Das Image enthält `.git/` (siehe [2.4](#24-python-dependencies-im-image)). Wir 
 
 **Zusätzliche Härtung für Image-Installationen:**
 
-- `firstrun.service` ruft `git config --global --add safe.directory /opt/tonado` auf. Bei Image-Owner-Mismatch zwischen pi-gen-Chroot und Pi-Laufzeit kann Git sonst `fatal: detected dubious ownership` werfen.
-- `firstrun.service` ruft `git config user.email "tonado@localhost"` + `user.name "Tonado"` — nicht, weil wir committen, sondern weil manche Git-Operationen ohne Identity meckern.
+- `firstrun.service` schreibt `safe.directory /opt/tonado` direkt in die `~/.gitconfig` des pi-Users (`git config --global` träfe unter systemd `/root`). Bei Image-Owner-Mismatch zwischen pi-gen-Chroot und Pi-Laufzeit kann Git sonst `fatal: detected dubious ownership` werfen.
+- `firstrun.service` setzt `user.email "tonado@localhost"` + `user.name "Tonado"` (ebenfalls direkt in `~/.gitconfig`) — nicht, weil wir committen, sondern weil manche Git-Operationen ohne Identity meckern.
 
 ### 6.3 Übergang zu GitHub-Releases-API (Prio 2.5 in BACKLOG)
 
@@ -395,7 +395,7 @@ Wenn wir später (Post-Beta) von `git pull` auf Download+Extract von GitHub Rele
 | Item | Grund | Wo generiert |
 |------|-------|-------------|
 | SSH-Host-Keys | Sonst teilen alle Tonado-Pis weltweit dieselben Keys → MITM trivial | `firstrun.sh` via `ssh-keygen -A` (nachdem alte keys gelöscht) |
-| Default-User-Passwort | Pi OS Lite hatte früher `pi/raspberry`. Im Image: **kein Passwort für `pi`** → Passwort-SSH-Login unmöglich (`PermitEmptyPasswords no`). Achtung: der Imager-Customization-Dialog erscheint **nicht** bei eigenem `.img.xz`, erzwingt also nichts | Eltern brauchen kein Login (Setup-AP). Bastler: `userconf.txt` manuell auf bootfs (siehe 7.4) |
+| Default-User-Passwort | Pi OS Lite hatte früher `pi/raspberry`. Im Image: **zufälliges, pro-Build verworfenes Passwort für `pi`** (siehe „Stand der Umsetzung") → Passwort-Login praktisch unmöglich. Achtung: der Imager-Customization-Dialog erscheint **nicht** bei eigenem `.img.xz`, erzwingt also nichts | Eltern brauchen kein Login (Setup-AP). Bastler: `userconf.txt` manuell auf bootfs (siehe 7.4) |
 | Setup-AP-PSK | — | **Entfällt: der Setup-AP ist offen** (Option C, siehe 7.2). Der *Recovery-*AP ist WPA2; seine Creds setzen die Eltern im Wizard |
 | Tonado-PIN | Experten-/Eltern-PIN muss vom User gesetzt werden (Setup ist ohne PIN nicht abschließbar) | Setup-Wizard, nicht Image |
 | JWT-Secret | Sonst kann jeder mit Image-JWT alle Boxen angreifen | **`AuthService` erzeugt es pro Gerät in der SQLite-DB** beim ersten Start (kein File); CI-Guard verhindert eine gebackene DB |
@@ -414,11 +414,11 @@ Maßgeblich ist [`system/firstrun.sh`](../../system/firstrun.sh) selbst. Kern: S
 
 **SSH-Server aktiv, aber kein Default-Passwort.** Begründung: Bastler brauchen SSH für Debug; nicht-technische Eltern kommen nie auf die Idee, einen SSH-Client zu öffnen. Die Angriffsfläche ist klein, solange wir kein Default-Passwort liefern.
 
-**Wichtig — der Imager hilft hier NICHT:** Der OS-Customization-Dialog (User/Passwort/SSH-Key/WLAN) erscheint im Raspberry Pi Imager nur bei den offiziellen Pi-OS-Images, die er aus seiner Liste kennt — **nicht** bei einem eigenen `.img.xz` über „Use custom". Es wird also weder ein Passwort noch ein SSH-Key gesetzt. Folge: Der `pi`-User bleibt passwortlos und ein Passwort-SSH-Login ist mangels Passwort unmöglich (`sshd` lehnt leere Passwörter ab). Das ist sicherheitstechnisch eher gut.
+**Wichtig — der Imager hilft hier NICHT:** Der OS-Customization-Dialog (User/Passwort/SSH-Key/WLAN) erscheint im Raspberry Pi Imager nur bei den offiziellen Pi-OS-Images, die er aus seiner Liste kennt — **nicht** bei einem eigenen `.img.xz` über „Use custom". Es wird also weder ein Passwort noch ein SSH-Key gesetzt. Folge: Der `pi`-User hat ein zufälliges, niemandem bekanntes Passwort, ein Passwort-Login ist also praktisch unmöglich. Das ist sicherheitstechnisch eher gut.
 
 Konsequenzen je Zielgruppe:
 - **Eltern:** brauchen nie SSH. Zugang ausschliesslich über den Setup-AP + Wizard (Abschnitt 1), danach `http://tonado.local`.
-- **Bastler/Entwickler:** wer SSH will, legt **nach dem Flashen** auf die `bootfs`-FAT-Partition (im Windows-Explorer/Finder sichtbar) eine `userconf.txt` mit `pi:<crypt-hash>` (Hash via `openssl passwd -6`) und/oder einen Public Key nach `/home/pi/.ssh/authorized_keys`. Mit `DISABLE_FIRST_BOOT_USER_RENAME=0` ist der Bookworm-`userconf`-Mechanismus im Image vorhanden und konsumiert die Datei beim ersten Boot. Beim Pi 3B+/4/5 ist LAN-Kabel der robusteste Headless-Zugang (kein WLAN-Raten nötig).
+- **Bastler/Entwickler:** wer SSH will, legt **nach dem Flashen** auf die `bootfs`-FAT-Partition (im Windows-Explorer/Finder sichtbar) eine `userconf.txt` mit `pi:<crypt-hash>` (Hash via `openssl passwd -6`) und/oder einen Public Key nach `/home/pi/.ssh/authorized_keys`. Der Image-Build setzt `DISABLE_FIRST_BOOT_USER_RENAME=1`; ob die Bookworm-`userconf`-Datei beim ersten Boot dennoch konsumiert wird, ist nicht verifiziert — der robuste Weg ist ein Public Key in `authorized_keys`. Beim Pi 3B+/4/5 ist LAN-Kabel der robusteste Headless-Zugang (kein WLAN-Raten nötig).
 
 ## 8. Rollout-Plan
 
@@ -429,7 +429,7 @@ Konsequenzen je Zielgruppe:
    - Pi 3B+ (arm64) — Standard
    - Pi 4 oder Pi 5 (arm64) — wenn Hardware verfügbar (laut BACKLOG noch nicht zwingend für `v0.4.0-beta`)
 2. **Freundes-Test** — ein nicht-technisches Eltern-Paar bekommt Image + Imager-Anleitung, wir sitzen daneben (nicht dazwischen), messen Time-to-First-Song.
-3. **Release:** GitHub-Release mit beiden `.img.xz`-Varianten + `SHA256SUMS.txt` + detached GPG-Signatur (wenn wir die Signing-Infrastruktur zur Welle „F3 Release-Signatur" aufgebaut haben).
+3. **Release:** GitHub-Release mit beiden `.img.xz`-Varianten + `SHA256SUMS-<target>.txt` + cosign-Signatur (`.sig`/`.pem`, keyless) — umgesetzt, siehe [`pi-image-ci.md`](pi-image-ci.md).
 4. **Doku-Rollout** parallel (siehe 8.3).
 
 ### 8.2 SHA256 + Signatur
@@ -443,8 +443,8 @@ Release-Body-Template (für `gh release create`):
 
 | Hardware | Datei | Größe | SHA256 |
 |----------|-------|-------|--------|
-| Pi Zero W | `tonado-0.4.0-beta-armhf.img.xz` | 580 MB | `abc123…` |
-| Pi 3B+/4/5/Zero 2 | `tonado-0.4.0-beta-arm64.img.xz` | 620 MB | `def456…` |
+| Pi Zero W | `tonado-v0.4.1-beta-pi-zero-w.img.xz` | 720 MB | `abc123…` |
+| Pi 3B+/4/5/Zero 2 | `tonado-v0.4.1-beta-pi-3plus-4-5.img.xz` | 620 MB | `def456…` |
 
 ### Flashen
 
@@ -468,7 +468,7 @@ Diese Files sind **neu zu schreiben**, nicht Teil dieses Architektur-Dokuments:
 
 `install-strategy.md` → noch **aktualisieren** auf den Stand „Image ist jetzt Default, SSH-Pfad ist Fallback für Bastler".
 
-### 8.4 CI-Integration (später, nicht Welle-1-Scope)
+### 8.4 CI-Integration (inzwischen umgesetzt, siehe pi-image-ci.md)
 
 pi-gen baut in QEMU — das läuft **nicht** auf GitHub Actions Standard-Runner (arm64-Emulation ist erlaubt, aber langsam, ~30–60 min pro Image). Optionen:
 
@@ -494,7 +494,7 @@ Ursprünglich vor der Impl-Welle zu beantworten (Ja/Nein oder A/B/C):
 - C) Identisches PSK für alle Images, dokumentiert in `flashen.md` (einfach, aber bei Nachbar-Tonado-Box trivial angreifbar)
 
 **Q3 — Default-SSH im Image:** SSH aktiv lassen?
-- A) Ja, aktiv. `pi` ist passwortlos → Login nur, wenn ein Bastler bewusst `userconf.txt`/Key auf bootfs legt; Eltern-Angriffsfläche bleibt null (empfohlen, Bastler-Kompat). **Korrektur:** Der Imager erzwingt **kein** Passwort/Key bei Custom-Images — siehe 7.4.
+- A) Ja, aktiv. `pi` hat ein zufälliges, unbekanntes Passwort → Login nur, wenn ein Bastler bewusst einen Key hinterlegt; Eltern-Angriffsfläche bleibt null (empfohlen, Bastler-Kompat). **Korrektur:** Der Imager erzwingt **kein** Passwort/Key bei Custom-Images — siehe 7.4.
 - B) Nein, nur per Wizard aktivierbar. Erhöht Aufwand für alle Debug-Pfade.
 
 **Q4 — Wann wird `.setup-complete` gesetzt?**

@@ -63,7 +63,7 @@ jobs:
     name: Build ${{ matrix.target }}
     steps:
       - name: Checkout Tonado
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # PR: the PR head, so the dry-run exercises the *changed* stage.
           # push/dispatch: the release tag being built.
@@ -128,7 +128,7 @@ jobs:
           which qemu-aarch64 qemu-arm qemu-aarch64-static qemu-arm-static
 
       - name: Register binfmt handlers (F-flag for Docker chroot)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           # Force re-registration so any stale handlers from preinstalled
           # qemu-user-static cannot win the binfmt slot.
@@ -142,7 +142,7 @@ jobs:
           cat /proc/sys/fs/binfmt_misc/qemu-arm | head -5
 
       - name: Checkout pi-gen (pinned)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: RPi-Distro/pi-gen
           ref: ${{ matrix.arch == 'arm64' && env.PI_GEN_REF_ARM64 || env.PI_GEN_REF_ARMHF }}
@@ -308,12 +308,12 @@ jobs:
             "${{ steps.img.outputs.name }}"
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ steps.img.outputs.path }}
 
       - name: Upload artifact (PR dry-run + always-available debug copy)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: image-${{ matrix.target }}
           path: pi-gen/deploy/tonado-*
@@ -359,13 +359,13 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - name: Checkout Tonado
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install QEMU
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-arm qemu-utils xz-utils
       - name: Download arm64 image
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: image-pi-3plus-4-5
           path: img
@@ -378,7 +378,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.upload == 'true'
     steps:
       - name: Checkout Tonado
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Assemble + publish release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -7,6 +7,20 @@ Versionierung folgt [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Verbessert
+
+- **Doku-Audit: Falschaussagen und Widersprüche korrigiert.** Upload (einfacher Datei-Upload, kein Resume), Metadaten (Dauer/Cover per `mutagen`), Wizard (7 Schritte), Install-Script (11 Schritte), Update per SSH (inkl. `pip install`), Service-Zahlen, Image-Namen/-Größen, Pi-Modell-Status, SD-Karten-Größe und veraltete „Alpha"-/„bald"-Aussagen an den Ist-Stand angeglichen; defekte Links repariert; interne Arbeitsnotizen aus öffentlichen Dokumenten entfernt. `SECURITY.md` führt jetzt 0.4.x als unterstützt.
+- **Kein „RFID" mehr in der Oberfläche.** Der Setup-Wizard und die System-Seite sagen „Kartenleser" statt „RFID-Leser".
+
+### Behoben
+
+- **Versionsnummer im Paket stimmte nicht mit dem Release überein.** `pyproject.toml` und `web/package.json` standen nach `v0.4.1-beta` noch auf `0.4.0-beta`; App, Health-Endpoint und Update-Vergleich meldeten dadurch die alte Version. Beide stehen jetzt auf `0.4.1-beta`.
+
+### Für Entwickler
+
+- **Pi-Image-Build: `gh release` zielt jetzt aufs Tonado-Repo (`GH_REPO`).** Der Upload-Step läuft im pi-gen-Arbeitsverzeichnis, dessen Git-Origin `RPi-Distro/pi-gen` ist — `gh release create/upload` zielte dadurch auf das fremde Repo, bekam `HTTP 403` und legte das Release nie an („release not found", Build rot trotz erfolgreich gebauter Images). Behoben: `GH_REPO: ${{ github.repository }}` im Upload- und Release-Notes-Step erzwingt das richtige Repo unabhängig vom Arbeitsverzeichnis.
+- **QEMU-Smoke-Test: Check-Fehler behoben.** Unit-Check prüft Symlinks (`-L`), `cmdline.txt` wird von der gemounteten Boot-Partition gelesen, der redundante dnsmasq-Check ist entfallen, der `build-essential`-Check folgt keinen Symlinks mehr auf den Host. Die Checks meldeten vorher bei jedem Build fälschlich Fehler, obwohl das Image korrekt war.
+
 ## [0.4.1-beta] — 2026-06-11
 
 Setup-Wizard-Umbau auf die Single-Radio-Realität plus die headless-Boot-Fixes, die das `v0.4.0-beta`-Image noch nicht enthielt. Der Wizard bekommt eine Offline-First-Gabelung, eine funktionierende WLAN-Liste (Boot-Scan-Cache + manuelle Eingabe) und echte Audio-Aktivierung; der Online-Abschluss schließt die Einrichtung jetzt wirklich ab. **Noch nicht auf echter Hardware re-validiert** — dieses Image ist die Grundlage für die nächste Headless-UAT.
@@ -15,7 +29,7 @@ Setup-Wizard-Umbau auf die Single-Radio-Realität plus die headless-Boot-Fixes, 
 
 - **Setup-Wizard: Offline-First-Gabelung.** Der WLAN-Schritt beginnt jetzt mit zwei gleichwertigen Wegen — „Mit Heim-WLAN verbinden" (für Radio, Podcasts, Updates) und „Ohne Internet nutzen" (Musik und Figuren laufen komplett offline). Der Offline-Weg überspringt WLAN-Suche, -Probe und QR-Wiederfinden: die Box macht das gesicherte Notfall-WLAN „Tonado" zu ihrem dauerhaften Netz und spannt es nach jedem Neustart selbst wieder auf (`captive_portal` owner=`offline`, ohne Timeout). Damit ist der frühere „Endlossuche am Ende"-Sackgassen-Effekt aufgelöst — Eltern ohne Heimnetz kommen sauber bis zum Abschluss. Backend: `POST /api/setup/complete` nimmt `{mode: "online"|"offline"}`, der Offline-Pfad setzt `wifi.offline_mode` + deaktiviert den Auto-Fallback-Monitor.
 - **Setup-Wizard: WLAN-Liste aus Boot-Scan-Cache + immer sichtbare manuelle Eingabe.** Der WLAN-Chip der Box (CYW43455, Pi 3B+/4/5) kann nicht gleichzeitig einen Access-Point halten und nach Netzen suchen — im AP-Modus blieb die Liste darum leer. Jetzt scannt `imager-wifi-probe.sh` einmal beim Boot im Fenster vor dem Setup-AP (während `wlan0` noch frei ist) und legt das Ergebnis nach `/run/tonado/wifi-scan.json`; der Wizard zeigt diese echte Liste, ohne den AP zu stören. Daneben gibt es als gleichwertigen Weg immer eine manuelle Namens-Eingabe („Netz nicht dabei?"). `GET /api/setup/wifi/scan` liefert zusätzlich `source` + `scanned_at`.
-- **Setup-Wizard: Audio-Ausgang wird tatsächlich aktiviert.** Die Auswahl eines I2S-DACs (HifiBerry) schrieb bisher nur den Config-Wert, lud aber kein Overlay — der Testton blieb stumm. Neu: `system/apply-audio-overlay.sh` aktiviert das passende `dtoverlay` in der `config.txt` (mit `dtparam=audio=on`-Konflikt­behandlung), und die Box startet am Ende der Einrichtung bei Bedarf einmal automatisch neu. Der Audio-Schritt weist beim Testton darauf hin, dass er bei einem DAC-Erststart oder Hardware-Wechsel erst nach diesem Neustart hörbar ist.
+- **Setup-Wizard: Audio-Ausgang wird tatsächlich aktiviert.** Die Auswahl eines I2S-DACs (HifiBerry) schrieb bisher nur den Config-Wert, lud aber kein Overlay — der Testton blieb stumm. Neu: `system/apply-audio-overlay.sh` aktiviert das passende `dtoverlay` in der `config.txt` (mit `dtparam=audio=on`-Konfliktbehandlung), und die Box startet am Ende der Einrichtung bei Bedarf einmal automatisch neu. Der Audio-Schritt weist beim Testton darauf hin, dass er bei einem DAC-Erststart oder Hardware-Wechsel erst nach diesem Neustart hörbar ist.
 
 ### Behoben
 
@@ -27,19 +41,18 @@ Setup-Wizard-Umbau auf die Single-Radio-Realität plus die headless-Boot-Fixes, 
 
 ### Für Entwickler
 
-- **Pi-Image-Build: `gh release` zielt jetzt aufs Tonado-Repo (`GH_REPO`).** Der Upload-Step läuft im pi-gen-Arbeitsverzeichnis, dessen Git-Origin `RPi-Distro/pi-gen` ist — `gh release create/upload` zielte dadurch auf das fremde Repo, bekam `HTTP 403` und legte das Release nie an („release not found", Build rot trotz erfolgreich gebauter Images). Behoben: `GH_REPO: ${{ github.repository }}` im Upload- und Release-Notes-Step erzwingt das richtige Repo unabhängig vom Arbeitsverzeichnis.
 - **Pi-Image-Build: BuildKit für den pi-gen-Container deaktiviert (`DOCKER_BUILDKIT=0`).** Der GitHub-Runner aktivierte BuildKit als Default, das die Plattform-Konsistenz von pi-gens `FROM i386/debian:bookworm` strikt prüft und den Build (armhf) mit `InvalidBaseImagePlatform` abbrach. Der klassische Builder erzwingt das nicht — der `v0.4.0-beta`-Tag-Build (Run 27330026900) scheiterte daran, derselbe Workflow lief am Vortag noch durch.
 - **Pi-Image-Build: GitHub-Release wird idempotent angelegt.** Ein gepushter `v*`-Tag erzeugt kein Release-Objekt; der `gh release upload`-Step brach daher mit „release not found" ab (das Image selbst baute sauber, lag aber nur als Workflow-Artefakt vor). Der Build legt das (Pre-)Release jetzt race-tolerant an, bevor er die signierten Images anhängt.
 - **Pi-Image-Build: zufälliges `FIRST_USER_PASS` gesetzt.** pi-gen bricht ab, wenn `DISABLE_FIRST_BOOT_USER_RENAME=1` (nötig gegen den headless-Konsolen-Prompt) ohne gesetztes Passwort läuft (arm64-Build-Abbruch). Der Workflow generiert jetzt ein zufälliges, pro-Build verworfenes Passwort (nie geloggt) — niemandem bekannt, also weder Konsolen- noch SSH-Passwort-Login nutzbar. (Backlog: SSH explizit Key-Only baken + `userconf.txt`-Pfad unter diesem Flag prüfen.)
 
 ## [0.4.0-beta] — 2026-06-11
 
-Pi-Image-Welle: erstes flashbares Tonado-Image für nicht-technische Eltern. Build-Pipeline (pi-gen + signierte Release-Images), kompletter headless-Boot-Fix (Access-Point-Konsolidierung auf einen Mechanismus, fehlende Image-Config-Schritte nachgezogen, dnsmasq-Konflikt behoben, WLAN-Funk entsperrt), neuer Wizard-Schritt fürs Notfall-WLAN und eine Eltern-Flash-Anleitung. Der headless-Image-Pfad ist frisch gebaut und wird auf echter Hardware field-getestet — bis dahin bleibt der SSH-Install-Pfad die erprobte Route.
+Pi-Image-Welle: erstes flashbares Tonado-Image für nicht-technische Eltern. Build-Pipeline (pi-gen + signierte Release-Images), erste headless-Boot-Fixes (Access-Point-Konsolidierung auf einen Mechanismus, fehlende Image-Config-Schritte nachgezogen, dnsmasq-Konflikt behoben, WLAN-Funk entsperrt), neuer Wizard-Schritt fürs Notfall-WLAN und eine Eltern-Flash-Anleitung. **Hinweis:** Das `v0.4.0-beta`-Image enthielt die Boot-Fixes zum Headless-Start noch nicht — sie kamen mit `0.4.1-beta`. Der headless-Image-Pfad ist frisch gebaut und wird auf echter Hardware field-getestet — bis dahin bleibt der SSH-Install-Pfad die erprobte Route.
 
 ### Hinzugefügt
 
-- **GitHub-Actions-Workflow `.github/workflows/pi-image.yml`.** Baut aus einem `v*`-Tag (oder per `workflow_dispatch`) automatisch flashbare Pi-Images mit pi-gen, signiert sie (SHA256 + cosign keyless + Build-Provenance) und hängt sie ans Release. Matrix arm64 (Pi 3B+/4/5) + armhf (Pi Zero W), `fail-fast: false`. Docht an die reale `stage-tonado` an: git-clone-im-Chroot via `TONADO_VERSION`/`TONADO_EXPECTED_SHA`, pi-gen auf Commit-SHA gepinnt. PR-Trigger baut den letzten Release-Tag als Stage-Regressionstest. Helper: `scripts/ci/qemu-smoke.sh` (Offline-Rootfs-Checks + best-effort QEMU-Boot) und `scripts/ci/release-notes.sh` (Flash-Anleitung + Prüfsummen idempotent ans Release). Noch nicht durch echten CI-Run verifiziert.
-- **pi-gen Stage `scripts/pi-gen-stage/stage-tonado/`.** Infrastruktur, um ein Tonado-Image lokal mit pi-gen zu bauen — 10 Stage-Dateien inkl. Package-Liste, systemd-Unit-Symlinks aus dem Repo, Boot-Overlays (SPI, I2C, OnOff SHIM), First-Boot-Service und Install-Marker. Vorbereitung auf flashbare Images für nicht-technische Eltern (Backlog Prio 3).
+- **GitHub-Actions-Workflow `.github/workflows/pi-image.yml`.** Baut aus einem `v*`-Tag (oder per `workflow_dispatch`) automatisch flashbare Pi-Images mit pi-gen, signiert sie (SHA256 + cosign keyless + Build-Provenance) und hängt sie ans Release. Matrix arm64 (Pi 3B+/4/5) + armhf (Pi Zero W), `fail-fast: false`. Docht an die reale `stage-tonado` an: git-clone-im-Chroot via `TONADO_VERSION`/`TONADO_EXPECTED_SHA`, pi-gen auf Commit-SHA gepinnt. PR-Trigger baut den letzten Release-Tag als Stage-Regressionstest. Helper: `scripts/ci/qemu-smoke.sh` (Offline-Rootfs-Checks + best-effort QEMU-Boot) und `scripts/ci/release-notes.sh` (Flash-Anleitung + Prüfsummen idempotent ans Release). Der Workflow ist mit dem Tag-Build Run 27330026900 produktiv gelaufen.
+- **pi-gen Stage `scripts/pi-gen-stage/stage-tonado/`.** Infrastruktur, um ein Tonado-Image lokal mit pi-gen zu bauen — 9 Stage-Dateien inkl. Package-Liste, systemd-Unit-Symlinks aus dem Repo, Boot-Overlays (SPI, I2C, OnOff SHIM), First-Boot-Service und Install-Marker. Vorbereitung auf flashbare Images für nicht-technische Eltern (Backlog Prio 3).
 - **First-Boot-Service `firstrun.service` + `firstrun.sh`.** Läuft beim allerersten Start, rotiert SSH-Host-Keys vor `sshd`-Start, entsperrt den WLAN-Funk (rfkill) und setzt das WLAN-Land, richtet Git-Trust für den pi-User ein. Idempotent, markiert sich nach Erfolg als erledigt. (Das JWT-Secret erzeugt der Auth-Service selbst pro Gerät in der Datenbank — kein toter Datei-Schreibvorgang mehr.)
 - **Imager-WLAN-Probe `imager-wifi-probe.service`.** Beim Boot prüft die Box bis zu 30 Sekunden lang, ob die im Raspberry Pi Imager hinterlegten WLAN-Daten tragen. Klappt’s: kein Setup-WLAN. Klappt’s nicht: Setup-WLAN geht auf, Eltern korrigieren per Browser ohne neu zu flashen.
 - **Wizard-Schritt „Notfall-WLAN" (Recovery-Zugangsdaten).** Im Setup schlägt die Box einen Netzwerknamen (Default „Tonado") + ein starkes Passwort für das Ersatz-WLAN vor; Eltern können beides ändern und notieren (Kühlschrank). Dieses WLAN spannt die Box später selbst auf, wenn sie ihr bekanntes WLAN nicht mehr findet. Endpoints `GET`/`POST /api/setup/recovery-wifi`, gespeichert unter `captive_portal.ap_ssid`/`ap_password`.
@@ -180,10 +193,12 @@ Erster funktionsfähiger Release. Alle 8 Meilenstein-1-Phasen implementiert.
 - Setup-Wizard: 6 Schritte, Re-Run-sicher
 - PWA: Service Worker, Offline-Cache, Homescreen-fähig
 - Auto-Updates, Backup/Restore, OverlayFS-Vorbereitung
-- 113 Backend-Tests, 1.3 MB Frontend (gzipped)
+- 113 Backend-Tests, 1.3 MB Frontend (ungezippt)
 
+[Unreleased]: https://github.com/t13gazh/tonado/compare/v0.4.1-beta...HEAD
+[0.4.1-beta]: https://github.com/t13gazh/tonado/compare/v0.4.0-beta...v0.4.1-beta
+[0.4.0-beta]: https://github.com/t13gazh/tonado/compare/v0.3.1-beta...v0.4.0-beta
 [0.3.1-beta]: https://github.com/t13gazh/tonado/compare/v0.3.0-beta...v0.3.1-beta
 [0.3.0-beta]: https://github.com/t13gazh/tonado/compare/v0.2.1-alpha...v0.3.0-beta
 [0.2.1-alpha]: https://github.com/t13gazh/tonado/compare/v0.2.0-alpha...v0.2.1-alpha
-[0.2.0-alpha]: https://github.com/t13gazh/tonado/compare/v0.1.0-alpha...v0.2.0-alpha
-[0.1.0-alpha]: https://github.com/t13gazh/tonado/releases/tag/v0.1.0-alpha
+[0.2.0-alpha]: https://github.com/t13gazh/tonado/releases/tag/v0.2.0-alpha

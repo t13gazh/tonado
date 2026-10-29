@@ -41,7 +41,7 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 
 ### Hardware-freundlich
 
-- **Hardware-Wizard** erkennt automatisch, was angeschlossen ist — RFID-Reader, Audio-Ausgang, Gyro-Sensor, physische Tasten.
+- **Hardware-Wizard** erkennt automatisch, was angeschlossen ist — Figuren-Lesegerät, Audio-Ausgang, Bewegungssensor, physische Tasten.
 - **Physische Tasten** für Lautstärke / Play-Pause / Skip — einfach an die Box schrauben, Tonado lernt sie im Setup.
 - **Ein- und Ausschalter** (mit einem kleinen Zusatz-Modul, siehe Hardware-Anleitung): sauberes Hoch- und Herunterfahren per Taster, kein Stecker-Ziehen mehr.
 - **Gute Klangqualität:** kleiner Verstärker-Aufsatz (Details in der Hardware-Anleitung), Lautsprecher direkt anschließbar.
@@ -56,7 +56,7 @@ Diese Seite ist für dich, wenn du wissen willst, was deine Box heute tatsächli
 ### Für unterwegs und offline
 
 - **Komplett lokal:** Kein Abo, keine Cloud, kein Tracking. Die Musik bleibt bei dir.
-- **App zum Homescreen:** Die Web-App lässt sich wie eine richtige App aufs Handy legen (PWA).
+- **App zum Homescreen:** Die Web-App lässt sich wie eine richtige App aufs Handy legen: ein Symbol auf dem Startbildschirm, ein Tipp, fertig.
 - **Offline nutzbar:** Lokale Musik-Dateien spielen auch ohne Internet. Nur Radio und Podcasts brauchen das WLAN.
 - **Einrichtung ohne Internet:** Im Einrichtungs-Assistenten „Ohne Internet nutzen" wählen — die Box spannt dann dauerhaft ihr eigenes, gesichertes WLAN auf.
 
@@ -66,7 +66,7 @@ Diese Features sind für die nächsten Versionen geplant.
 
 - **Sprachaufnahme direkt in der App:** Figur auflegen → aufnehmen — fertig. Besonders schön für eigene Gute-Nacht-Geschichten oder Grüße von Großeltern.
 - **Offline-Schalter in der App:** Streaming-Features werden klar als „aus" markiert, lokale Musik läuft weiter. (Die Einrichtung „Ohne Internet" gibt es schon.)
-- **WLAN in der App wechseln:** Neues WLAN hinzufügen, zwischen gespeicherten Netzen umschalten, ohne SSH oder Kabel.
+- **WLAN in der App wechseln:** Neues WLAN hinzufügen, zwischen gespeicherten Netzen umschalten, ohne Computer oder Kabel.
 - **Dateien von der Box herunterladen:** Wenn du Musik auf die Box geladen hast und sie auf dem Handy nicht mehr hast, ziehst du sie dir wieder runter.
 - **Update-Rollback beim Start:** Wenn die Box nach einem Update nicht mehr hochfährt, kehrt sie automatisch zur vorherigen Version zurück.
 - **Offline-Update per USB-Stick:** Update-Paket auf einen USB-Stick ziehen, in die Box stecken — fertig. Praktisch, wenn die Box woanders steht als dein Computer.

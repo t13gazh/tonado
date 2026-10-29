@@ -33,7 +33,7 @@
 	// figure name it's already bound to — the workflow-native place to answer
 	// "is this already used?", which is why we dropped the library-wide filter.
 	const assignedNameByKey = $derived(
-		new Map(cardsList.map((c) => [`${c.content_type}:${c.content_path}`, c.name] as const)),
+		new Map<string, string>(cardsList.map((c) => [`${c.content_type}:${c.content_path}`, c.name])),
 	);
 	function assignedName(key: string): string | null {
 		return assignedNameByKey.get(key) ?? null;

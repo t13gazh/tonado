@@ -11,27 +11,27 @@
 	import { tick, onMount } from 'svelte';
 
 	const mpdOk = $derived(isMpdConnected());
-	const state = $derived(getPlayerState());
-	const isPlaying = $derived(state.state === 'playing');
-	const isStopped = $derived(state.state === 'stopped');
-	const hasTrack = $derived(state.current_track !== '');
-	const isLastTrack = $derived(state.playlist_position >= state.playlist_length - 1);
-	const canPlay = $derived(hasTrack || state.playlist_length > 0);
-	const canSeek = $derived(!state.is_stream && state.duration > 0);
-	const hasQueue = $derived(state.playlist_length > 1);
-	const isLiveStream = $derived(state.is_stream && state.playlist_length <= 1);
-	const trackInfo = $derived(parseTrackName(state.current_track));
+	const playerState = $derived(getPlayerState());
+	const isPlaying = $derived(playerState.state === 'playing');
+	const isStopped = $derived(playerState.state === 'stopped');
+	const hasTrack = $derived(playerState.current_track !== '');
+	const isLastTrack = $derived(playerState.playlist_position >= playerState.playlist_length - 1);
+	const canPlay = $derived(hasTrack || playerState.playlist_length > 0);
+	const canSeek = $derived(!playerState.is_stream && playerState.duration > 0);
+	const hasQueue = $derived(playerState.playlist_length > 1);
+	const isLiveStream = $derived(playerState.is_stream && playerState.playlist_length <= 1);
+	const trackInfo = $derived(parseTrackName(playerState.current_track));
 
 	// Cover source: only for local tracks (not streams/podcasts with absolute URLs).
 	// current_uri is the MPD URI — a relative path for local files, an http(s) URL otherwise.
 	const coverSrc = $derived.by(() => {
 		if (!hasTrack) return undefined;
-		const uri = state.current_uri;
-		if (!uri || state.is_stream) return undefined;
+		const uri = playerState.current_uri;
+		if (!uri || playerState.is_stream) return undefined;
 		if (uri.startsWith('http://') || uri.startsWith('https://')) return undefined;
 		return library.coverUrl(uri, 'track');
 	});
-	const coverTitle = $derived(trackInfo.title || state.current_album || 'Tonado');
+	const coverTitle = $derived(trackInfo.title || playerState.current_album || 'Tonado');
 
 	let volumeChanging = $state(false);
 	let localVolume = $state(50);
@@ -40,18 +40,18 @@
 	const browserPlaying = $derived(getBrowserAudioActive());
 	const browserLoading = $derived(getBrowserAudioLoading());
 	let premuteVolume = $state(50);
-	const shuffleOn = $derived(state.shuffle);
+	const shuffleOn = $derived(playerState.shuffle);
 	let seekDragging = $state(false);
 	let seekOverride = $state(false);
 	let seekThumbVisible = $state(false);
 	let seekLocalProgress = $state(0);
 	let seekHideTimer: ReturnType<typeof setTimeout> | null = null;
 
-	const progress = $derived((seekDragging || seekOverride) ? seekLocalProgress : (state.duration > 0 ? (state.elapsed / state.duration) * 100 : 0));
+	const progress = $derived((seekDragging || seekOverride) ? seekLocalProgress : (playerState.duration > 0 ? (playerState.elapsed / playerState.duration) * 100 : 0));
 
 	$effect(() => {
 		if (!volumeChanging) {
-			localVolume = state.volume;
+			localVolume = playerState.volume;
 		}
 	});
 
@@ -109,7 +109,7 @@
 			const ratio = seekLocalProgress / 100;
 			seekDragging = false;
 			seekOverride = true;
-			player.seek(ratio * state.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
+			player.seek(ratio * playerState.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
 		}
 		showSeekThumb();
 	}
@@ -121,7 +121,7 @@
 		const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 		seekLocalProgress = ratio * 100;
 		seekOverride = true;
-		player.seek(ratio * state.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
+		player.seek(ratio * playerState.duration).then(() => { seekOverride = false; }).catch(() => { seekOverride = false; });
 		showSeekThumb();
 	}
 
@@ -131,7 +131,8 @@
 		seekHideTimer = setTimeout(() => { seekThumbVisible = false; }, 2000);
 	}
 
-	function marquee(node: HTMLElement) {
+	// `_title` is only passed so the action's update() re-runs when the title changes.
+	function marquee(node: HTMLElement, _title?: string) {
 		function setup() {
 			const span = node.querySelector('.marquee-text') as HTMLElement;
 			if (!span) return;
@@ -408,7 +409,7 @@
 	}
 
 	function handleToggle() {
-		if (state.state === 'stopped' && state.playlist_length > 0) {
+		if (playerState.state === 'stopped' && playerState.playlist_length > 0) {
 			player.play();
 		} else {
 			player.toggle();
@@ -519,8 +520,8 @@
 	<!-- Track info below cover -->
 	{#if hasTrack}
 		<div class="text-center max-w-sm w-full overflow-hidden mt-2 sm:mt-3 shrink-0">
-			{#if trackInfo.folder || state.current_album}
-				<p class="text-xs text-text-muted truncate">{state.current_album || trackInfo.folder}</p>
+			{#if trackInfo.folder || playerState.current_album}
+				<p class="text-xs text-text-muted truncate">{playerState.current_album || trackInfo.folder}</p>
 			{/if}
 			{#key trackInfo.title}
 				<p class="text-lg font-semibold text-text mt-0.5 marquee-container animate-fade-up" use:marquee={trackInfo.title}>
@@ -534,7 +535,7 @@
 
 	<!-- Progress bar -->
 	<div class="w-full max-w-sm shrink-0">
-		{#if state.loading}
+		{#if playerState.loading}
 			<div class="w-full h-2 bg-surface-lighter rounded-full overflow-hidden">
 				<div class="h-full w-1/3 bg-primary rounded-full animate-indeterminate"></div>
 			</div>
@@ -547,9 +548,9 @@
 				tabindex={canSeek ? 0 : -1}
 				aria-label={t('player.seek')}
 				aria-valuemin={0}
-				aria-valuemax={Math.round(state.duration)}
-				aria-valuenow={Math.round(state.elapsed)}
-				aria-valuetext={`${formatTime(state.elapsed)} / ${formatTime(state.duration)}`}
+				aria-valuemax={Math.round(playerState.duration)}
+				aria-valuenow={Math.round(playerState.elapsed)}
+				aria-valuetext={`${formatTime(playerState.elapsed)} / ${formatTime(playerState.duration)}`}
 				class="w-full h-2 bg-surface-lighter rounded-full relative {canSeek ? 'cursor-pointer touch-none' : 'cursor-default opacity-50'}"
 				onclick={canSeek ? handleSeekClick : undefined}
 				onpointerdown={canSeek ? handleSeekDragStart : undefined}
@@ -557,8 +558,8 @@
 				onpointerup={canSeek ? handleSeekDragEnd : undefined}
 				onkeydown={canSeek ? (e) => {
 					const step = e.shiftKey ? 30 : 5;
-					if (e.key === 'ArrowRight') { e.preventDefault(); player.seek(Math.min(state.duration, state.elapsed + step)); }
-					else if (e.key === 'ArrowLeft') { e.preventDefault(); player.seek(Math.max(0, state.elapsed - step)); }
+					if (e.key === 'ArrowRight') { e.preventDefault(); player.seek(Math.min(playerState.duration, playerState.elapsed + step)); }
+					else if (e.key === 'ArrowLeft') { e.preventDefault(); player.seek(Math.max(0, playerState.elapsed - step)); }
 				} : undefined}
 			>
 				<div
@@ -573,8 +574,8 @@
 				{/if}
 			</div>
 			<div class="flex justify-between mt-1 text-xs text-text-muted">
-				<span>{formatTime(state.elapsed)}</span>
-			<span>{formatTime(state.duration)}</span>
+				<span>{formatTime(playerState.elapsed)}</span>
+			<span>{formatTime(playerState.duration)}</span>
 		</div>
 		{/if}
 	</div>
@@ -602,7 +603,7 @@
 		{#if !isLiveStream}
 			<button
 				onclick={() => player.previous()}
-				disabled={state.playlist_position <= 0 && state.repeat_mode === 'off'}
+				disabled={playerState.playlist_position <= 0 && playerState.repeat_mode === 'off'}
 				class="p-3 text-text-muted hover:text-text transition-[transform,color,opacity] duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
 				aria-label={t('player.previous')}
 			>
@@ -634,7 +635,7 @@
 		{#if !isLiveStream}
 			<button
 				onclick={() => player.next()}
-				disabled={isLastTrack && state.repeat_mode === 'off'}
+				disabled={isLastTrack && playerState.repeat_mode === 'off'}
 				class="p-3 text-text-muted hover:text-text transition-[transform,color,opacity] duration-100 ease-out active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
 				aria-label={t('player.next')}
 			>
@@ -648,15 +649,15 @@
 		{#if !isLiveStream}
 			<button
 				onclick={() => player.repeat()}
-				class="p-2 transition-[transform,color] duration-100 ease-out active:scale-[0.97] {state.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
+				class="p-2 transition-[transform,color] duration-100 ease-out active:scale-[0.97] {playerState.repeat_mode !== 'off' ? 'text-primary' : 'text-text-muted hover:text-text'}"
 				aria-label={t('player.repeat_aria')}
 			>
-				{#if state.repeat_mode === 'single'}
+				{#if playerState.repeat_mode === 'single'}
 					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
 						<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
 						<text x="12" y="15" text-anchor="middle" font-size="7" font-weight="bold">1</text>
 					</svg>
-				{:else if state.repeat_mode === 'all'}
+				{:else if playerState.repeat_mode === 'all'}
 					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
 						<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
 					</svg>
